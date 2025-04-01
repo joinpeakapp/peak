@@ -1,15 +1,18 @@
-import React, { memo } from 'react';
+import React, { memo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Workout } from '../../types/workout';
+import { WorkoutSettingsModal } from './WorkoutSettingsModal';
 
 interface WorkoutCardProps {
   /** The workout data to display */
   workout: Workout;
   /** Callback function when the card is pressed */
   onPress: () => void;
-  /** Callback function when the settings button is pressed */
-  onSettingsPress: () => void;
+  /** Callback function when the workout is edited */
+  onEdit: () => void;
+  /** Callback function when the workout is deleted */
+  onDelete: () => void;
   /** Whether this workout is scheduled for today */
   isToday?: boolean;
 }
@@ -31,7 +34,8 @@ interface WorkoutCardProps {
  *     series: 5
  *   }}
  *   onPress={() => console.log('Card pressed')}
- *   onSettingsPress={() => console.log('Settings pressed')}
+ *   onEdit={() => console.log('Edit pressed')}
+ *   onDelete={() => console.log('Delete pressed')}
  *   isToday={true}
  * />
  * ```
@@ -39,48 +43,59 @@ interface WorkoutCardProps {
 export const WorkoutCard = memo<WorkoutCardProps>(({
   workout,
   onPress,
-  onSettingsPress,
+  onEdit,
+  onDelete,
   isToday = false,
 }) => {
   const { name, frequency, series } = workout;
   const hasStreak = series > 0;
+  const [isSettingsVisible, setIsSettingsVisible] = useState(false);
 
   return (
-    <TouchableOpacity
-      testID="workout-card"
-      style={styles.container}
-      onPress={onPress}
-    >
-      <View style={styles.content}>
-        <View style={styles.leftContent}>
-          <Text style={styles.name}>{name}</Text>
-          <Text style={styles.frequency}>{frequency}</Text>
-        </View>
-
-        <View style={[styles.seriesContainer, !hasStreak && styles.seriesContainerOff]}>
-          <View style={[styles.flameContainer, !hasStreak && styles.flameContainerOff]}>
-            <View style={[styles.flameShadow, !hasStreak && styles.flameShadowOff]}>
-              <Ionicons 
-                name="flame" 
-                size={20} 
-                color={hasStreak ? "#FF8A24" : "#5B5B5C"} 
-              />
-            </View>
-            <Text style={[styles.seriesText, !hasStreak && styles.seriesTextOff]}>
-              {series}
-            </Text>
+    <>
+      <TouchableOpacity
+        testID="workout-card"
+        style={styles.container}
+        onPress={onPress}
+      >
+        <View style={styles.content}>
+          <View style={styles.leftContent}>
+            <Text style={styles.name}>{name}</Text>
+            <Text style={styles.frequency}>{frequency}</Text>
           </View>
-        </View>
 
-        <TouchableOpacity
-          testID="settings-button"
-          style={styles.settingsButton}
-          onPress={onSettingsPress}
-        >
-          <Ionicons name="settings-outline" size={24} color="#5B5B5C" />
-        </TouchableOpacity>
-      </View>
-    </TouchableOpacity>
+          <View style={[styles.seriesContainer, !hasStreak && styles.seriesContainerOff]}>
+            <View style={[styles.flameContainer, !hasStreak && styles.flameContainerOff]}>
+              <View style={[styles.flameShadow, !hasStreak && styles.flameShadowOff]}>
+                <Ionicons 
+                  name="flame" 
+                  size={20} 
+                  color={hasStreak ? "#FF8A24" : "#5B5B5C"} 
+                />
+              </View>
+              <Text style={[styles.seriesText, !hasStreak && styles.seriesTextOff]}>
+                {series}
+              </Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            testID="settings-button"
+            style={styles.settingsButton}
+            onPress={() => setIsSettingsVisible(true)}
+          >
+            <Ionicons name="settings-outline" size={24} color="#5B5B5C" />
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+
+      <WorkoutSettingsModal
+        visible={isSettingsVisible}
+        onClose={() => setIsSettingsVisible(false)}
+        onEdit={onEdit}
+        onDelete={onDelete}
+      />
+    </>
   );
 });
 

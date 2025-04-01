@@ -3,20 +3,52 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { Ionicons } from '@expo/vector-icons';
 import { WorkoutCard } from './WorkoutCard';
 import { Workout } from '../../types/workout';
+import { useWorkout } from '../../hooks/useWorkout';
 
 interface WorkoutListProps {
+  /** Array of workouts to display */
   workouts: Workout[];
+  /** Callback function when a workout is pressed */
   onWorkoutPress: (workout: Workout) => void;
-  onWorkoutSettingsPress: (workout: Workout) => void;
+  /** Callback function when add button is pressed */
   onAddPress: () => void;
 }
 
-export const WorkoutList: React.FC<WorkoutListProps> = ({
-  workouts,
+/**
+ * A list component that displays workout cards.
+ * 
+ * @component
+ * @example
+ * ```tsx
+ * <WorkoutList workouts={[
+ *   {
+ *     id: '1',
+ *     name: 'Morning Workout',
+ *     date: '2024-03-20',
+ *     duration: 60,
+ *     exercises: [],
+ *     frequency: 'Monday',
+ *     series: 5
+ *   }
+ * ]} />
+ * ```
+ */
+export const WorkoutList: React.FC<WorkoutListProps> = ({ 
+  workouts, 
   onWorkoutPress,
-  onWorkoutSettingsPress,
-  onAddPress,
+  onAddPress 
 }) => {
+  const { removeWorkout } = useWorkout();
+
+  const handleEdit = (workoutId: string) => {
+    // TODO: Implement edit functionality
+    console.log('Edit workout:', workoutId);
+  };
+
+  const handleDelete = (workoutId: string) => {
+    removeWorkout(workoutId);
+  };
+
   const today = new Date().toISOString().split('T')[0];
   const todayWorkout = workouts.find(w => w.date === today);
   const otherWorkouts = workouts.filter(w => w.date !== today);
@@ -37,7 +69,8 @@ export const WorkoutList: React.FC<WorkoutListProps> = ({
             <WorkoutCard
               workout={todayWorkout}
               onPress={() => onWorkoutPress(todayWorkout)}
-              onSettingsPress={() => onWorkoutSettingsPress(todayWorkout)}
+              onEdit={() => handleEdit(todayWorkout.id)}
+              onDelete={() => handleDelete(todayWorkout.id)}
               isToday={true}
             />
           </View>
@@ -51,7 +84,9 @@ export const WorkoutList: React.FC<WorkoutListProps> = ({
                 key={workout.id}
                 workout={workout}
                 onPress={() => onWorkoutPress(workout)}
-                onSettingsPress={() => onWorkoutSettingsPress(workout)}
+                onEdit={() => handleEdit(workout.id)}
+                onDelete={() => handleDelete(workout.id)}
+                isToday={false}
               />
             ))}
           </View>
