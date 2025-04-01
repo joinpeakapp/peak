@@ -1,88 +1,77 @@
-# Peak - Mobile Workout Tracking App
+# Peak App
 
-A mobile application built with Expo and React Native for tracking workouts, displaying workout details, rewards, photos, and progress journal.
+Une application mobile de suivi d'entraînement construite avec React Native et Expo.
 
-## Features
+## Fonctionnalités
 
-- Track workouts and exercises
-- View workout history and details
-- Add photos to workouts
-- Track progress over time
-- Modern and intuitive UI
+- 📱 Interface utilisateur moderne et intuitive
+- 💪 Suivi des workouts et des exercices
+- 🔥 Système de streak pour motiver la régularité
+- 📊 Suivi des records personnels
+- 🎯 Catégorisation des exercices par partie du corps
+- 💾 Stockage local des données
 
-## Prerequisites
+## Technologies Utilisées
 
-- Node.js (v14 or later)
-- npm or yarn
-- Expo CLI (`npm install -g expo-cli`)
-- iOS Simulator (for Mac users) or Android Studio (for Android development)
+- React Native
+- Expo
+- TypeScript
+- Redux Toolkit
+- Jest & React Testing Library
 
-## Getting Started
+## Installation
 
-1. Install dependencies:
+1. Cloner le repository :
+```bash
+git clone https://github.com/votre-username/peak-app.git
+cd peak-app
+```
+
+2. Installer les dépendances :
 ```bash
 npm install
 ```
 
-2. Start the development server:
+3. Lancer l'application :
 ```bash
 npm start
 ```
 
-3. Run on your device:
-   - Install the Expo Go app on your iOS or Android device
-   - Scan the QR code that appears in the terminal
-   - Or press 'i' for iOS simulator or 'a' for Android emulator
-
-## Project Structure
+## Structure du Projet
 
 ```
 src/
-├── assets/         # Images, fonts, and other static files
-├── components/     # Reusable UI components
-├── constants/      # App-wide constants and configuration
-├── hooks/          # Custom React hooks
-├── navigation/     # Navigation configuration
-├── screens/        # Screen components
-├── services/       # API and other services
-├── types/          # TypeScript type definitions
-└── utils/          # Utility functions
+├── components/     # Composants réutilisables
+├── hooks/         # Custom hooks
+├── navigation/    # Configuration de la navigation
+├── screens/       # Écrans de l'application
+├── store/         # Configuration Redux
+├── types/         # Types TypeScript
+└── utils/         # Fonctions utilitaires
 ```
 
-## Development
+## Tests
 
-- The app uses TypeScript for type safety
-- Follow the established project structure for new features
-- Use functional components with hooks
-- Implement proper error handling
-- Add tests for new features
+L'application utilise Jest et React Testing Library pour les tests unitaires et d'intégration.
 
-## Testing
-
-Run tests:
+Pour lancer les tests :
 ```bash
 npm test
 ```
 
-## Building for Production
-
-1. Configure app.json with your app details
-2. Build for iOS:
+Pour lancer les tests en mode watch :
 ```bash
-expo build:ios
+npm run test:watch
 ```
 
-3. Build for Android:
-```bash
-expo build:android
-```
+## Contribution
 
-## Contributing
+1. Fork le projet
+2. Créer une branche pour votre fonctionnalité (`git checkout -b feature/AmazingFeature`)
+3. Commit vos changements (`git commit -m 'Add some AmazingFeature'`)
+4. Push vers la branche (`git push origin feature/AmazingFeature`)
+5. Ouvrir une Pull Request
 
-1. Create a new branch for your feature
-2. Make your changes
-3. Submit a pull request
+## Licence
 
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details. 
+Ce projet est sous licence MIT. Voir le fichier `LICENSE` pour plus de détails. 

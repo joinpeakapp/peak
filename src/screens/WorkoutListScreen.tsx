@@ -4,12 +4,14 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  TouchableOpacity,
   SafeAreaView,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { Workout } from '../types/workout';
+import { Card } from '../components/common/Card';
+import { Button } from '../components/common/Button';
+import { theme } from '../constants/theme';
 
 type WorkoutListScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'WorkoutList'>;
@@ -23,11 +25,15 @@ const EmptyState = () => (
 );
 
 const WorkoutCard = ({ workout, onPress }: { workout: Workout; onPress: () => void }) => (
-  <TouchableOpacity style={styles.card} onPress={onPress}>
+  <Card onPress={onPress} variant="elevated">
     <Text style={styles.workoutName}>{workout.name}</Text>
-    <Text style={styles.workoutDate}>{new Date(workout.date).toLocaleDateString()}</Text>
-    <Text style={styles.workoutDuration}>{workout.duration} minutes</Text>
-  </TouchableOpacity>
+    <Text style={styles.workoutDate}>
+      {new Date(workout.date).toLocaleDateString()}
+    </Text>
+    <Text style={styles.workoutDuration}>
+      {workout.duration} minutes
+    </Text>
+  </Card>
 );
 
 export const WorkoutListScreen: React.FC<WorkoutListScreenProps> = ({ navigation }) => {
@@ -59,9 +65,14 @@ export const WorkoutListScreen: React.FC<WorkoutListScreenProps> = ({ navigation
           contentContainerStyle={styles.listContainer}
         />
       )}
-      <TouchableOpacity style={styles.fab} onPress={handleCreateWorkout}>
-        <Text style={styles.fabText}>+</Text>
-      </TouchableOpacity>
+      <View style={styles.fabContainer}>
+        <Button
+          title="+"
+          onPress={handleCreateWorkout}
+          size="large"
+          style={styles.fab}
+        />
+      </View>
     </SafeAreaView>
   );
 };
@@ -69,75 +80,50 @@ export const WorkoutListScreen: React.FC<WorkoutListScreenProps> = ({ navigation
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: theme.colors.background,
   },
   listContainer: {
-    padding: 16,
+    padding: theme.spacing.md,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: theme.spacing.xl,
   },
   emptyText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 8,
+    ...theme.typography.h2,
+    marginBottom: theme.spacing.sm,
+    color: theme.colors.text,
   },
   emptySubText: {
-    fontSize: 16,
-    color: '#666',
-  },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    ...theme.typography.body,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
   },
   workoutName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 4,
+    ...theme.typography.h3,
+    marginBottom: theme.spacing.xs,
+    color: theme.colors.text,
   },
   workoutDate: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 4,
+    ...theme.typography.body,
+    color: theme.colors.textSecondary,
+    marginBottom: theme.spacing.xs,
   },
   workoutDuration: {
-    fontSize: 14,
-    color: '#666',
+    ...theme.typography.body,
+    color: theme.colors.textSecondary,
+  },
+  fabContainer: {
+    position: 'absolute',
+    right: theme.spacing.md,
+    bottom: theme.spacing.md,
   },
   fab: {
-    position: 'absolute',
-    right: 16,
-    bottom: 16,
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#f4511e',
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-  },
-  fabText: {
-    fontSize: 24,
-    color: '#fff',
+    padding: 0,
   },
 }); 

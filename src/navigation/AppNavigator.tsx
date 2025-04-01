@@ -1,49 +1,43 @@
 import React from 'react';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { WorkoutListScreen } from '../screens/WorkoutListScreen';
-import { CreateWorkoutScreen } from '../screens/CreateWorkoutScreen';
-import { WorkoutDetailScreen } from '../screens/WorkoutDetailScreen';
+import { Ionicons } from '@expo/vector-icons';
+import { WorkoutsScreen } from '../workout/screens/WorkoutsScreen';
 
-export type RootStackParamList = {
-  WorkoutList: undefined;
-  CreateWorkout: undefined;
-  WorkoutDetail: { workoutId: string };
-};
-
-const Stack = createNativeStackNavigator<RootStackParamList>();
+const Tab = createBottomTabNavigator();
 
 export const AppNavigator = () => {
   return (
     <NavigationContainer>
-      <Stack.Navigator
-        initialRouteName="WorkoutList"
+      <Tab.Navigator
         screenOptions={{
-          headerStyle: {
-            backgroundColor: '#f4511e',
+          headerShown: false,
+          tabBarStyle: {
+            backgroundColor: '#0D0D0F',
+            borderTopColor: 'rgba(255, 255, 255, 0.1)',
           },
-          headerTintColor: '#fff',
+          tabBarActiveTintColor: '#FF8A24',
+          tabBarInactiveTintColor: '#5B5B5C',
+          headerStyle: {
+            backgroundColor: '#0D0D0F',
+          },
+          headerTintColor: '#FFFFFF',
           headerTitleStyle: {
-            fontWeight: 'bold',
+            fontWeight: '600',
           },
         }}
       >
-        <Stack.Screen 
-          name="WorkoutList" 
-          component={WorkoutListScreen} 
-          options={{ title: 'My Workouts' }}
+        <Tab.Screen
+          name="Workouts"
+          component={WorkoutsScreen}
+          options={{
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="barbell-outline" size={size} color={color} />
+            ),
+          }}
         />
-        <Stack.Screen 
-          name="CreateWorkout" 
-          component={CreateWorkoutScreen} 
-          options={{ title: 'New Workout' }}
-        />
-        <Stack.Screen 
-          name="WorkoutDetail" 
-          component={WorkoutDetailScreen} 
-          options={{ title: 'Workout Details' }}
-        />
-      </Stack.Navigator>
+        {/* Autres onglets à ajouter ici */}
+      </Tab.Navigator>
     </NavigationContainer>
   );
 }; 
