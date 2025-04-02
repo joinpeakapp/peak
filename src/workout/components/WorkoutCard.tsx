@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
     }),
   },
   seriesText: {
-    color: '#FF8A24',
+    color: '#FFFFFF',
     marginLeft: 4,
     fontSize: 14,
     fontWeight: '600',

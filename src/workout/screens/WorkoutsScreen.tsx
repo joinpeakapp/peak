@@ -6,8 +6,9 @@ import { ErrorMessage } from '../../components/common/ErrorMessage';
 import { useWorkout } from '../../hooks/useWorkout';
 import { Workout } from '../../types/workout';
 import { mockWorkouts } from '../../data/mockWorkouts';
+import { WorkoutsScreenProps } from '../../types/navigation';
 
-export const WorkoutsScreen: React.FC = () => {
+export const WorkoutsScreen: React.FC<WorkoutsScreenProps> = ({ navigation }) => {
   const { workouts, loading, error, createWorkout, removeWorkout } = useWorkout();
 
   // Charger les données de test au montage du composant
@@ -19,18 +20,13 @@ export const WorkoutsScreen: React.FC = () => {
   }, []);
 
   const handleWorkoutPress = (workout: Workout) => {
-    // TODO: Navigation vers les détails du workout
-    console.log('Workout pressed:', workout.id);
-  };
-
-  const handleWorkoutSettingsPress = (workout: Workout) => {
-    // TODO: Afficher le menu de paramètres du workout
-    console.log('Workout settings pressed:', workout.id);
+    // Navigation vers les détails du workout
+    navigation.navigate('WorkoutDetail', { workoutId: workout.id });
   };
 
   const handleAddPress = () => {
-    // TODO: Navigation vers l'écran de création de workout
-    console.log('Add workout pressed');
+    // Navigation vers l'écran de création de workout
+    navigation.navigate('WorkoutCreation');
   };
 
   if (loading) {
@@ -46,7 +42,6 @@ export const WorkoutsScreen: React.FC = () => {
       <WorkoutList
         workouts={workouts}
         onWorkoutPress={handleWorkoutPress}
-        onWorkoutSettingsPress={handleWorkoutSettingsPress}
         onAddPress={handleAddPress}
       />
     </View>
