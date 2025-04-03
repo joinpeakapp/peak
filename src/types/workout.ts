@@ -23,8 +23,14 @@ export interface Workout {
   exercises: Exercise[]; // Liste des exercices
   notes?: string;      // Notes sur la séance (optionnel)
   photos?: string[];   // Photos de la séance (optionnel)
-  frequency: string;   // Format: "Lundi" ou "Tous les 3 jours"
-  series: number;      // Nombre de fois que le workout a été réalisé
+  frequency: any;      // Format flexible pour permettre des types de fréquence variés
+  series: number;      // Nombre de fois que le workout a été réalisé (streak)
+}
+
+// Pour gestion de la fréquence avec structure
+export interface WorkoutFrequency {
+  type: 'weekly' | 'interval';  // Type de fréquence
+  value: number;                // Valeur numérique (jour de la semaine ou intervalle en jours)
 }
 
 // État initial pour le store Redux
