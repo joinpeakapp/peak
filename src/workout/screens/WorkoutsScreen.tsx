@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { WorkoutList } from '../components/WorkoutList';
 import { LoadingSpinner } from '../../components/common/LoadingSpinner';
@@ -6,16 +6,18 @@ import { ErrorMessage } from '../../components/common/ErrorMessage';
 import { useWorkout } from '../../hooks/useWorkout';
 import { Workout } from '../../types/workout';
 import { mockWorkouts } from '../../data/mockWorkouts';
+import { WorkoutCreationModal } from '../components/WorkoutCreationModal';
 
 export const WorkoutsScreen: React.FC = () => {
-  const { workouts, loading, error, createWorkout, removeWorkout } = useWorkout();
+  const { workouts, loading, error, createWorkout } = useWorkout();
+  const [isCreationModalVisible, setIsCreationModalVisible] = useState(false);
 
   // Charger les données de test au montage du composant
   useEffect(() => {
-    // Supprimer tous les workouts existants
-    workouts.forEach(workout => removeWorkout(workout.id));
-    // Ajouter les workouts de test
-    mockWorkouts.forEach(workout => createWorkout(workout));
+    // Cette logique est pour le développement uniquement
+    if (workouts.length === 0) {
+      mockWorkouts.forEach(workout => createWorkout(workout));
+    }
   }, []);
 
   const handleWorkoutPress = (workout: Workout) => {
@@ -29,8 +31,12 @@ export const WorkoutsScreen: React.FC = () => {
   };
 
   const handleAddPress = () => {
-    // TODO: Navigation vers l'écran de création de workout
-    console.log('Add workout pressed');
+    // Ouvrir la modale de création
+    setIsCreationModalVisible(true);
+  };
+
+  const handleCloseCreationModal = () => {
+    setIsCreationModalVisible(false);
   };
 
   if (loading) {
@@ -46,8 +52,12 @@ export const WorkoutsScreen: React.FC = () => {
       <WorkoutList
         workouts={workouts}
         onWorkoutPress={handleWorkoutPress}
-        onWorkoutSettingsPress={handleWorkoutSettingsPress}
         onAddPress={handleAddPress}
+      />
+      
+      <WorkoutCreationModal 
+        visible={isCreationModalVisible}
+        onClose={handleCloseCreationModal}
       />
     </View>
   );

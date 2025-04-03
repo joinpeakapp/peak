@@ -54,7 +54,7 @@ export const useWorkout = () => {
 
   /**
    * Creates a new workout and adds it to the store.
-   * @param workout - The workout to create
+   * @param workout - The workout to create (without ID)
    */
   const createWorkout = (workout: Omit<Workout, 'id'>) => {
     dispatch(addWorkout(workout));
@@ -73,6 +73,7 @@ export const useWorkout = () => {
    * @param workoutId - The ID of the workout to remove
    */
   const removeWorkout = (workoutId: string) => {
+    console.log('Removing workout with ID:', workoutId);
     dispatch(deleteWorkout(workoutId));
   };
 
@@ -83,7 +84,7 @@ export const useWorkout = () => {
    * @param exercise - The updated exercise
    */
   const modifyExercise = (workoutId: string, exerciseId: string, exercise: Exercise) => {
-    dispatch(updateExercise({ workoutId, exerciseId, exercise }));
+    dispatch(updateExercise({ workoutId, exercise }));
   };
 
   /**

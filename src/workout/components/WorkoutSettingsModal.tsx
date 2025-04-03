@@ -77,6 +77,24 @@ export const WorkoutSettingsModal: React.FC<WorkoutSettingsModalProps> = ({
     }
   }, [visible]);
 
+  // Fonctions améliorées pour assurer une fermeture correcte
+  const handleEditPress = () => {
+    // Fermer d'abord la modale, puis appeler onEdit après un court délai
+    onClose();
+    setTimeout(() => {
+      onEdit();
+    }, 50);
+  };
+
+  const handleDeletePress = () => {
+    // Fermer d'abord la modale, puis appeler onDelete après un délai suffisant
+    // pour que l'animation de fermeture soit complète
+    onClose();
+    setTimeout(() => {
+      onDelete();
+    }, 350); // Légèrement plus long que la durée de l'animation (300ms)
+  };
+
   return (
     <Modal
       visible={visible}
@@ -112,10 +130,7 @@ export const WorkoutSettingsModal: React.FC<WorkoutSettingsModalProps> = ({
           
           <TouchableOpacity
             style={styles.option}
-            onPress={() => {
-              onEdit();
-              onClose();
-            }}
+            onPress={handleEditPress}
           >
             <Ionicons name="pencil-outline" size={24} color="#FFFFFF" />
             <Text style={styles.optionText}>Modifier les informations</Text>
@@ -123,10 +138,7 @@ export const WorkoutSettingsModal: React.FC<WorkoutSettingsModalProps> = ({
 
           <TouchableOpacity
             style={[styles.option, styles.deleteOption]}
-            onPress={() => {
-              onDelete();
-              onClose();
-            }}
+            onPress={handleDeletePress}
           >
             <Ionicons name="trash-outline" size={24} color="#FF3B30" />
             <Text style={[styles.optionText, styles.deleteText]}>

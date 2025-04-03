@@ -19,10 +19,20 @@ const workoutSlice = createSlice({
       state.workouts = action.payload;
     },
     // Ajouter une nouvelle séance
-    addWorkout: (state, action: PayloadAction<Workout>) => {
-      state.workouts.push(action.payload);
+    addWorkout: (state, action: PayloadAction<Omit<Workout, 'id'>>) => {
+      // Générer un ID unique pour le workout
+      const id = Date.now().toString() + Math.random().toString(36).substring(2, 9);
+      const newWorkout = { 
+        ...action.payload, 
+        id,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      
+      state.workouts.push(newWorkout);
+      
       // Mise à jour des records personnels
-      action.payload.exercises.forEach(exercise => {
+      newWorkout.exercises.forEach(exercise => {
         if (exercise.weight && exercise.reps) {
           const key = `${exercise.name}_${exercise.reps}`;
           const currentRecord = state.personalRecords[key];
@@ -30,11 +40,12 @@ const workoutSlice = createSlice({
             state.personalRecords[key] = {
               weight: exercise.weight,
               reps: exercise.reps,
-              date: action.payload.date,
+              date: newWorkout.date,
             };
           }
         }
       });
+      
       // Sauvegarde dans le stockage local
       StorageService.saveWorkouts(state.workouts);
       StorageService.savePersonalRecords(state.personalRecords);
@@ -65,7 +76,12 @@ const workoutSlice = createSlice({
     },
     // Supprimer une séance
     deleteWorkout: (state, action: PayloadAction<string>) => {
-      state.workouts = state.workouts.filter(w => w.id !== action.payload);
+      const workoutIdToDelete = action.payload;
+      console.log('Deleting workout with ID:', workoutIdToDelete);
+      
+      // Filtrer le workout à supprimer en se basant sur son ID exact
+      state.workouts = state.workouts.filter(workout => workout.id !== workoutIdToDelete);
+      
       // Sauvegarde dans le stockage local
       StorageService.saveWorkouts(state.workouts);
     },

@@ -80,6 +80,8 @@ const getTabBarVisibility = (route: any) => {
     'WorkoutDetail', 
     'WorkoutEdit', 
     'WorkoutCreate',
+    'WorkoutCreateName',
+    'WorkoutCreateFrequency',
     'JournalDetail',
     'JournalCreate',
     'ProfileEdit',

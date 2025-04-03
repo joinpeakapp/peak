@@ -58,7 +58,7 @@ const formatFrequency = (frequency: any): string => {
  *     duration: 60,
  *     exercises: [],
  *     frequency: 'Monday',
- *     series: 5
+ *     streak: 5
  *   }}
  *   onPress={() => console.log('Card pressed')}
  *   onEdit={() => console.log('Edit pressed')}
@@ -72,8 +72,8 @@ export const WorkoutCard = memo<WorkoutCardProps>(({
   onEdit,
   onDelete,
 }) => {
-  const { name, frequency, series } = workout;
-  const hasStreak = series > 0;
+  const { name, frequency, streak } = workout;
+  const hasStreak = streak > 0;
   const [isSettingsVisible, setIsSettingsVisible] = useState(false);
 
   return (
@@ -89,7 +89,7 @@ export const WorkoutCard = memo<WorkoutCardProps>(({
             <Text style={styles.frequency}>{formatFrequency(frequency)}</Text>
           </View>
 
-          <View style={[styles.seriesContainer, !hasStreak && styles.seriesContainerOff]}>
+          <View style={[styles.streakContainer, !hasStreak && styles.streakContainerOff]}>
             <View style={[styles.flameContainer, !hasStreak && styles.flameContainerOff]}>
               <View style={[styles.flameShadow, !hasStreak && styles.flameShadowOff]}>
                 <Ionicons 
@@ -98,8 +98,8 @@ export const WorkoutCard = memo<WorkoutCardProps>(({
                   color={hasStreak ? "#FF8A24" : "#5B5B5C"} 
                 />
               </View>
-              <Text style={[styles.seriesText, !hasStreak && styles.seriesTextOff]}>
-                {series}
+              <Text style={[styles.streakText, !hasStreak && styles.streakTextOff]}>
+                {streak}
               </Text>
             </View>
           </View>
@@ -152,7 +152,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#5B5B5C',
   },
-  seriesContainer: {
+  streakContainer: {
     backgroundColor: 'rgba(255, 138, 36, 0.1)',
     borderWidth: 1,
     borderColor: 'rgba(255, 138, 36, 0.5)',
@@ -161,7 +161,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     marginHorizontal: 12,
   },
-  seriesContainerOff: {
+  streakContainerOff: {
     backgroundColor: 'transparent',
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
@@ -195,13 +195,13 @@ const styles = StyleSheet.create({
       },
     }),
   },
-  seriesText: {
+  streakText: {
     color: '#FFFFFF',
     marginLeft: 4,
     fontSize: 14,
     fontWeight: '600',
   },
-  seriesTextOff: {
+  streakTextOff: {
     color: '#5B5B5C',
   },
   settingsButton: {

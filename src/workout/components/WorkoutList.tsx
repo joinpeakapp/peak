@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { WorkoutCard } from './WorkoutCard';
@@ -28,7 +28,7 @@ interface WorkoutListProps {
  *     duration: 60,
  *     exercises: [],
  *     frequency: 'Monday',
- *     series: 5
+ *     streak: 5
  *   }
  * ]} />
  * ```

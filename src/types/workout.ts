@@ -23,8 +23,11 @@ export interface Workout {
   exercises: Exercise[]; // Liste des exercices
   notes?: string;      // Notes sur la séance (optionnel)
   photos?: string[];   // Photos de la séance (optionnel)
-  frequency: any;      // Format flexible pour permettre des types de fréquence variés
-  series: number;      // Nombre de fois que le workout a été réalisé (streak)
+  frequency: WorkoutFrequency; // Fréquence de l'entraînement
+  streak: number;      // Nombre consécutif de fois que le workout a été réalisé
+  nextDueDate: string; // Prochaine date prévue pour le workout
+  createdAt?: string;  // Date de création du workout (optionnel)
+  updatedAt?: string;  // Date de dernière modification (optionnel)
 }
 
 // Pour gestion de la fréquence avec structure
