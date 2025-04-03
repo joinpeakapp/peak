@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   View, 
   StyleSheet, 
@@ -10,7 +10,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   TouchableWithoutFeedback,
-  Keyboard
+  Keyboard,
+  BackHandler
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -22,6 +23,7 @@ interface FullScreenModalProps {
 }
 
 const { height } = Dimensions.get('window');
+const ANIMATION_DURATION = 250;
 
 /**
  * Composant de modale plein écran qui commence à 64px du haut de l'écran
@@ -32,11 +34,13 @@ export const FullScreenModal: React.FC<FullScreenModalProps> = ({
   children,
   title
 }) => {
+  const [modalVisible, setModalVisible] = useState(visible);
   const slideAnim = React.useRef(new Animated.Value(height)).current;
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
+      setModalVisible(true);
       // Animation d'entrée de la modale
       Animated.parallel([
         Animated.spring(slideAnim, {
@@ -46,7 +50,7 @@ export const FullScreenModal: React.FC<FullScreenModalProps> = ({
         }),
         Animated.timing(fadeAnim, {
           toValue: 1,
-          duration: 250,
+          duration: ANIMATION_DURATION,
           useNativeDriver: true
         })
       ]).start();
@@ -55,28 +59,63 @@ export const FullScreenModal: React.FC<FullScreenModalProps> = ({
       Animated.parallel([
         Animated.timing(slideAnim, {
           toValue: height,
-          duration: 250,
+          duration: ANIMATION_DURATION,
           useNativeDriver: true
         }),
         Animated.timing(fadeAnim, {
           toValue: 0,
-          duration: 250,
+          duration: ANIMATION_DURATION,
           useNativeDriver: true
         })
-      ]).start();
+      ]).start(() => {
+        setModalVisible(false);
+      });
     }
   }, [visible]);
+
+  // Gérer le bouton retour sur Android
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (modalVisible) {
+        closeModal();
+        return true;
+      }
+      return false;
+    });
+
+    return () => backHandler.remove();
+  }, [modalVisible]);
 
   const dismissKeyboard = () => {
     Keyboard.dismiss();
   };
 
+  // Fonction pour fermer la modale avec animation
+  const closeModal = () => {
+    // Animation de sortie de la modale
+    Animated.parallel([
+      Animated.timing(slideAnim, {
+        toValue: height,
+        duration: ANIMATION_DURATION,
+        useNativeDriver: true
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: ANIMATION_DURATION,
+        useNativeDriver: true
+      })
+    ]).start(() => {
+      onClose();
+    });
+  };
+
   return (
     <Modal
       transparent
-      visible={visible}
+      visible={modalVisible}
       animationType="none"
       statusBarTranslucent
+      onRequestClose={closeModal}
     >
       <StatusBar barStyle="light-content" />
       <View style={styles.overlay}>
@@ -89,7 +128,7 @@ export const FullScreenModal: React.FC<FullScreenModalProps> = ({
           <TouchableOpacity 
             style={StyleSheet.absoluteFill} 
             activeOpacity={1} 
-            onPress={onClose} 
+            onPress={closeModal} 
           />
         </Animated.View>
         <Animated.View 

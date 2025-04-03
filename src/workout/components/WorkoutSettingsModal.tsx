@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   Modal,
   Animated,
   Dimensions,
+  BackHandler,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -22,6 +23,7 @@ interface WorkoutSettingsModalProps {
 }
 
 const { height } = Dimensions.get('window');
+const ANIMATION_DURATION = 300;
 
 /**
  * A modal component that appears from the bottom of the screen
@@ -44,20 +46,23 @@ export const WorkoutSettingsModal: React.FC<WorkoutSettingsModalProps> = ({
   onEdit,
   onDelete,
 }) => {
+  const [modalVisible, setModalVisible] = useState(visible);
   const slideAnim = React.useRef(new Animated.Value(height)).current;
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
 
+  // Gérer le changement de visibilité
   React.useEffect(() => {
     if (visible) {
+      setModalVisible(true);
       Animated.parallel([
         Animated.timing(slideAnim, {
           toValue: 0,
-          duration: 300,
+          duration: ANIMATION_DURATION,
           useNativeDriver: true,
         }),
         Animated.timing(fadeAnim, {
           toValue: 1,
-          duration: 300,
+          duration: ANIMATION_DURATION,
           useNativeDriver: true,
         }),
       ]).start();
@@ -65,42 +70,94 @@ export const WorkoutSettingsModal: React.FC<WorkoutSettingsModalProps> = ({
       Animated.parallel([
         Animated.timing(slideAnim, {
           toValue: height,
-          duration: 300,
+          duration: ANIMATION_DURATION,
           useNativeDriver: true,
         }),
         Animated.timing(fadeAnim, {
           toValue: 0,
-          duration: 300,
+          duration: ANIMATION_DURATION,
           useNativeDriver: true,
         }),
-      ]).start();
+      ]).start(() => {
+        setModalVisible(false);
+      });
     }
   }, [visible]);
 
-  // Fonctions améliorées pour assurer une fermeture correcte
+  // Gérer le bouton retour sur Android
+  React.useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (modalVisible) {
+        closeModal();
+        return true;
+      }
+      return false;
+    });
+
+    return () => backHandler.remove();
+  }, [modalVisible]);
+
+  // Fonction pour fermer la modale avec animation
+  const closeModal = () => {
+    Animated.parallel([
+      Animated.timing(slideAnim, {
+        toValue: height,
+        duration: ANIMATION_DURATION,
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: ANIMATION_DURATION,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      onClose();
+    });
+  };
+
+  // Fonctions améliorées pour assurer une fermeture correcte avec animation
   const handleEditPress = () => {
-    // Fermer d'abord la modale, puis appeler onEdit après un court délai
-    onClose();
-    setTimeout(() => {
+    Animated.parallel([
+      Animated.timing(slideAnim, {
+        toValue: height,
+        duration: ANIMATION_DURATION,
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: ANIMATION_DURATION,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      onClose();
       onEdit();
-    }, 50);
+    });
   };
 
   const handleDeletePress = () => {
-    // Fermer d'abord la modale, puis appeler onDelete après un délai suffisant
-    // pour que l'animation de fermeture soit complète
-    onClose();
-    setTimeout(() => {
+    Animated.parallel([
+      Animated.timing(slideAnim, {
+        toValue: height,
+        duration: ANIMATION_DURATION,
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: ANIMATION_DURATION,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      onClose();
       onDelete();
-    }, 350); // Légèrement plus long que la durée de l'animation (300ms)
+    });
   };
 
   return (
     <Modal
-      visible={visible}
+      visible={modalVisible}
       transparent
       animationType="none"
-      onRequestClose={onClose}
+      onRequestClose={closeModal}
     >
       <View style={styles.container}>
         <Animated.View
@@ -114,7 +171,7 @@ export const WorkoutSettingsModal: React.FC<WorkoutSettingsModalProps> = ({
           <TouchableOpacity
             style={styles.overlayTouchable}
             activeOpacity={1}
-            onPress={onClose}
+            onPress={closeModal}
           />
         </Animated.View>
 

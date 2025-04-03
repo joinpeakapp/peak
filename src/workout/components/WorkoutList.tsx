@@ -49,6 +49,21 @@ export const WorkoutList: React.FC<WorkoutListProps> = ({
     removeWorkout(workoutId);
   };
 
+  const renderEmptyState = () => (
+    <View style={styles.emptyStateContainer}>
+      <Ionicons name="barbell-outline" size={48} color="#FFFFFF" />
+      
+      <View style={styles.emptyStateTextContainer}>
+        <Text style={styles.emptyStateTitle}>No workout yet</Text>
+        <Text style={styles.emptyStateSubtitle}>Your workouts will appear here</Text>
+      </View>
+      
+      <TouchableOpacity style={styles.createButton} onPress={onAddPress}>
+        <Text style={styles.createButtonText}>Create a new workout</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
@@ -59,15 +74,19 @@ export const WorkoutList: React.FC<WorkoutListProps> = ({
       </View>
 
       <View style={styles.content}>
-        {workouts.map(workout => (
-          <WorkoutCard
-            key={workout.id}
-            workout={workout}
-            onPress={() => onWorkoutPress(workout)}
-            onEdit={() => handleEdit(workout.id)}
-            onDelete={() => handleDelete(workout.id)}
-          />
-        ))}
+        {workouts.length > 0 ? (
+          workouts.map(workout => (
+            <WorkoutCard
+              key={workout.id}
+              workout={workout}
+              onPress={() => onWorkoutPress(workout)}
+              onEdit={() => handleEdit(workout.id)}
+              onDelete={() => handleDelete(workout.id)}
+            />
+          ))
+        ) : (
+          renderEmptyState()
+        )}
       </View>
     </ScrollView>
   );
@@ -102,5 +121,43 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 16,
     paddingTop: 24,
+  },
+  emptyStateContainer: {
+    backgroundColor: 'rgba(36, 37, 38, 0.5)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 16,
+    paddingHorizontal: 32,
+    paddingVertical: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyStateTextContainer: {
+    marginTop: 16,
+    alignItems: 'center',
+  },
+  emptyStateTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  emptyStateSubtitle: {
+    fontSize: 14,
+    color: '#AAAAAA',
+  },
+  createButton: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    width: '100%',
+    alignItems: 'center',
+    marginTop: 32,
+  },
+  createButtonText: {
+    color: '#000000',
+    fontWeight: '600',
+    fontSize: 16,
   },
 }); 

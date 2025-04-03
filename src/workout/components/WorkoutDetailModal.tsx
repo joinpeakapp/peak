@@ -131,6 +131,21 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     setIsExerciseSettingsVisible(true);
   };
 
+  // Rendu de l'état vide avec le même style que la page d'accueil
+  const renderEmptyState = () => (
+    <View style={styles.emptyStateContainer}>
+      <Text style={styles.emptyStateSubtitle}>No exercise added yet</Text>
+      
+      <TouchableOpacity 
+        style={styles.createButton}
+        onPress={handleAddExercise}
+      >
+        <Ionicons name="add-outline" size={20} color="#FFFFFF" />
+        <Text style={styles.createButtonText}>Add exercise</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
   if (!workout) return null;
 
   return (
@@ -165,18 +180,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
           showsVerticalScrollIndicator={false}
         >
           {exercises.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>
-                Aucun exercice ajouté à ce workout
-              </Text>
-              <TouchableOpacity 
-                style={styles.addExerciseButton}
-                onPress={handleAddExercise}
-              >
-                <Ionicons name="add-outline" size={20} color="#FFFFFF" />
-                <Text style={styles.addExerciseText}>Add exercise</Text>
-              </TouchableOpacity>
-            </View>
+            renderEmptyState()
           ) : (
             <View style={styles.exercisesList}>
               {exercises.map((exercise) => (
@@ -299,6 +303,38 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: 0,
+  },
+  emptyStateContainer: {
+    marginHorizontal: 16,
+    backgroundColor: 'rgba(36, 37, 38, 0.5)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 16,
+    paddingHorizontal: 32,
+    paddingVertical: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyStateSubtitle: {
+    fontSize: 14,
+    color: '#AAAAAA',
+    marginBottom: 32,
+  },
+  createButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+  },
+  createButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '500',
+    fontSize: 16,
+    marginLeft: 8,
   },
   emptyState: {
     marginHorizontal: 16,
