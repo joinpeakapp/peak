@@ -7,10 +7,13 @@ import { useWorkout } from '../../hooks/useWorkout';
 import { Workout } from '../../types/workout';
 import { mockWorkouts } from '../../data/mockWorkouts';
 import { WorkoutCreationModal } from '../components/WorkoutCreationModal';
+import { WorkoutDetailModal } from '../components/WorkoutDetailModal';
 
 export const WorkoutsScreen: React.FC = () => {
   const { workouts, loading, error, createWorkout } = useWorkout();
   const [isCreationModalVisible, setIsCreationModalVisible] = useState(false);
+  const [isDetailModalVisible, setIsDetailModalVisible] = useState(false);
+  const [selectedWorkout, setSelectedWorkout] = useState<Workout | null>(null);
 
   // Charger les données de test au montage du composant
   useEffect(() => {
@@ -21,8 +24,16 @@ export const WorkoutsScreen: React.FC = () => {
   }, []);
 
   const handleWorkoutPress = (workout: Workout) => {
-    // TODO: Navigation vers les détails du workout
-    console.log('Workout pressed:', workout.id);
+    setSelectedWorkout(workout);
+    setIsDetailModalVisible(true);
+  };
+
+  const handleCloseDetailModal = () => {
+    setIsDetailModalVisible(false);
+    // Réinitialiser le workout sélectionné après un délai pour éviter les flashs
+    setTimeout(() => {
+      setSelectedWorkout(null);
+    }, 300);
   };
 
   const handleWorkoutSettingsPress = (workout: Workout) => {
@@ -58,6 +69,12 @@ export const WorkoutsScreen: React.FC = () => {
       <WorkoutCreationModal 
         visible={isCreationModalVisible}
         onClose={handleCloseCreationModal}
+      />
+
+      <WorkoutDetailModal
+        visible={isDetailModalVisible}
+        onClose={handleCloseDetailModal}
+        workout={selectedWorkout}
       />
     </View>
   );

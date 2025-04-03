@@ -20,7 +20,7 @@ import { Workout, Exercise } from '../types/workout';
  * - error: Error state
  * - personalRecords: Object containing personal records for each exercise
  * - createWorkout: Function to create a new workout
- * - modifyWorkout: Function to modify an existing workout
+ * - updateWorkout: Function to update an existing workout
  * - removeWorkout: Function to delete a workout
  * - modifyExercise: Function to modify an exercise within a workout
  * - checkPersonalRecord: Function to check if a new personal record has been achieved
@@ -31,7 +31,7 @@ import { Workout, Exercise } from '../types/workout';
  * const {
  *   workouts,
  *   createWorkout,
- *   modifyWorkout,
+ *   updateWorkout,
  *   personalRecords
  * } = useWorkout();
  * 
@@ -42,7 +42,7 @@ import { Workout, Exercise } from '../types/workout';
  *   duration: 60,
  *   exercises: [],
  *   frequency: 'Monday',
- *   series: 0
+ *   streak: 0
  * });
  * ```
  */
@@ -61,10 +61,10 @@ export const useWorkout = () => {
   };
 
   /**
-   * Modifies an existing workout in the store.
+   * Updates an existing workout in the store.
    * @param workout - The updated workout
    */
-  const modifyWorkout = (workout: Workout) => {
+  const updateWorkoutFn = (workout: Workout) => {
     dispatch(updateWorkout(workout));
   };
 
@@ -115,7 +115,7 @@ export const useWorkout = () => {
     error,
     personalRecords,
     createWorkout,
-    modifyWorkout,
+    updateWorkout: updateWorkoutFn,
     removeWorkout,
     modifyExercise,
     checkPersonalRecord,
