@@ -13,9 +13,36 @@ interface WorkoutCardProps {
   onEdit: () => void;
   /** Callback function when the workout is deleted */
   onDelete: () => void;
-  /** Whether this workout is scheduled for today */
-  isToday?: boolean;
 }
+
+/**
+ * Format workout frequency for display
+ */
+const formatFrequency = (frequency: any): string => {
+  if (!frequency) return '';
+  
+  // Si la fréquence est un objet avec type et value
+  if (typeof frequency === 'object' && frequency.type && frequency.value !== undefined) {
+    if (frequency.type === 'weekly') {
+      const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+      const dayIndex = Number(frequency.value);
+      
+      if (!isNaN(dayIndex) && dayIndex >= 0 && dayIndex < days.length) {
+        return `On ${days[dayIndex]}`;
+      }
+      return 'Weekly';
+    } else if (frequency.type === 'interval') {
+      const intervalValue = Number(frequency.value);
+      if (!isNaN(intervalValue) && intervalValue > 0) {
+        return `Every ${intervalValue} day${intervalValue > 1 ? 's' : ''}`;
+      }
+      return 'Daily';
+    }
+  }
+  
+  // Fallback pour les anciennes données (chaîne de caractères)
+  return String(frequency);
+};
 
 /**
  * A card component that displays workout information and handles user interactions.
@@ -36,7 +63,6 @@ interface WorkoutCardProps {
  *   onPress={() => console.log('Card pressed')}
  *   onEdit={() => console.log('Edit pressed')}
  *   onDelete={() => console.log('Delete pressed')}
- *   isToday={true}
  * />
  * ```
  */
@@ -45,7 +71,6 @@ export const WorkoutCard = memo<WorkoutCardProps>(({
   onPress,
   onEdit,
   onDelete,
-  isToday = false,
 }) => {
   const { name, frequency, series } = workout;
   const hasStreak = series > 0;
@@ -61,7 +86,7 @@ export const WorkoutCard = memo<WorkoutCardProps>(({
         <View style={styles.content}>
           <View style={styles.leftContent}>
             <Text style={styles.name}>{name}</Text>
-            <Text style={styles.frequency}>{frequency}</Text>
+            <Text style={styles.frequency}>{formatFrequency(frequency)}</Text>
           </View>
 
           <View style={[styles.seriesContainer, !hasStreak && styles.seriesContainerOff]}>
@@ -171,7 +196,7 @@ const styles = StyleSheet.create({
     }),
   },
   seriesText: {
-    color: '#FF8A24',
+    color: '#FFFFFF',
     marginLeft: 4,
     fontSize: 14,
     fontWeight: '600',

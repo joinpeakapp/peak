@@ -49,10 +49,6 @@ export const WorkoutList: React.FC<WorkoutListProps> = ({
     removeWorkout(workoutId);
   };
 
-  const today = new Date().toISOString().split('T')[0];
-  const todayWorkout = workouts.find(w => w.date === today);
-  const otherWorkouts = workouts.filter(w => w.date !== today);
-
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
@@ -63,34 +59,15 @@ export const WorkoutList: React.FC<WorkoutListProps> = ({
       </View>
 
       <View style={styles.content}>
-        {todayWorkout && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Today</Text>
-            <WorkoutCard
-              workout={todayWorkout}
-              onPress={() => onWorkoutPress(todayWorkout)}
-              onEdit={() => handleEdit(todayWorkout.id)}
-              onDelete={() => handleDelete(todayWorkout.id)}
-              isToday={true}
-            />
-          </View>
-        )}
-
-        {otherWorkouts.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Other Workouts</Text>
-            {otherWorkouts.map(workout => (
-              <WorkoutCard
-                key={workout.id}
-                workout={workout}
-                onPress={() => onWorkoutPress(workout)}
-                onEdit={() => handleEdit(workout.id)}
-                onDelete={() => handleDelete(workout.id)}
-                isToday={false}
-              />
-            ))}
-          </View>
-        )}
+        {workouts.map(workout => (
+          <WorkoutCard
+            key={workout.id}
+            workout={workout}
+            onPress={() => onWorkoutPress(workout)}
+            onEdit={() => handleEdit(workout.id)}
+            onDelete={() => handleDelete(workout.id)}
+          />
+        ))}
       </View>
     </ScrollView>
   );
@@ -123,16 +100,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   content: {
-    paddingTop: 24,
-  },
-  section: {
     paddingHorizontal: 16,
-    paddingTop: 16,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#5B5B5C',
-    marginBottom: 8,
+    paddingTop: 24,
   },
 }); 
