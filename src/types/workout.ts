@@ -1,3 +1,6 @@
+// Types de tracking pour les exercices
+export type TrackingType = 'trackedOnSets' | 'trackedOnTime';
+
 // Types pour les exercices
 export interface Exercise {
   id: string;          // Identifiant unique de l'exercice
@@ -7,6 +10,8 @@ export interface Exercise {
   weight?: number;     // Poids utilisé (optionnel)
   duration?: number;   // Durée de l'exercice (optionnel)
   notes?: string;      // Notes sur l'exercice (optionnel)
+  tags?: string[];     // Tags pour catégoriser les exercices
+  tracking?: TrackingType; // Type de tracking (sets ou time)
   personalRecord?: {   // Record personnel pour cet exercice
     weight: number;    // Plus gros poids utilisé
     reps: number;      // Plus grand nombre de répétitions à ce poids

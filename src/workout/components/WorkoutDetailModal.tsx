@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -300,6 +300,13 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   const [selectedExercises, setSelectedExercises] = useState<Exercise[]>([]);
   // État pour les filtres de tags
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  // État pour le mode tracking
+  const [isTrackingMode, setIsTrackingMode] = useState(false);
+  // État pour le timer de séance
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  // États pour le tracking des exercices
+  const [completedSets, setCompletedSets] = useState<Record<string, number>>({});
   
   const { updateWorkout } = useWorkout();
 
@@ -317,6 +324,40 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       setModalMode('workout');
       setSearchQuery('');
       setSelectedExercises([]);
+    }
+  }, [visible]);
+
+  // Timer de séance
+  useEffect(() => {
+    if (isTrackingMode) {
+      // Démarrer le timer
+      timerRef.current = setInterval(() => {
+        setElapsedTime(prev => prev + 1);
+      }, 1000);
+    } else {
+      // Arrêter le timer
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      // Réinitialiser le timer
+      setElapsedTime(0);
+    }
+
+    // Nettoyer le timer lors du démontage
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [isTrackingMode]);
+
+  // Reset le mode tracking lors de la fermeture de la modale
+  useEffect(() => {
+    if (!visible) {
+      setIsTrackingMode(false);
+      setElapsedTime(0);
+      setCompletedSets({});
     }
   }, [visible]);
 
@@ -376,8 +417,51 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       handleSaveChanges();
     }
     
-    // TODO: Implémenter la navigation vers l'écran de tracking
-    Alert.alert("Séance commencée", "Fonctionnalité à implémenter");
+    // Activer le mode tracking
+    setIsTrackingMode(true);
+  };
+
+  // Fonction pour finir la séance
+  const handleFinishWorkout = () => {
+    // Désactiver le mode tracking
+    setIsTrackingMode(false);
+    
+    // TODO: Sauvegarder les données de tracking
+    
+    // Réinitialiser les états
+    setElapsedTime(0);
+    setCompletedSets({});
+    
+    // Afficher un message de confirmation
+    Alert.alert("Séance terminée", "Bravo pour votre entraînement !");
+  };
+
+  // Fonction pour formater le temps du timer (mm:ss)
+  const formatElapsedTime = () => {
+    const minutes = Math.floor(elapsedTime / 60);
+    const seconds = elapsedTime % 60;
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  // Fonction pour naviguer vers le tracking d'un exercice
+  const handleExerciseTracking = (exerciseId: string) => {
+    if (isTrackingMode) {
+      setSelectedExerciseId(exerciseId);
+      // TODO: Implémenter la navigation vers le tracking de l'exercice
+      Alert.alert("Tracking de l'exercice", "Navigation à implémenter");
+    }
+  };
+
+  // Fonction pour obtenir le texte de progression pour un exercice
+  const getExerciseProgressText = (exercise: Exercise) => {
+    const completed = completedSets[exercise.id] || 0;
+    if (exercise.tracking === "trackedOnSets" || exercise.sets > 1) {
+      return `${completed} of ${exercise.sets} sets completed`;
+    } else if (exercise.tracking === "trackedOnTime" || exercise.duration) {
+      return "Tracked on time";
+    } else {
+      return "Tracked on rounds";
+    }
   };
 
   // Gestion de la fermeture avec sauvegarde automatique
@@ -584,20 +668,41 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                   </TouchableOpacity>
                   
                   <View style={styles.rightButtons}>
-                    <TouchableOpacity style={styles.settingsButton}>
-                      <Ionicons name="settings-outline" size={24} color="#FFFFFF" />
-                    </TouchableOpacity>
+                    {!isTrackingMode && (
+                      <TouchableOpacity style={styles.settingsButton}>
+                        <Ionicons name="settings-outline" size={24} color="#FFFFFF" />
+                      </TouchableOpacity>
+                    )}
                     
                     <TouchableOpacity 
-                      style={styles.startButton}
-                      onPress={handleStartWorkout}
+                      style={[
+                        isTrackingMode ? styles.finishButton : styles.startButton
+                      ]}
+                      onPress={isTrackingMode ? handleFinishWorkout : handleStartWorkout}
                     >
-                      <Text style={styles.startButtonText}>Start</Text>
+                      <Text 
+                        style={[
+                          isTrackingMode ? styles.finishButtonText : styles.startButtonText
+                        ]}
+                      >
+                        {isTrackingMode ? "Finish" : "Start"}
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 </View>
                 
-                <Text style={styles.workoutName}>{workout.name}</Text>
+                {isTrackingMode && (
+                  <Text style={styles.workoutTimer}>{formatElapsedTime()}</Text>
+                )}
+                
+                <Text 
+                  style={[
+                    styles.workoutName,
+                    isTrackingMode && styles.workoutNameSmall
+                  ]}
+                >
+                  {workout.name}
+                </Text>
                 
                 <ScrollView 
                   style={styles.content}
@@ -614,43 +719,67 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                             styles.exerciseItem,
                             pressed && styles.exerciseItemPressed
                           ]}
-                          onPress={() => {}}
+                          onPress={() => isTrackingMode ? handleExerciseTracking(exercise.id) : {}}
                         >
                           <View style={styles.exerciseContent}>
-                            <View style={styles.exerciseIconContainer}>
-                              <Ionicons 
-                                name={getExerciseIcon(exercise)} 
-                                size={24} 
-                                color="#FFFFFF" 
-                              />
-                            </View>
+                            {isTrackingMode ? (
+                              <View 
+                                style={[
+                                  styles.trackingCheckbox,
+                                  (completedSets[exercise.id] || 0) === exercise.sets && styles.trackingCheckboxCompleted
+                                ]}
+                              >
+                                {(completedSets[exercise.id] || 0) === exercise.sets && (
+                                  <Ionicons name="checkmark" size={24} color="#000000" />
+                                )}
+                              </View>
+                            ) : (
+                              <View style={styles.exerciseIconContainer}>
+                                <Ionicons 
+                                  name={getExerciseIcon(exercise)} 
+                                  size={24} 
+                                  color="#FFFFFF" 
+                                />
+                              </View>
+                            )}
                             
                             <View style={styles.exerciseInfo}>
                               <Text style={styles.exerciseName}>{exercise.name}</Text>
                               <Text style={styles.exerciseTrackingType}>
-                                {getTrackingText(exercise)}
+                                {isTrackingMode 
+                                  ? getExerciseProgressText(exercise)
+                                  : getTrackingText(exercise)
+                                }
                               </Text>
                             </View>
                             
-                            <TouchableOpacity 
-                              onPress={() => handleExerciseSettings(exercise.id)}
-                              style={styles.exerciseSettingsButton}
-                            >
-                              <Ionicons name="ellipsis-vertical" size={24} color="#5B5B5C" />
-                            </TouchableOpacity>
+                            {!isTrackingMode ? (
+                              <TouchableOpacity 
+                                onPress={() => handleExerciseSettings(exercise.id)}
+                                style={styles.exerciseSettingsButton}
+                              >
+                                <Ionicons name="ellipsis-vertical" size={24} color="#5B5B5C" />
+                              </TouchableOpacity>
+                            ) : (
+                              <View style={styles.exerciseChevronContainer}>
+                                <Ionicons name="chevron-forward" size={24} color="#5B5B5C" />
+                              </View>
+                            )}
                           </View>
                         </Pressable>
                       ))}
                       
-                      <View style={styles.addButtonContainer}>
-                        <TouchableOpacity 
-                          style={styles.addExerciseButton}
-                          onPress={handleAddExercise}
-                        >
-                          <Ionicons name="add-outline" size={20} color="#FFFFFF" />
-                          <Text style={styles.addExerciseText}>Add exercise</Text>
-                        </TouchableOpacity>
-                      </View>
+                      {!isTrackingMode && (
+                        <View style={styles.addButtonContainer}>
+                          <TouchableOpacity 
+                            style={styles.addExerciseButton}
+                            onPress={handleAddExercise}
+                          >
+                            <Ionicons name="add-outline" size={20} color="#FFFFFF" />
+                            <Text style={styles.addExerciseText}>Add exercise</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
                     </View>
                   )}
                   
@@ -1026,8 +1155,8 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 8,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1100,5 +1229,57 @@ const styles = StyleSheet.create({
   tagFilterButtonTextSelected: {
     color: '#FFFFFF',
     fontWeight: '600',
+  },
+  // Styles pour le mode tracking
+  workoutNameSmall: {
+    fontSize: 14,
+    fontWeight: '400',
+    marginTop: 8,
+    marginBottom: 24,
+  },
+  workoutTimer: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginTop: 32,
+    paddingHorizontal: 16,
+  },
+  trackingCheckboxContainer: {
+    width: 48,
+    height: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  trackingCheckbox: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  trackingCheckboxCompleted: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#FFFFFF',
+  },
+  finishButton: {
+    height: 40,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+  },
+  finishButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  exerciseChevronContainer: {
+    padding: 8,
   },
 }); 
