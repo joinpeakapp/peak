@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   View, 
   Text, 
@@ -7,20 +7,281 @@ import {
   Alert,
   ScrollView,
   Platform,
-  Pressable
+  Pressable,
+  TextInput,
+  KeyboardAvoidingView,
+  TouchableWithoutFeedback,
+  Keyboard
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Workout, Exercise } from '../../types/workout';
 import { FullScreenModal } from '../../components/common/FullScreenModal';
 import { useWorkout } from '../../hooks/useWorkout';
 import { ExerciseSettingsModal } from './ExerciseSettingsModal';
-import { ExerciseSelectionModal } from './ExerciseSelectionModal';
+import { ExerciseFilterModal } from './ExerciseFilterModal';
+import { LinearGradient } from 'expo-linear-gradient';
+
+// Définition des types de tracking
+type TrackingType = 'trackedOnSets' | 'trackedOnTime';
+
+// Exemple de données d'exercices
+const SAMPLE_EXERCISES: (Exercise & { tags: string[], tracking: TrackingType })[] = [
+  { 
+    id: '1', 
+    name: 'Bench Press', 
+    sets: 3, 
+    reps: 8, 
+    weight: 60,
+    tags: ["chest", "triceps", "shoulders", "upper body"],
+    tracking: "trackedOnSets"
+  },
+  { 
+    id: '2', 
+    name: 'Push-Ups', 
+    sets: 3, 
+    reps: 12, 
+    weight: 0,
+    tags: ["chest", "triceps", "shoulders", "upper body"],
+    tracking: "trackedOnSets"
+  },
+  { 
+    id: '3', 
+    name: 'Incline Bench Press', 
+    sets: 3, 
+    reps: 8, 
+    weight: 40,
+    tags: ["chest", "shoulders", "upper body"],
+    tracking: "trackedOnSets"
+  },
+  { 
+    id: '4', 
+    name: 'Pull-Ups', 
+    sets: 3, 
+    reps: 8, 
+    weight: 0,
+    tags: ["back", "biceps", "upper body"],
+    tracking: "trackedOnSets"
+  },
+  { 
+    id: '5', 
+    name: 'Chin-Ups', 
+    sets: 3, 
+    reps: 8, 
+    weight: 0,
+    tags: ["back", "biceps", "upper body"],
+    tracking: "trackedOnSets"
+  },
+  { 
+    id: '6', 
+    name: 'Barbell Row', 
+    sets: 3, 
+    reps: 8, 
+    weight: 50,
+    tags: ["back", "biceps", "upper body"],
+    tracking: "trackedOnSets"
+  },
+  { 
+    id: '7', 
+    name: 'Overhead Press', 
+    sets: 3, 
+    reps: 8, 
+    weight: 30,
+    tags: ["shoulders", "triceps", "upper body"],
+    tracking: "trackedOnSets"
+  },
+  { 
+    id: '8', 
+    name: 'Lateral Raise', 
+    sets: 3, 
+    reps: 12, 
+    weight: 10,
+    tags: ["shoulders", "upper body"],
+    tracking: "trackedOnSets"
+  },
+  { 
+    id: '9', 
+    name: 'Barbell Curl', 
+    sets: 3, 
+    reps: 10, 
+    weight: 20,
+    tags: ["biceps", "upper body"],
+    tracking: "trackedOnSets"
+  },
+  { 
+    id: '10', 
+    name: 'Tricep Pushdown', 
+    sets: 3, 
+    reps: 12, 
+    weight: 20,
+    tags: ["triceps", "upper body"],
+    tracking: "trackedOnSets"
+  },
+  { 
+    id: '11', 
+    name: 'Squat', 
+    sets: 3, 
+    reps: 8, 
+    weight: 80,
+    tags: ["legs", "glutes", "lower body"],
+    tracking: "trackedOnSets"
+  },
+  { 
+    id: '12', 
+    name: 'Front Squat', 
+    sets: 3, 
+    reps: 8, 
+    weight: 60,
+    tags: ["legs", "glutes", "lower body"],
+    tracking: "trackedOnSets"
+  },
+  { 
+    id: '13', 
+    name: 'Bulgarian Split Squat', 
+    sets: 3, 
+    reps: 10, 
+    weight: 20,
+    tags: ["legs", "glutes", "lower body"],
+    tracking: "trackedOnSets"
+  },
+  { 
+    id: '14', 
+    name: 'Leg Press', 
+    sets: 3, 
+    reps: 10, 
+    weight: 120,
+    tags: ["legs", "glutes", "lower body"],
+    tracking: "trackedOnSets"
+  },
+  { 
+    id: '15', 
+    name: 'Leg Curl', 
+    sets: 3, 
+    reps: 12, 
+    weight: 40,
+    tags: ["hamstrings", "lower body"],
+    tracking: "trackedOnSets"
+  },
+  { 
+    id: '16', 
+    name: 'Deadlift', 
+    sets: 3, 
+    reps: 6, 
+    weight: 100,
+    tags: ["back", "legs", "glutes", "full body"],
+    tracking: "trackedOnSets"
+  },
+  { 
+    id: '17', 
+    name: 'Romanian Deadlift', 
+    sets: 3, 
+    reps: 8, 
+    weight: 60,
+    tags: ["hamstrings", "glutes", "lower body"],
+    tracking: "trackedOnSets"
+  },
+  { 
+    id: '18', 
+    name: 'Lunges', 
+    sets: 3, 
+    reps: 10, 
+    weight: 30,
+    tags: ["legs", "glutes", "lower body"],
+    tracking: "trackedOnSets"
+  },
+  { 
+    id: '19', 
+    name: 'Hip Thrust', 
+    sets: 3, 
+    reps: 12, 
+    weight: 50,
+    tags: ["glutes", "lower body"],
+    tracking: "trackedOnSets"
+  },
+  { 
+    id: '20', 
+    name: 'Calf Raises', 
+    sets: 3, 
+    reps: 15, 
+    weight: 40,
+    tags: ["calves", "lower body"],
+    tracking: "trackedOnSets"
+  },
+  { 
+    id: '21', 
+    name: 'Plank', 
+    sets: 3, 
+    reps: 0, 
+    duration: 60, 
+    weight: 0,
+    tags: ["core", "full body"],
+    tracking: "trackedOnTime"
+  },
+  { 
+    id: '22', 
+    name: 'Side Plank', 
+    sets: 3, 
+    reps: 0, 
+    duration: 30, 
+    weight: 0,
+    tags: ["core", "full body"],
+    tracking: "trackedOnTime"
+  },
+  { 
+    id: '23', 
+    name: 'Crunches', 
+    sets: 3, 
+    reps: 15, 
+    weight: 0,
+    tags: ["core", "upper body"],
+    tracking: "trackedOnSets"
+  },
+  { 
+    id: '24', 
+    name: 'Russian Twists', 
+    sets: 3, 
+    reps: 20, 
+    weight: 5,
+    tags: ["core", "upper body"],
+    tracking: "trackedOnSets"
+  },
+  { 
+    id: '25', 
+    name: 'Mountain Climbers', 
+    sets: 3, 
+    reps: 0, 
+    duration: 45, 
+    weight: 0,
+    tags: ["core", "full body"],
+    tracking: "trackedOnTime"
+  },
+  { 
+    id: '26', 
+    name: 'Burpees', 
+    sets: 3, 
+    reps: 15, 
+    weight: 0,
+    tags: ["full body", "cardio"],
+    tracking: "trackedOnSets"
+  },
+  { 
+    id: '27', 
+    name: 'Kettlebell Swings', 
+    sets: 3, 
+    reps: 15, 
+    weight: 16,
+    tags: ["glutes", "hamstrings", "shoulders", "full body"],
+    tracking: "trackedOnSets"
+  }
+];
 
 interface WorkoutDetailModalProps {
   visible: boolean;
   onClose: () => void;
   workout: Workout | null;
 }
+
+// Modes d'affichage de la modale
+type ModalMode = 'workout' | 'exercise-selection';
 
 export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   visible,
@@ -30,8 +291,16 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isExerciseSettingsVisible, setIsExerciseSettingsVisible] = useState(false);
-  const [isExerciseSelectionVisible, setIsExerciseSelectionVisible] = useState(false);
+  const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
   const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(null);
+  // État pour le mode d'affichage de la modale
+  const [modalMode, setModalMode] = useState<ModalMode>('workout');
+  // États pour la sélection d'exercices
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedExercises, setSelectedExercises] = useState<Exercise[]>([]);
+  // État pour les filtres de tags
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  
   const { updateWorkout } = useWorkout();
 
   // Synchroniser les exercices lorsque le workout change
@@ -41,6 +310,15 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       setHasUnsavedChanges(false);
     }
   }, [workout]);
+
+  // Reset le mode et les sélections lorsque la modale est fermée
+  useEffect(() => {
+    if (!visible) {
+      setModalMode('workout');
+      setSearchQuery('');
+      setSelectedExercises([]);
+    }
+  }, [visible]);
 
   // Fonction pour sauvegarder les modifications
   const handleSaveChanges = () => {
@@ -56,13 +334,15 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     setHasUnsavedChanges(false);
   };
 
-  // Fonction pour ajouter un exercice
+  // Fonction pour passer au mode de sélection d'exercices
   const handleAddExercise = () => {
-    setIsExerciseSelectionVisible(true);
+    setModalMode('exercise-selection');
+    setSearchQuery('');
+    setSelectedExercises([]);
   };
 
   // Fonction pour ajouter les exercices sélectionnés
-  const handleExercisesSelected = (selectedExercises: Exercise[]) => {
+  const handleExercisesSelected = () => {
     // Ajouter seulement les exercices qui ne sont pas déjà présents dans le workout
     const newExercises = selectedExercises.filter(
       newEx => !exercises.some(existingEx => existingEx.id === newEx.id)
@@ -72,6 +352,9 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       setExercises(prev => [...prev, ...newExercises]);
       setHasUnsavedChanges(true);
     }
+    
+    // Retour au mode affichage de workout
+    setModalMode('workout');
   };
 
   // Fonction pour retirer un exercice
@@ -99,6 +382,12 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
 
   // Gestion de la fermeture avec sauvegarde automatique
   const handleClose = () => {
+    // Si on est en mode sélection, retourner au mode workout
+    if (modalMode === 'exercise-selection') {
+      setModalMode('workout');
+      return;
+    }
+    
     // Sauvegarder automatiquement les changements avant de fermer
     if (hasUnsavedChanges && workout) {
       handleSaveChanges();
@@ -110,9 +399,9 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
 
   // Fonction pour obtenir l'icône en fonction du type d'exercice
   const getExerciseIcon = (exercise: Exercise) => {
-    if (exercise.duration) {
+    if (exercise.tracking === "trackedOnTime" || exercise.duration) {
       return "time-outline"; // Exercice basé sur le temps
-    } else if (exercise.sets > 1) {
+    } else if (exercise.tracking === "trackedOnSets" || exercise.sets > 1) {
       return "repeat-outline"; // Exercice basé sur des séries
     } else {
       return "sync-outline"; // Circuit
@@ -121,9 +410,9 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
 
   // Fonction pour obtenir le texte de tracking en fonction du type d'exercice
   const getTrackingText = (exercise: Exercise) => {
-    if (exercise.duration) {
+    if (exercise.tracking === "trackedOnTime" || exercise.duration) {
       return "Tracked on time";
-    } else if (exercise.sets > 1) {
+    } else if (exercise.tracking === "trackedOnSets" || exercise.sets > 1) {
       return "Tracked on sets";
     } else {
       return "Tracked on rounds";
@@ -151,94 +440,322 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     </View>
   );
 
+  // Filter exercises based on search query and selected tags
+  const filteredExercises = useMemo(() => {
+    if (!searchQuery.trim() && selectedTags.length === 0) {
+      return SAMPLE_EXERCISES;
+    }
+    
+    return SAMPLE_EXERCISES.filter(exercise => {
+      // Filtre par texte de recherche
+      const matchesQuery = !searchQuery.trim() || 
+        exercise.name.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      // Filtre par tags
+      const matchesTags = selectedTags.length === 0 || 
+        (exercise.tags && selectedTags.every(tag => exercise.tags.includes(tag)));
+      
+      return matchesQuery && matchesTags;
+    });
+  }, [searchQuery, selectedTags]);
+
+  // Group exercises by first letter
+  const groupedExercises = useMemo(() => {
+    const sorted = [...filteredExercises].sort((a, b) => 
+      a.name.localeCompare(b.name)
+    );
+    
+    const groups: Record<string, Exercise[]> = {};
+    
+    sorted.forEach(exercise => {
+      const firstLetter = exercise.name.charAt(0).toUpperCase();
+      if (!groups[firstLetter]) {
+        groups[firstLetter] = [];
+      }
+      groups[firstLetter].push(exercise);
+    });
+    
+    return Object.entries(groups).map(([letter, exercises]) => ({
+      letter,
+      data: exercises
+    }));
+  }, [filteredExercises]);
+
+  const toggleExerciseSelection = (exercise: Exercise) => {
+    setSelectedExercises(prev => {
+      const alreadySelected = prev.some(ex => ex.id === exercise.id);
+      
+      if (alreadySelected) {
+        return prev.filter(ex => ex.id !== exercise.id);
+      } else {
+        return [...prev, exercise];
+      }
+    });
+  };
+
+  const renderSectionHeader = ({ letter }: { letter: string }) => (
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionHeaderText}>{letter}</Text>
+    </View>
+  );
+
+  const renderExerciseItem = (exercise: Exercise) => {
+    const isSelected = selectedExercises.some(ex => ex.id === exercise.id);
+    
+    return (
+      <TouchableOpacity 
+        style={styles.selectionExerciseItem}
+        onPress={() => toggleExerciseSelection(exercise)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.exerciseSelectionRow}>
+          <View style={[
+            styles.checkbox, 
+            isSelected && styles.checkboxSelected
+          ]}>
+            {isSelected && (
+              <Ionicons name="checkmark" size={24} color="#000000" />
+            )}
+          </View>
+          
+          <Text style={styles.selectionExerciseName}>{exercise.name}</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  // Extraire tous les tags uniques des exercices
+  const allTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    SAMPLE_EXERCISES.forEach(exercise => {
+      if (exercise.tags) {
+        exercise.tags.forEach(tag => tagSet.add(tag));
+      }
+    });
+    return Array.from(tagSet).sort();
+  }, []);
+
+  // Fonction pour mettre à jour les tags sélectionnés
+  const handleTagsSelected = (tags: string[]) => {
+    setSelectedTags(tags);
+  };
+
+  // Ouvrir la modale de filtres
+  const handleOpenFilterModal = () => {
+    setIsFilterModalVisible(true);
+  };
+
+  // Fonction pour réinitialiser les filtres
+  const handleResetFilters = (event: any) => {
+    event.stopPropagation(); // Empêcher l'ouverture de la modale
+    setSelectedTags([]);
+  };
+
+  // Fonction pour obtenir le texte du bouton de filtre
+  const getFilterButtonText = () => {
+    if (selectedTags.length === 0) {
+      return "Filter by";
+    } else if (selectedTags.length === 1) {
+      return selectedTags[0];
+    } else {
+      return `${selectedTags.length} filters`;
+    }
+  };
+
   if (!workout) return null;
 
   return (
     <FullScreenModal
       visible={visible}
-      onClose={handleClose}
+      onClose={onClose}
     >
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={handleClose} style={styles.backButton}>
-            <Ionicons name="chevron-down" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-          
-          <View style={styles.rightButtons}>
-            <TouchableOpacity style={styles.settingsButton}>
-              <Ionicons name="settings-outline" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.startButton}
-              onPress={handleStartWorkout}
-            >
-              <Text style={styles.startButtonText}>Start</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-        
-        <Text style={styles.workoutName}>{workout.name}</Text>
-        
-        <ScrollView 
-          style={styles.content}
-          showsVerticalScrollIndicator={false}
-        >
-          {exercises.length === 0 ? (
-            renderEmptyState()
-          ) : (
-            <View style={styles.exercisesList}>
-              {exercises.map((exercise) => (
-                <Pressable
-                  key={exercise.id}
-                  style={({ pressed }) => [
-                    styles.exerciseItem,
-                    pressed && styles.exerciseItemPressed
-                  ]}
-                  onPress={() => {}}
-                >
-                  <View style={styles.exerciseContent}>
-                    <View style={styles.exerciseIconContainer}>
-                      <Ionicons 
-                        name={getExerciseIcon(exercise)} 
-                        size={24} 
-                        color="#FFFFFF" 
-                      />
-                    </View>
-                    
-                    <View style={styles.exerciseInfo}>
-                      <Text style={styles.exerciseName}>{exercise.name}</Text>
-                      <Text style={styles.exerciseTrackingType}>
-                        {getTrackingText(exercise)}
-                      </Text>
-                    </View>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardAvoidingView}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.container}>
+            {modalMode === 'workout' ? (
+              // Mode affichage du workout
+              <>
+                <View style={styles.header}>
+                  <TouchableOpacity onPress={handleClose} style={styles.backButton}>
+                    <Ionicons name="chevron-down" size={24} color="#FFFFFF" />
+                  </TouchableOpacity>
+                  
+                  <View style={styles.rightButtons}>
+                    <TouchableOpacity style={styles.settingsButton}>
+                      <Ionicons name="settings-outline" size={24} color="#FFFFFF" />
+                    </TouchableOpacity>
                     
                     <TouchableOpacity 
-                      onPress={() => handleExerciseSettings(exercise.id)}
-                      style={styles.exerciseSettingsButton}
+                      style={styles.startButton}
+                      onPress={handleStartWorkout}
                     >
-                      <Ionicons name="ellipsis-vertical" size={24} color="#5B5B5C" />
+                      <Text style={styles.startButtonText}>Start</Text>
                     </TouchableOpacity>
                   </View>
-                </Pressable>
-              ))}
-              
-              <View style={styles.addButtonContainer}>
-                <TouchableOpacity 
-                  style={styles.addExerciseButton}
-                  onPress={handleAddExercise}
+                </View>
+                
+                <Text style={styles.workoutName}>{workout.name}</Text>
+                
+                <ScrollView 
+                  style={styles.content}
+                  showsVerticalScrollIndicator={false}
                 >
-                  <Ionicons name="add-outline" size={20} color="#FFFFFF" />
-                  <Text style={styles.addExerciseText}>Add exercise</Text>
+                  {exercises.length === 0 ? (
+                    renderEmptyState()
+                  ) : (
+                    <View style={styles.exercisesList}>
+                      {exercises.map((exercise) => (
+                        <Pressable
+                          key={exercise.id}
+                          style={({ pressed }) => [
+                            styles.exerciseItem,
+                            pressed && styles.exerciseItemPressed
+                          ]}
+                          onPress={() => {}}
+                        >
+                          <View style={styles.exerciseContent}>
+                            <View style={styles.exerciseIconContainer}>
+                              <Ionicons 
+                                name={getExerciseIcon(exercise)} 
+                                size={24} 
+                                color="#FFFFFF" 
+                              />
+                            </View>
+                            
+                            <View style={styles.exerciseInfo}>
+                              <Text style={styles.exerciseName}>{exercise.name}</Text>
+                              <Text style={styles.exerciseTrackingType}>
+                                {getTrackingText(exercise)}
+                              </Text>
+                            </View>
+                            
+                            <TouchableOpacity 
+                              onPress={() => handleExerciseSettings(exercise.id)}
+                              style={styles.exerciseSettingsButton}
+                            >
+                              <Ionicons name="ellipsis-vertical" size={24} color="#5B5B5C" />
+                            </TouchableOpacity>
+                          </View>
+                        </Pressable>
+                      ))}
+                      
+                      <View style={styles.addButtonContainer}>
+                        <TouchableOpacity 
+                          style={styles.addExerciseButton}
+                          onPress={handleAddExercise}
+                        >
+                          <Ionicons name="add-outline" size={20} color="#FFFFFF" />
+                          <Text style={styles.addExerciseText}>Add exercise</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+                  
+                  {/* Padding de bas pour assurer le défilement complet */}
+                  <View style={styles.bottomPadding} />
+                </ScrollView>
+              </>
+            ) : (
+              // Mode sélection d'exercices
+              <>
+                {/* Header */}
+                <View style={styles.header}>
+                  <TouchableOpacity 
+                    style={styles.arrowBackButton} 
+                    onPress={handleClose}
+                  >
+                    <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+                  </TouchableOpacity>
+                  
+                  <View style={styles.searchContainer}>
+                    <Ionicons name="search" size={20} color="rgba(255, 255, 255, 0.5)" style={styles.searchIcon} />
+                    <TextInput
+                      style={styles.searchInput}
+                      placeholder="Search exercises..."
+                      placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                      value={searchQuery}
+                      onChangeText={setSearchQuery}
+                    />
+                  </View>
+                  
+                  <TouchableOpacity style={styles.addButton}>
+                    <Ionicons name="add" size={24} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
+                
+                {/* Filter Button */}
+                <TouchableOpacity 
+                  style={[
+                    styles.filterButton, 
+                    selectedTags.length > 0 && styles.filterButtonActive
+                  ]} 
+                  onPress={handleOpenFilterModal}
+                >
+                  <Text 
+                    style={[
+                      styles.filterButtonText,
+                      selectedTags.length > 0 && styles.filterButtonTextActive
+                    ]}
+                  >
+                    {getFilterButtonText()}
+                  </Text>
+                  {selectedTags.length === 0 ? (
+                    <Ionicons name="chevron-down" size={20} color="#FFFFFF" />
+                  ) : (
+                    <TouchableOpacity onPress={handleResetFilters}>
+                      <Ionicons name="close" size={20} color="#000000" />
+                    </TouchableOpacity>
+                  )}
                 </TouchableOpacity>
-              </View>
-            </View>
-          )}
-          
-          {/* Padding de bas pour assurer le défilement complet */}
-          <View style={styles.bottomPadding} />
-        </ScrollView>
-      </View>
+                
+                {/* Exercise List */}
+                <View style={styles.exerciseListContainer}>
+                  <ScrollView style={styles.scrollView}>
+                    {groupedExercises.map((section) => (
+                      <View key={section.letter}>
+                        {renderSectionHeader({ letter: section.letter })}
+                        {section.data.map((exercise) => (
+                          <View key={exercise.id}>
+                            {renderExerciseItem(exercise)}
+                          </View>
+                        ))}
+                      </View>
+                    ))}
+                    <View style={styles.bottomPadding} />
+                  </ScrollView>
+                  
+                  {/* Fade Out Gradient */}
+                  <LinearGradient
+                    colors={['rgba(13, 13, 15, 0)', 'rgba(13, 13, 15, 0.8)', 'rgba(13, 13, 15, 1)']}
+                    style={styles.fadeGradient}
+                  />
+                </View>
+                
+                {/* Bottom Add Button */}
+                <View style={styles.bottomButtonContainer}>
+                  <TouchableOpacity 
+                    style={[
+                      styles.addExercisesButton,
+                      selectedExercises.length === 0 && styles.addExercisesButtonDisabled
+                    ]}
+                    onPress={handleExercisesSelected}
+                    disabled={selectedExercises.length === 0}
+                  >
+                    <Text style={styles.addExercisesButtonText}>
+                      {selectedExercises.length === 0 
+                        ? 'Select exercises' 
+                        : `Add ${selectedExercises.length} exercise${selectedExercises.length > 1 ? 's' : ''}`}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
       
       {/* Modale pour les paramètres d'exercice */}
       <ExerciseSettingsModal
@@ -252,13 +769,14 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
           setSelectedExerciseId(null);
         }}
       />
-
-      {/* Modale pour la sélection d'exercices */}
-      <ExerciseSelectionModal
-        visible={isExerciseSelectionVisible}
-        onClose={() => setIsExerciseSelectionVisible(false)}
-        onExercisesSelected={handleExercisesSelected}
-        workoutId={workout.id}
+      
+      {/* Modale pour les filtres */}
+      <ExerciseFilterModal
+        visible={isFilterModalVisible}
+        onClose={() => setIsFilterModalVisible(false)}
+        availableTags={allTags}
+        selectedTags={selectedTags}
+        onTagsSelected={handleTagsSelected}
       />
     </FullScreenModal>
   );
@@ -269,6 +787,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0D0D0F',
   },
+  keyboardAvoidingView: {
+    flex: 1,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -276,9 +797,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 32,
     paddingBottom: 24,
+    gap: 12,
   },
   backButton: {
     padding: 8,
+  },
+  arrowBackButton: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   rightButtons: {
     flexDirection: 'row',
@@ -350,19 +878,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginLeft: 8,
   },
-  emptyState: {
-    marginHorizontal: 16,
-    padding: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyStateText: {
-    color: '#5B5B5C',
-    textAlign: 'center',
-    marginBottom: 16,
-  },
   exercisesList: {
     marginBottom: 24,
   },
@@ -388,6 +903,7 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   exerciseInfo: {
     flex: 1,
@@ -425,6 +941,164 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   bottomPadding: {
-    height: 32,
-  }
+    height: 80,
+  },
+  
+  // Styles pour la sélection d'exercices
+  searchContainer: {
+    flex: 1,
+    height: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1,
+    borderRadius: 100,
+    paddingHorizontal: 16,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    height: '100%',
+    color: '#FFFFFF',
+    fontSize: 16,
+  },
+  addButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#242526',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  filterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 100,
+    paddingHorizontal: 16,
+    marginHorizontal: 16,
+    marginBottom: 24,
+    height: 44,
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+  },
+  filterButtonActive: {
+    backgroundColor: '#FFFFFF',
+  },
+  filterButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  filterButtonTextActive: {
+    color: '#000000',
+  },
+  exerciseListContainer: {
+    flex: 1,
+    position: 'relative',
+  },
+  scrollView: {
+    flex: 1,
+    paddingHorizontal: 16,
+  },
+  sectionHeader: {
+    height: 64,
+    justifyContent: 'center',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    paddingVertical: 0,
+    marginBottom: 0,
+  },
+  sectionHeaderText: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    paddingLeft: 4,
+  },
+  exerciseSelectionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  checkbox: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxSelected: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#FFFFFF',
+  },
+  fadeGradient: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 150,
+    zIndex: 1,
+  },
+  bottomButtonContainer: {
+    position: 'absolute',
+    bottom: 48,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
+    zIndex: 2,
+  },
+  addExercisesButton: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addExercisesButtonDisabled: {
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  addExercisesButtonText: {
+    color: '#000000',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  selectionExerciseItem: {
+    marginBottom: 32,
+    paddingVertical: 0,
+  },
+  selectionExerciseName: {
+    marginLeft: 16,
+    fontSize: 16,
+    color: '#FFFFFF',
+  },
+  tagScrollView: {
+    marginHorizontal: 16,
+    marginBottom: 24,
+  },
+  tagScrollViewContent: {
+    alignItems: 'center',
+  },
+  tagFilterButton: {
+    padding: 8,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    marginHorizontal: 4,
+  },
+  tagFilterButtonSelected: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  tagFilterButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  tagFilterButtonTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
 }); 
