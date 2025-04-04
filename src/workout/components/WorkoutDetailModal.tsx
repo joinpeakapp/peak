@@ -14,6 +14,7 @@ import { Workout, Exercise } from '../../types/workout';
 import { FullScreenModal } from '../../components/common/FullScreenModal';
 import { useWorkout } from '../../hooks/useWorkout';
 import { ExerciseSettingsModal } from './ExerciseSettingsModal';
+import { ExerciseSelectionModal } from './ExerciseSelectionModal';
 
 interface WorkoutDetailModalProps {
   visible: boolean;
@@ -29,6 +30,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isExerciseSettingsVisible, setIsExerciseSettingsVisible] = useState(false);
+  const [isExerciseSelectionVisible, setIsExerciseSelectionVisible] = useState(false);
   const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(null);
   const { updateWorkout } = useWorkout();
 
@@ -56,17 +58,20 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
 
   // Fonction pour ajouter un exercice
   const handleAddExercise = () => {
-    // Fonction à compléter - Pour l'instant, on ajoute un exercice fictif
-    const newExercise: Exercise = {
-      id: Date.now().toString(),
-      name: 'Nouvel exercice',
-      sets: 3,
-      reps: 10,
-      weight: 0
-    };
+    setIsExerciseSelectionVisible(true);
+  };
+
+  // Fonction pour ajouter les exercices sélectionnés
+  const handleExercisesSelected = (selectedExercises: Exercise[]) => {
+    // Ajouter seulement les exercices qui ne sont pas déjà présents dans le workout
+    const newExercises = selectedExercises.filter(
+      newEx => !exercises.some(existingEx => existingEx.id === newEx.id)
+    );
     
-    setExercises([...exercises, newExercise]);
-    setHasUnsavedChanges(true);
+    if (newExercises.length > 0) {
+      setExercises(prev => [...prev, ...newExercises]);
+      setHasUnsavedChanges(true);
+    }
   };
 
   // Fonction pour retirer un exercice
@@ -235,6 +240,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
         </ScrollView>
       </View>
       
+      {/* Modale pour les paramètres d'exercice */}
       <ExerciseSettingsModal
         visible={isExerciseSettingsVisible}
         onClose={() => setIsExerciseSettingsVisible(false)}
@@ -245,6 +251,14 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
           }
           setSelectedExerciseId(null);
         }}
+      />
+
+      {/* Modale pour la sélection d'exercices */}
+      <ExerciseSelectionModal
+        visible={isExerciseSelectionVisible}
+        onClose={() => setIsExerciseSelectionVisible(false)}
+        onExercisesSelected={handleExercisesSelected}
+        workoutId={workout.id}
       />
     </FullScreenModal>
   );
