@@ -281,7 +281,7 @@ interface WorkoutDetailModalProps {
 }
 
 // Modes d'affichage de la modale
-type ModalMode = 'workout' | 'exercise-selection';
+type ModalMode = 'workout' | 'exercise-selection' | 'exercise-tracking';
 
 export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   visible,
@@ -307,6 +307,12 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   // États pour le tracking des exercices
   const [completedSets, setCompletedSets] = useState<Record<string, number>>({});
+  // États pour le tracking d'un exercice spécifique
+  const [exerciseSets, setExerciseSets] = useState<Array<{
+    completed: boolean;
+    weight: string;
+    reps: string;
+  }>>([]);
   
   const { updateWorkout } = useWorkout();
 
@@ -447,10 +453,103 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   const handleExerciseTracking = (exerciseId: string) => {
     if (isTrackingMode) {
       setSelectedExerciseId(exerciseId);
-      // TODO: Implémenter la navigation vers le tracking de l'exercice
-      Alert.alert("Tracking de l'exercice", "Navigation à implémenter");
+      
+      // Récupérer l'exercice sélectionné
+      const selectedExercise = exercises.find(ex => ex.id === exerciseId);
+      
+      if (selectedExercise) {
+        // Initialiser les séries de l'exercice
+        const initialSets = Array(selectedExercise.sets || 1).fill(0).map(() => ({
+          completed: false,
+          weight: '',
+          reps: '',
+        }));
+        
+        setExerciseSets(initialSets);
+        setModalMode('exercise-tracking');
+      }
     }
   };
+
+  // Fonction pour revenir au mode workout
+  const handleBackToWorkout = () => {
+    setModalMode('workout');
+    setSelectedExerciseId(null);
+  };
+
+  // Fonction pour cocher/décocher une série
+  const handleToggleSet = (index: number) => {
+    setExerciseSets(prev => {
+      const newSets = [...prev];
+      newSets[index] = {
+        ...newSets[index],
+        completed: !newSets[index].completed
+      };
+      return newSets;
+    });
+    
+    // Mettre à jour le nombre de séries complétées pour l'exercice
+    if (selectedExerciseId) {
+      const completedSetCount = exerciseSets.filter(set => set.completed).length;
+      setCompletedSets(prev => ({
+        ...prev,
+        [selectedExerciseId]: completedSetCount
+      }));
+    }
+  };
+
+  // Fonction pour mettre à jour le poids d'une série
+  const handleWeightChange = (index: number, value: string) => {
+    setExerciseSets(prev => {
+      const newSets = [...prev];
+      newSets[index] = {
+        ...newSets[index],
+        weight: value
+      };
+      return newSets;
+    });
+  };
+
+  // Fonction pour mettre à jour les répétitions d'une série
+  const handleRepsChange = (index: number, value: string) => {
+    setExerciseSets(prev => {
+      const newSets = [...prev];
+      newSets[index] = {
+        ...newSets[index],
+        reps: value
+      };
+      return newSets;
+    });
+  };
+
+  // Fonction pour ajouter une série
+  const handleAddSet = () => {
+    setExerciseSets(prev => [
+      ...prev,
+      {
+        completed: false,
+        weight: '',
+        reps: ''
+      }
+    ]);
+    
+    // Mettre à jour le nombre total de séries pour l'exercice
+    if (selectedExerciseId) {
+      const selectedExercise = exercises.find(ex => ex.id === selectedExerciseId);
+      if (selectedExercise) {
+        const updatedExercise = {
+          ...selectedExercise,
+          sets: (selectedExercise.sets || 0) + 1
+        };
+        setExercises(prev => prev.map(ex => ex.id === selectedExerciseId ? updatedExercise : ex));
+      }
+    }
+  };
+  
+  // Obtenir l'exercice sélectionné
+  const selectedExercise = selectedExerciseId 
+    ? exercises.find(ex => ex.id === selectedExerciseId) 
+    : null;
 
   // Fonction pour obtenir le texte de progression pour un exercice
   const getExerciseProgressText = (exercise: Exercise) => {
@@ -646,6 +745,26 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     }
   };
 
+  // Ajouter une fonction pour supprimer une série
+  const handleRemoveSet = (index: number) => {
+    // Ne pas permettre de supprimer la dernière série
+    if (exerciseSets.length <= 1) return;
+    
+    setExerciseSets(prev => prev.filter((_, i) => i !== index));
+    
+    // Mettre à jour le nombre total de séries pour l'exercice
+    if (selectedExerciseId) {
+      const selectedExercise = exercises.find(ex => ex.id === selectedExerciseId);
+      if (selectedExercise) {
+        const updatedExercise = {
+          ...selectedExercise,
+          sets: Math.max(1, (selectedExercise.sets || 0) - 1)
+        };
+        setExercises(prev => prev.map(ex => ex.id === selectedExerciseId ? updatedExercise : ex));
+      }
+    }
+  };
+
   if (!workout) return null;
 
   return (
@@ -717,6 +836,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                           key={exercise.id}
                           style={({ pressed }) => [
                             styles.exerciseItem,
+                            isTrackingMode && styles.exerciseItemTracking,
                             pressed && styles.exerciseItemPressed
                           ]}
                           onPress={() => isTrackingMode ? handleExerciseTracking(exercise.id) : {}}
@@ -772,12 +892,12 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                       {!isTrackingMode && (
                         <View style={styles.addButtonContainer}>
                           <TouchableOpacity 
-                            style={styles.addExerciseButton}
+                            style={styles.addRoundButton}
                             onPress={handleAddExercise}
                           >
-                            <Ionicons name="add-outline" size={20} color="#FFFFFF" />
-                            <Text style={styles.addExerciseText}>Add exercise</Text>
+                            <Ionicons name="add" size={24} color="#FFFFFF" />
                           </TouchableOpacity>
+                          <Text style={styles.addButtonText}>Add exercise</Text>
                         </View>
                       )}
                     </View>
@@ -787,7 +907,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                   <View style={styles.bottomPadding} />
                 </ScrollView>
               </>
-            ) : (
+            ) : modalMode === 'exercise-selection' ? (
               // Mode sélection d'exercices
               <>
                 {/* Header */}
@@ -880,6 +1000,98 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                     </Text>
                   </TouchableOpacity>
                 </View>
+              </>
+            ) : (
+              // Mode tracking d'un exercice spécifique
+              <>
+                <View style={styles.header}>
+                  <TouchableOpacity onPress={handleBackToWorkout} style={styles.backButton}>
+                    <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+                  </TouchableOpacity>
+                  
+                  <View style={styles.rightButtons}>
+                    <TouchableOpacity style={styles.settingsButton}>
+                      <Ionicons name="settings-outline" size={24} color="#FFFFFF" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                
+                <Text style={styles.exerciseTrackingTitle}>
+                  {selectedExercise?.name || 'Exercise'}
+                </Text>
+                
+                <Text style={styles.exerciseTrackingSubtitle}>
+                  Tick checkboxes as you complete the sets
+                </Text>
+                
+                <ScrollView 
+                  style={styles.content}
+                  showsVerticalScrollIndicator={false}
+                >
+                  <View style={styles.setsContainer}>
+                    {exerciseSets.map((set, index) => (
+                      <View key={index} style={styles.setRow}>
+                        <TouchableOpacity 
+                          style={[
+                            styles.trackingCheckbox,
+                            set.completed && styles.trackingCheckboxCompleted
+                          ]}
+                          onPress={() => handleToggleSet(index)}
+                        >
+                          {set.completed && (
+                            <Ionicons name="checkmark" size={24} color="#000000" />
+                          )}
+                        </TouchableOpacity>
+                        
+                        <View style={styles.setInputsContainer}>
+                          <View style={styles.inputWrapper}>
+                            <TextInput
+                              style={styles.setInput}
+                              placeholder="0"
+                              placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                              keyboardType="numeric"
+                              value={set.weight}
+                              onChangeText={(value) => handleWeightChange(index, value.replace(/[^0-9]/g, ''))}
+                            />
+                            <Text style={styles.inputSuffix}>kg</Text>
+                          </View>
+                          
+                          <View style={styles.inputWrapper}>
+                            <TextInput
+                              style={styles.setInput}
+                              placeholder="0"
+                              placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                              keyboardType="numeric"
+                              value={set.reps}
+                              onChangeText={(value) => handleRepsChange(index, value.replace(/[^0-9]/g, ''))}
+                            />
+                            <Text style={styles.inputSuffix}>reps</Text>
+                          </View>
+                        </View>
+                        
+                        <TouchableOpacity 
+                          style={styles.setSettingsButton}
+                          onPress={() => handleRemoveSet(index)}
+                        >
+                          <Ionicons name="close" size={24} color="#5B5B5C" />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                  
+                  <View style={styles.addSetContainer}>
+                    <TouchableOpacity 
+                      style={styles.addSetButton}
+                      onPress={handleAddSet}
+                    >
+                      <Ionicons name="add" size={24} color="#FFFFFF" />
+                    </TouchableOpacity>
+                    <Text style={styles.addSetText}>Add a set</Text>
+                  </View>
+                  
+                  {/* Padding de bas pour assurer le défilement complet */}
+                  <View style={styles.bottomPadding} />
+                </ScrollView>
               </>
             )}
           </View>
@@ -1052,22 +1264,27 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   addButtonContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 16,
     marginTop: 16,
+    marginBottom: 16,
   },
-  addExerciseButton: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'flex-start',
-    paddingVertical: 16,
-    paddingLeft: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 12,
+  addRoundButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 100,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  addExerciseText: {
+  addButtonText: {
+    marginLeft: 16,
     color: '#FFFFFF',
-    marginLeft: 8,
-    fontWeight: '500',
+    fontSize: 16,
+    fontWeight: '400',
   },
   bottomPadding: {
     height: 80,
@@ -1281,5 +1498,100 @@ const styles = StyleSheet.create({
   },
   exerciseChevronContainer: {
     padding: 8,
+  },
+  // Styles pour le tracking d'un exercice spécifique
+  exerciseTrackingTitle: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginTop: 32,
+    paddingHorizontal: 16,
+  },
+  exerciseTrackingSubtitle: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: '#5B5B5C',
+    marginTop: 8,
+    marginBottom: 24,
+    paddingHorizontal: 16,
+  },
+  setsContainer: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  setRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  setInputsContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    marginLeft: 16,
+    gap: 8,
+  },
+  inputWrapper: {
+    flex: 1,
+    position: 'relative',
+    height: 48,
+  },
+  setInput: {
+    flex: 1,
+    height: 48,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 100,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    fontSize: 16,
+    paddingLeft: 0,
+    paddingRight: 45,
+  },
+  inputSuffix: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    right: 16,
+    left: undefined,
+    textAlignVertical: 'center',
+    fontSize: 16,
+    color: '#FFFFFF',
+    opacity: 0.7,
+    height: '100%',
+    lineHeight: 48,
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  setSettingsButton: {
+    padding: 8,
+    marginLeft: 16,
+  },
+  addSetContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 16,
+  },
+  addSetButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 100,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addSetText: {
+    marginLeft: 16,
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '400',
+  },
+  exerciseItemTracking: {
+    marginBottom: 8,
   },
 }); 
