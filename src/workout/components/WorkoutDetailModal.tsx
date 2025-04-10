@@ -305,8 +305,18 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   // État pour le timer de séance
   const [elapsedTime, setElapsedTime] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  // États pour le tracking des exercices
-  const [completedSets, setCompletedSets] = useState<Record<string, number>>({});
+  
+  // Structure de données plus complète pour le tracking des exercices
+  // Stocke pour chaque exercice: nombre de sets complétés, et données pour chaque set
+  const [trackingData, setTrackingData] = useState<Record<string, {
+    completedSets: number;
+    sets: Array<{
+      completed: boolean;
+      weight: string;
+      reps: string;
+    }>;
+  }>>({});
+  
   // États pour le tracking d'un exercice spécifique
   const [exerciseSets, setExerciseSets] = useState<Array<{
     completed: boolean;
@@ -363,7 +373,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     if (!visible) {
       setIsTrackingMode(false);
       setElapsedTime(0);
-      setCompletedSets({});
+      setTrackingData({});
     }
   }, [visible]);
 
@@ -423,6 +433,22 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       handleSaveChanges();
     }
     
+    // Initialiser les données de tracking pour chaque exercice
+    const initialTrackingData: Record<string, any> = {};
+    
+    exercises.forEach(exercise => {
+      initialTrackingData[exercise.id] = {
+        completedSets: 0,
+        sets: Array(exercise.sets || 1).fill(0).map(() => ({
+          completed: false,
+          weight: '',
+          reps: '',
+        }))
+      };
+    });
+    
+    setTrackingData(initialTrackingData);
+    
     // Activer le mode tracking
     setIsTrackingMode(true);
   };
@@ -436,7 +462,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     
     // Réinitialiser les états
     setElapsedTime(0);
-    setCompletedSets({});
+    setTrackingData({});
     
     // Afficher un message de confirmation
     Alert.alert("Séance terminée", "Bravo pour votre entraînement !");
@@ -454,84 +480,129 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     if (isTrackingMode) {
       setSelectedExerciseId(exerciseId);
       
-      // Récupérer l'exercice sélectionné
-      const selectedExercise = exercises.find(ex => ex.id === exerciseId);
-      
-      if (selectedExercise) {
-        // Initialiser les séries de l'exercice
-        const initialSets = Array(selectedExercise.sets || 1).fill(0).map(() => ({
-          completed: false,
-          weight: '',
-          reps: '',
-        }));
+      // Utiliser les données de tracking existantes ou en créer de nouvelles
+      if (!trackingData[exerciseId]) {
+        const selectedExercise = exercises.find(ex => ex.id === exerciseId);
         
-        setExerciseSets(initialSets);
-        setModalMode('exercise-tracking');
+        if (selectedExercise) {
+          setTrackingData(prev => ({
+            ...prev,
+            [exerciseId]: {
+              completedSets: 0,
+              sets: Array(selectedExercise.sets || 1).fill(0).map(() => ({
+                completed: false,
+                weight: '',
+                reps: '',
+              }))
+            }
+          }));
+        }
       }
+      
+      // Définir les sets pour l'exercice sélectionné
+      setExerciseSets(trackingData[exerciseId]?.sets || []);
+      setModalMode('exercise-tracking');
     }
   };
 
   // Fonction pour revenir au mode workout
   const handleBackToWorkout = () => {
+    // Sauvegarder les modifications de tracking actuelles avant de revenir
+    if (selectedExerciseId) {
+      setTrackingData(prev => ({
+        ...prev,
+        [selectedExerciseId]: {
+          ...prev[selectedExerciseId],
+          sets: exerciseSets,
+          completedSets: exerciseSets.filter(set => set.completed).length
+        }
+      }));
+    }
+    
     setModalMode('workout');
     setSelectedExerciseId(null);
   };
 
   // Fonction pour cocher/décocher une série
   const handleToggleSet = (index: number) => {
-    setExerciseSets(prev => {
-      const newSets = [...prev];
-      newSets[index] = {
-        ...newSets[index],
-        completed: !newSets[index].completed
-      };
-      return newSets;
-    });
+    // Mettre à jour l'état local des sets
+    const newSets = [...exerciseSets];
+    newSets[index] = {
+      ...newSets[index],
+      completed: !newSets[index].completed
+    };
+    setExerciseSets(newSets);
     
-    // Mettre à jour le nombre de séries complétées pour l'exercice
+    // Mettre à jour immédiatement les données de tracking
     if (selectedExerciseId) {
-      const completedSetCount = exerciseSets.filter(set => set.completed).length;
-      setCompletedSets(prev => ({
+      const completedCount = newSets.filter(set => set.completed).length;
+      
+      setTrackingData(prev => ({
         ...prev,
-        [selectedExerciseId]: completedSetCount
+        [selectedExerciseId]: {
+          completedSets: completedCount,
+          sets: newSets
+        }
       }));
     }
   };
 
   // Fonction pour mettre à jour le poids d'une série
   const handleWeightChange = (index: number, value: string) => {
-    setExerciseSets(prev => {
-      const newSets = [...prev];
-      newSets[index] = {
-        ...newSets[index],
-        weight: value
-      };
-      return newSets;
-    });
+    // Mettre à jour l'état local des sets
+    const newSets = [...exerciseSets];
+    newSets[index] = {
+      ...newSets[index],
+      weight: value
+    };
+    setExerciseSets(newSets);
+    
+    // Mettre à jour immédiatement les données de tracking
+    if (selectedExerciseId) {
+      setTrackingData(prev => ({
+        ...prev,
+        [selectedExerciseId]: {
+          ...prev[selectedExerciseId],
+          sets: newSets
+        }
+      }));
+    }
   };
 
   // Fonction pour mettre à jour les répétitions d'une série
   const handleRepsChange = (index: number, value: string) => {
-    setExerciseSets(prev => {
-      const newSets = [...prev];
-      newSets[index] = {
-        ...newSets[index],
-        reps: value
-      };
-      return newSets;
-    });
+    // Mettre à jour l'état local des sets
+    const newSets = [...exerciseSets];
+    newSets[index] = {
+      ...newSets[index],
+      reps: value
+    };
+    setExerciseSets(newSets);
+    
+    // Mettre à jour immédiatement les données de tracking
+    if (selectedExerciseId) {
+      setTrackingData(prev => ({
+        ...prev,
+        [selectedExerciseId]: {
+          ...prev[selectedExerciseId],
+          sets: newSets
+        }
+      }));
+    }
   };
 
   // Fonction pour ajouter une série
   const handleAddSet = () => {
-    setExerciseSets(prev => [
-      ...prev,
+    // Mettre à jour l'état local des sets
+    const newSets = [
+      ...exerciseSets,
       {
         completed: false,
         weight: '',
         reps: ''
       }
-    ]);
+    ];
+    setExerciseSets(newSets);
     
     // Mettre à jour le nombre total de séries pour l'exercice
     if (selectedExerciseId) {
@@ -542,6 +613,15 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
           sets: (selectedExercise.sets || 0) + 1
         };
         setExercises(prev => prev.map(ex => ex.id === selectedExerciseId ? updatedExercise : ex));
+        
+        // Mettre à jour les données de tracking
+        setTrackingData(prev => ({
+          ...prev,
+          [selectedExerciseId]: {
+            ...prev[selectedExerciseId],
+            sets: newSets
+          }
+        }));
       }
     }
   };
@@ -553,7 +633,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
 
   // Fonction pour obtenir le texte de progression pour un exercice
   const getExerciseProgressText = (exercise: Exercise) => {
-    const completed = completedSets[exercise.id] || 0;
+    const completed = trackingData[exercise.id]?.completedSets || 0;
     if (exercise.tracking === "trackedOnSets" || exercise.sets > 1) {
       return `${completed} of ${exercise.sets} sets completed`;
     } else if (exercise.tracking === "trackedOnTime" || exercise.duration) {
@@ -561,6 +641,15 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     } else {
       return "Tracked on rounds";
     }
+  };
+
+  // Fonction pour obtenir le pourcentage de progression
+  const getExerciseProgressPercentage = (exerciseId: string) => {
+    const exercise = exercises.find(ex => ex.id === exerciseId);
+    if (!exercise) return 0;
+    
+    const completed = trackingData[exerciseId]?.completedSets || 0;
+    return (completed / exercise.sets) * 100;
   };
 
   // Gestion de la fermeture avec sauvegarde automatique
@@ -750,7 +839,9 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     // Ne pas permettre de supprimer la dernière série
     if (exerciseSets.length <= 1) return;
     
-    setExerciseSets(prev => prev.filter((_, i) => i !== index));
+    // Mettre à jour l'état local des sets
+    const newSets = exerciseSets.filter((_, i) => i !== index);
+    setExerciseSets(newSets);
     
     // Mettre à jour le nombre total de séries pour l'exercice
     if (selectedExerciseId) {
@@ -761,9 +852,43 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
           sets: Math.max(1, (selectedExercise.sets || 0) - 1)
         };
         setExercises(prev => prev.map(ex => ex.id === selectedExerciseId ? updatedExercise : ex));
+        
+        // Mettre à jour les données de tracking avec les sets restants
+        const completedCount = newSets.filter(set => set.completed).length;
+        setTrackingData(prev => ({
+          ...prev,
+          [selectedExerciseId]: {
+            completedSets: completedCount,
+            sets: newSets
+          }
+        }));
       }
     }
   };
+
+  // Mettre à jour pour le mode de tracking d'exercice spécifique
+  useEffect(() => {
+    if (modalMode === 'exercise-tracking' && selectedExerciseId) {
+      // Lors du passage en mode tracking d'exercice, on charge les données existantes
+      setExerciseSets(trackingData[selectedExerciseId]?.sets || []);
+    }
+  }, [modalMode, selectedExerciseId]);
+  
+  // Sauvegarder les données de tracking lorsqu'on change d'exercice
+  useEffect(() => {
+    // Sauvegarder les données du précédent exercice si nécessaire
+    if (modalMode === 'exercise-tracking' && selectedExerciseId && exerciseSets.length > 0) {
+      const completedCount = exerciseSets.filter(set => set.completed).length;
+      
+      setTrackingData(prev => ({
+        ...prev,
+        [selectedExerciseId]: {
+          completedSets: completedCount,
+          sets: exerciseSets
+        }
+      }));
+    }
+  }, [selectedExerciseId, exerciseSets]);
 
   if (!workout) return null;
 
@@ -846,11 +971,21 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                               <View 
                                 style={[
                                   styles.trackingCheckbox,
-                                  (completedSets[exercise.id] || 0) === exercise.sets && styles.trackingCheckboxCompleted
+                                  (trackingData[exercise.id]?.completedSets || 0) === exercise.sets && styles.trackingCheckboxCompleted,
+                                  { borderStyle: 'dashed' }
                                 ]}
                               >
-                                {(completedSets[exercise.id] || 0) === exercise.sets && (
+                                {(trackingData[exercise.id]?.completedSets || 0) === exercise.sets ? (
                                   <Ionicons name="checkmark" size={24} color="#000000" />
+                                ) : (
+                                  <View 
+                                    style={[
+                                      styles.progressFill,
+                                      {
+                                        height: `${getExerciseProgressPercentage(exercise.id)}%`,
+                                      }
+                                    ]}
+                                  />
                                 )}
                               </View>
                             ) : (
@@ -1034,12 +1169,15 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                         <TouchableOpacity 
                           style={[
                             styles.trackingCheckbox,
-                            set.completed && styles.trackingCheckboxCompleted
+                            set.completed && styles.trackingCheckboxCompleted,
+                            { borderStyle: 'dashed' }
                           ]}
                           onPress={() => handleToggleSet(index)}
                         >
-                          {set.completed && (
+                          {set.completed ? (
                             <Ionicons name="checkmark" size={24} color="#000000" />
+                          ) : (
+                            <View style={[styles.progressFill, { height: '0%' }]} />
                           )}
                         </TouchableOpacity>
                         
@@ -1051,7 +1189,14 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                               placeholderTextColor="rgba(255, 255, 255, 0.5)"
                               keyboardType="numeric"
                               value={set.weight}
-                              onChangeText={(value) => handleWeightChange(index, value.replace(/[^0-9]/g, ''))}
+                              onChangeText={(value) => {
+                                // Limiter à 3 chiffres maximum
+                                if (value.length <= 3) {
+                                  handleWeightChange(index, value.replace(/[^0-9]/g, ''))
+                                }
+                              }}
+                              maxLength={3}
+                              textAlign="right"
                             />
                             <Text style={styles.inputSuffix}>kg</Text>
                           </View>
@@ -1063,7 +1208,14 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                               placeholderTextColor="rgba(255, 255, 255, 0.5)"
                               keyboardType="numeric"
                               value={set.reps}
-                              onChangeText={(value) => handleRepsChange(index, value.replace(/[^0-9]/g, ''))}
+                              onChangeText={(value) => {
+                                // Limiter à 3 chiffres maximum
+                                if (value.length <= 3) {
+                                  handleRepsChange(index, value.replace(/[^0-9]/g, ''))
+                                }
+                              }}
+                              maxLength={3}
+                              textAlign="right"
                             />
                             <Text style={styles.inputSuffix}>reps</Text>
                           </View>
@@ -1154,9 +1306,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   settingsButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#242526',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1166,7 +1318,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 100,
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    height: 44,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1472,20 +1624,32 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderStyle: 'dashed',
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'transparent',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  progressFill: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    width: '100%',
   },
   trackingCheckboxCompleted: {
     backgroundColor: '#FFFFFF',
     borderColor: '#FFFFFF',
+    borderStyle: 'solid',
   },
   finishButton: {
-    height: 40,
+    height: 44,
     paddingHorizontal: 20,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 22,
+    backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
@@ -1528,31 +1692,33 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     marginLeft: 16,
-    gap: 8,
+    justifyContent: 'flex-start',
+    gap: 16,
   },
   inputWrapper: {
-    flex: 1,
     position: 'relative',
     height: 48,
+    minWidth: 70,
   },
   setInput: {
-    flex: 1,
     height: 48,
     backgroundColor: 'transparent',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.2)',
     borderRadius: 100,
     color: '#FFFFFF',
-    textAlign: 'center',
+    textAlign: 'right',
     fontSize: 16,
-    paddingLeft: 0,
-    paddingRight: 45,
+    paddingHorizontal: 12,
+    paddingRight: 52,
+    minWidth: 70,
+    width: 'auto',
   },
   inputSuffix: {
     position: 'absolute',
     top: 0,
     bottom: 0,
-    right: 16,
+    right: 12,
     left: undefined,
     textAlignVertical: 'center',
     fontSize: 16,
