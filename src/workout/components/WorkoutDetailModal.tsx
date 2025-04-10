@@ -11,7 +11,8 @@ import {
   TextInput,
   KeyboardAvoidingView,
   TouchableWithoutFeedback,
-  Keyboard
+  Keyboard,
+  Animated
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Workout, Exercise } from '../../types/workout';
@@ -20,6 +21,7 @@ import { useWorkout } from '../../hooks/useWorkout';
 import { ExerciseSettingsModal } from './ExerciseSettingsModal';
 import { ExerciseFilterModal } from './ExerciseFilterModal';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useActiveWorkout, TrackingSet, TrackingData } from '../contexts/ActiveWorkoutContext';
 
 // Définition des types de tracking
 type TrackingType = 'trackedOnSets' | 'trackedOnTime';
@@ -300,82 +302,57 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   const [selectedExercises, setSelectedExercises] = useState<Exercise[]>([]);
   // État pour les filtres de tags
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  // État pour le mode tracking
-  const [isTrackingMode, setIsTrackingMode] = useState(false);
-  // État pour le timer de séance
-  const [elapsedTime, setElapsedTime] = useState(0);
+  
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   
-  // Structure de données plus complète pour le tracking des exercices
-  // Stocke pour chaque exercice: nombre de sets complétés, et données pour chaque set
-  const [trackingData, setTrackingData] = useState<Record<string, {
-    completedSets: number;
-    sets: Array<{
-      completed: boolean;
-      weight: string;
-      reps: string;
-    }>;
-  }>>({});
+  // États pour stocker les animations de chaque série
+  const [setAnimations, setSetAnimations] = useState<{ [key: number]: Animated.Value }>({});
   
-  // États pour le tracking d'un exercice spécifique
-  const [exerciseSets, setExerciseSets] = useState<Array<{
-    completed: boolean;
-    weight: string;
-    reps: string;
-  }>>([]);
+  // États pour les animations des exercices
+  const [exerciseProgressAnimations, setExerciseProgressAnimations] = useState<{ [key: string]: Animated.Value }>({});
+  const [exerciseBounceAnimations, setExerciseBounceAnimations] = useState<{ [key: string]: Animated.Value }>({});
+  // État pour contrôler l'affichage des checkmarks
+  const [completedCheckmarks, setCompletedCheckmarks] = useState<{ [key: string]: boolean }>({});
   
   const { updateWorkout } = useWorkout();
+  const { 
+    activeWorkout, 
+    startWorkout, 
+    finishWorkout, 
+    updateTrackingData, 
+    updateElapsedTime, 
+    resumeWorkout, 
+    isTrackingWorkout
+  } = useActiveWorkout();
+  
+  // Référence aux exerciseSets basée sur le contexte et l'exercice sélectionné
+  const [exerciseSets, setExerciseSets] = useState<TrackingSet[]>([]);
 
-  // Synchroniser les exercices lorsque le workout change
+  // Initialiser les animations pour chaque série
   useEffect(() => {
-    if (workout) {
-      setExercises(workout.exercises);
-      setHasUnsavedChanges(false);
+    if (modalMode === 'exercise-tracking' && exerciseSets.length > 0) {
+      const animations: { [key: number]: Animated.Value } = {};
+      exerciseSets.forEach((_, index) => {
+        animations[index] = new Animated.Value(1);
+      });
+      setSetAnimations(animations);
     }
-  }, [workout]);
+  }, [modalMode, exerciseSets.length]);
 
-  // Reset le mode et les sélections lorsque la modale est fermée
+  // Chargement initial des exercices
   useEffect(() => {
-    if (!visible) {
-      setModalMode('workout');
-      setSearchQuery('');
-      setSelectedExercises([]);
-    }
-  }, [visible]);
-
-  // Timer de séance
-  useEffect(() => {
-    if (isTrackingMode) {
-      // Démarrer le timer
-      timerRef.current = setInterval(() => {
-        setElapsedTime(prev => prev + 1);
-      }, 1000);
-    } else {
-      // Arrêter le timer
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
+    if (workout && visible) {
+      setExercises(workout.exercises || []);
+      
+      // Si une séance est déjà en cours pour ce workout, mettre à jour le mode
+      if (isTrackingWorkout && activeWorkout?.workoutId === workout.id) {
+        // Ne rien faire ici, le timer est géré par le contexte global
+      } else {
+        // Réinitialiser les modes si aucune séance n'est en cours
+        setModalMode('workout');
       }
-      // Réinitialiser le timer
-      setElapsedTime(0);
     }
-
-    // Nettoyer le timer lors du démontage
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    };
-  }, [isTrackingMode]);
-
-  // Reset le mode tracking lors de la fermeture de la modale
-  useEffect(() => {
-    if (!visible) {
-      setIsTrackingMode(false);
-      setElapsedTime(0);
-      setTrackingData({});
-    }
-  }, [visible]);
+  }, [workout, visible, isTrackingWorkout, activeWorkout?.workoutId]);
 
   // Fonction pour sauvegarder les modifications
   const handleSaveChanges = () => {
@@ -426,81 +403,62 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     Alert.alert("Remplacer l'exercice", "Fonctionnalité à implémenter");
   };
 
-  // Fonction pour commencer une séance
+  // Fonction pour démarrer une séance
   const handleStartWorkout = () => {
-    // Sauvegarder automatiquement avant de commencer
-    if (hasUnsavedChanges) {
-      handleSaveChanges();
-    }
+    if (!workout) return;
     
-    // Initialiser les données de tracking pour chaque exercice
-    const initialTrackingData: Record<string, any> = {};
-    
-    exercises.forEach(exercise => {
-      initialTrackingData[exercise.id] = {
-        completedSets: 0,
-        sets: Array(exercise.sets || 1).fill(0).map(() => ({
-          completed: false,
-          weight: '',
-          reps: '',
-        }))
-      };
-    });
-    
-    setTrackingData(initialTrackingData);
-    
-    // Activer le mode tracking
-    setIsTrackingMode(true);
+    // Démarrer une nouvelle séance via le contexte
+    // Le contexte gère maintenant le timer
+    startWorkout(workout.id, workout.name, exercises);
+    updateElapsedTime(0);
   };
 
   // Fonction pour finir la séance
   const handleFinishWorkout = () => {
-    // Désactiver le mode tracking
-    setIsTrackingMode(false);
-    
-    // TODO: Sauvegarder les données de tracking
-    
-    // Réinitialiser les états
-    setElapsedTime(0);
-    setTrackingData({});
-    
-    // Afficher un message de confirmation
-    Alert.alert("Séance terminée", "Bravo pour votre entraînement !");
-  };
-
-  // Fonction pour formater le temps du timer (mm:ss)
-  const formatElapsedTime = () => {
-    const minutes = Math.floor(elapsedTime / 60);
-    const seconds = elapsedTime % 60;
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    Alert.alert(
+      "Terminer la séance",
+      "Êtes-vous sûr de vouloir terminer cette séance ?",
+      [
+        {
+          text: "Annuler",
+          style: "cancel"
+        },
+        {
+          text: "Terminer",
+          onPress: async () => {
+            // Le contexte gère maintenant le timer
+            await finishWorkout();
+            
+            // Afficher un message de confirmation
+            Alert.alert("Séance terminée", "Bravo pour votre entraînement !");
+            onClose();
+          }
+        }
+      ]
+    );
   };
 
   // Fonction pour naviguer vers le tracking d'un exercice
   const handleExerciseTracking = (exerciseId: string) => {
-    if (isTrackingMode) {
+    if (isTrackingWorkout && activeWorkout?.workoutId === workout?.id) {
       setSelectedExerciseId(exerciseId);
       
       // Utiliser les données de tracking existantes ou en créer de nouvelles
-      if (!trackingData[exerciseId]) {
-        const selectedExercise = exercises.find(ex => ex.id === exerciseId);
+      const exercise = exercises.find(ex => ex.id === exerciseId);
+      
+      if (activeWorkout && !activeWorkout.trackingData[exerciseId] && exercise) {
+        const initialSets = Array(exercise.sets || 1).fill(0).map(() => ({
+          completed: false,
+          weight: '',
+          reps: '',
+        }));
         
-        if (selectedExercise) {
-          setTrackingData(prev => ({
-            ...prev,
-            [exerciseId]: {
-              completedSets: 0,
-              sets: Array(selectedExercise.sets || 1).fill(0).map(() => ({
-                completed: false,
-                weight: '',
-                reps: '',
-              }))
-            }
-          }));
-        }
+        updateTrackingData(exerciseId, initialSets, 0);
+        setExerciseSets(initialSets);
+      } else if (activeWorkout && activeWorkout.trackingData[exerciseId]) {
+        setExerciseSets(activeWorkout.trackingData[exerciseId]?.sets || []);
       }
       
-      // Définir les sets pour l'exercice sélectionné
-      setExerciseSets(trackingData[exerciseId]?.sets || []);
       setModalMode('exercise-tracking');
     }
   };
@@ -509,21 +467,138 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   const handleBackToWorkout = () => {
     // Sauvegarder les modifications de tracking actuelles avant de revenir
     if (selectedExerciseId) {
-      setTrackingData(prev => ({
-        ...prev,
-        [selectedExerciseId]: {
-          ...prev[selectedExerciseId],
-          sets: exerciseSets,
-          completedSets: exerciseSets.filter(set => set.completed).length
+      const newSets = [...exerciseSets];
+      const completedCount = newSets.filter(set => set.completed).length;
+      
+      updateTrackingData(selectedExerciseId, newSets, completedCount);
+      
+      // Préparer l'animation pour l'exercice
+      const exercise = exercises.find(ex => ex.id === selectedExerciseId);
+      if (exercise) {
+        const isCompleted = completedCount === exercise.sets;
+        
+        // Pour un exercice complété, masquer d'abord le checkmark
+        if (isCompleted) {
+          setCompletedCheckmarks(prev => ({
+            ...prev,
+            [selectedExerciseId]: false
+          }));
         }
-      }));
+        
+        // Créer ou réinitialiser l'animation de progression
+        if (!exerciseProgressAnimations[selectedExerciseId]) {
+          setExerciseProgressAnimations(prev => ({
+            ...prev,
+            [selectedExerciseId]: new Animated.Value(0)
+          }));
+        } else {
+          exerciseProgressAnimations[selectedExerciseId].setValue(0);
+        }
+        
+        // Créer ou réinitialiser l'animation de rebond
+        if (!exerciseBounceAnimations[selectedExerciseId]) {
+          setExerciseBounceAnimations(prev => ({
+            ...prev,
+            [selectedExerciseId]: new Animated.Value(1)
+          }));
+        } else {
+          exerciseBounceAnimations[selectedExerciseId].setValue(1);
+        }
+        
+        // Déclencher les animations après le retour à la liste principale
+        setTimeout(() => {
+          // Vérifier que les animations existent avant de les utiliser
+          if (exerciseProgressAnimations[selectedExerciseId]) {
+            if (isCompleted) {
+              // 1. Animer la jauge jusqu'à 100%
+              Animated.timing(exerciseProgressAnimations[selectedExerciseId], {
+                toValue: 1,
+                duration: 600,
+                useNativeDriver: false,
+              }).start(() => {
+                // 2. Afficher le checkmark après remplissage de la jauge
+                setTimeout(() => {
+                  setCompletedCheckmarks(prev => ({
+                    ...prev,
+                    [selectedExerciseId]: true
+                  }));
+                  
+                  // 3. Déclencher l'animation de rebond après l'apparition du checkmark
+                  setTimeout(() => {
+                    if (exerciseBounceAnimations[selectedExerciseId]) {
+                      Animated.sequence([
+                        Animated.timing(exerciseBounceAnimations[selectedExerciseId], {
+                          toValue: 1.1,
+                          duration: 100,
+                          useNativeDriver: true,
+                        }),
+                        Animated.timing(exerciseBounceAnimations[selectedExerciseId], {
+                          toValue: 0.95,
+                          duration: 100,
+                          useNativeDriver: true,
+                        }),
+                        Animated.timing(exerciseBounceAnimations[selectedExerciseId], {
+                          toValue: 1,
+                          duration: 100,
+                          useNativeDriver: true,
+                        }),
+                      ]).start();
+                    }
+                  }, 150);
+                }, 200);
+              });
+            } else {
+              // Pour un exercice partiellement complété, juste animer la jauge
+              Animated.timing(exerciseProgressAnimations[selectedExerciseId], {
+                toValue: completedCount / exercise.sets,
+                duration: 600,
+                useNativeDriver: false,
+              }).start();
+            }
+          }
+        }, 100);
+      }
     }
     
     setModalMode('workout');
     setSelectedExerciseId(null);
   };
 
-  // Fonction pour cocher/décocher une série
+  // Fonction pour animer le rebond d'une série
+  const animateSetBounce = (index: number) => {
+    if (setAnimations[index]) {
+      try {
+        // Réinitialiser l'animation si nécessaire
+        setAnimations[index].setValue(1);
+        
+        // Séquence d'animation de rebond
+        Animated.sequence([
+          // Agrandir légèrement
+          Animated.timing(setAnimations[index], {
+            toValue: 1.05,
+            duration: 100,
+            useNativeDriver: true,
+          }),
+          // Revenir à une taille légèrement plus petite (pour l'effet de rebond)
+          Animated.timing(setAnimations[index], {
+            toValue: 0.97,
+            duration: 100,
+            useNativeDriver: true,
+          }),
+          // Revenir à la taille normale
+          Animated.timing(setAnimations[index], {
+            toValue: 1,
+            duration: 100,
+            useNativeDriver: true,
+          }),
+        ]).start();
+      } catch (error) {
+        console.log('Animation error:', error);
+      }
+    }
+  };
+
+  // Fonction pour cocher/décocher une série avec animation
   const handleToggleSet = (index: number) => {
     // Mettre à jour l'état local des sets
     const newSets = [...exerciseSets];
@@ -533,17 +608,15 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     };
     setExerciseSets(newSets);
     
+    // Déclencher l'animation de rebond
+    animateSetBounce(index);
+    
     // Mettre à jour immédiatement les données de tracking
     if (selectedExerciseId) {
       const completedCount = newSets.filter(set => set.completed).length;
       
-      setTrackingData(prev => ({
-        ...prev,
-        [selectedExerciseId]: {
-          completedSets: completedCount,
-          sets: newSets
-        }
-      }));
+      // Mettre à jour via le contexte
+      updateTrackingData(selectedExerciseId, newSets, completedCount);
     }
   };
 
@@ -559,13 +632,8 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     
     // Mettre à jour immédiatement les données de tracking
     if (selectedExerciseId) {
-      setTrackingData(prev => ({
-        ...prev,
-        [selectedExerciseId]: {
-          ...prev[selectedExerciseId],
-          sets: newSets
-        }
-      }));
+      const completedCount = newSets.filter(set => set.completed).length;
+      updateTrackingData(selectedExerciseId, newSets, completedCount);
     }
   };
 
@@ -581,13 +649,8 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     
     // Mettre à jour immédiatement les données de tracking
     if (selectedExerciseId) {
-      setTrackingData(prev => ({
-        ...prev,
-        [selectedExerciseId]: {
-          ...prev[selectedExerciseId],
-          sets: newSets
-        }
-      }));
+      const completedCount = newSets.filter(set => set.completed).length;
+      updateTrackingData(selectedExerciseId, newSets, completedCount);
     }
   };
 
@@ -615,13 +678,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
         setExercises(prev => prev.map(ex => ex.id === selectedExerciseId ? updatedExercise : ex));
         
         // Mettre à jour les données de tracking
-        setTrackingData(prev => ({
-          ...prev,
-          [selectedExerciseId]: {
-            ...prev[selectedExerciseId],
-            sets: newSets
-          }
-        }));
+        updateTrackingData(selectedExerciseId, newSets, 0);
       }
     }
   };
@@ -633,22 +690,21 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
 
   // Fonction pour obtenir le texte de progression pour un exercice
   const getExerciseProgressText = (exercise: Exercise) => {
-    const completed = trackingData[exercise.id]?.completedSets || 0;
+    const completed = activeWorkout?.trackingData[exercise.id]?.completedSets || 0;
     if (exercise.tracking === "trackedOnSets" || exercise.sets > 1) {
       return `${completed} of ${exercise.sets} sets completed`;
-    } else if (exercise.tracking === "trackedOnTime" || exercise.duration) {
-      return "Tracked on time";
-    } else {
-      return "Tracked on rounds";
+    } else if (exercise.tracking === "trackedOnTime") {
+      return exercise.duration !== undefined && exercise.duration > 0 ? `${exercise.duration} min` : "";
     }
+    return "";
   };
 
-  // Fonction pour obtenir le pourcentage de progression
-  const getExerciseProgressPercentage = (exerciseId: string) => {
+  // Calcule le pourcentage de complétion d'un exercice
+  const getExerciseProgress = (exerciseId: string) => {
     const exercise = exercises.find(ex => ex.id === exerciseId);
     if (!exercise) return 0;
     
-    const completed = trackingData[exerciseId]?.completedSets || 0;
+    const completed = activeWorkout?.trackingData[exerciseId]?.completedSets || 0;
     return (completed / exercise.sets) * 100;
   };
 
@@ -660,8 +716,22 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       return;
     }
     
+    // Si on est en mode tracking d'un exercice spécifique, retourner au mode workout
+    if (modalMode === 'exercise-tracking') {
+      handleBackToWorkout();
+      return;
+    }
+    
+    // Si on est en mode tracking, continuer en arrière-plan sans demander
+    if (isTrackingWorkout) {
+      // Le timer continue en arrière-plan via le contexte global
+      // Pas besoin de gérer le timer ici
+      onClose();
+      return;
+    }
+    
     // Sauvegarder automatiquement les changements avant de fermer
-    if (hasUnsavedChanges && workout) {
+    if (workout) {
       handleSaveChanges();
     }
     
@@ -855,22 +925,15 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
         
         // Mettre à jour les données de tracking avec les sets restants
         const completedCount = newSets.filter(set => set.completed).length;
-        setTrackingData(prev => ({
-          ...prev,
-          [selectedExerciseId]: {
-            completedSets: completedCount,
-            sets: newSets
-          }
-        }));
+        updateTrackingData(selectedExerciseId, newSets, completedCount);
       }
     }
   };
 
-  // Mettre à jour pour le mode de tracking d'exercice spécifique
   useEffect(() => {
-    if (modalMode === 'exercise-tracking' && selectedExerciseId) {
+    if (modalMode === 'exercise-tracking' && selectedExerciseId && activeWorkout) {
       // Lors du passage en mode tracking d'exercice, on charge les données existantes
-      setExerciseSets(trackingData[selectedExerciseId]?.sets || []);
+      setExerciseSets(activeWorkout.trackingData[selectedExerciseId]?.sets || []);
     }
   }, [modalMode, selectedExerciseId]);
   
@@ -880,15 +943,67 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     if (modalMode === 'exercise-tracking' && selectedExerciseId && exerciseSets.length > 0) {
       const completedCount = exerciseSets.filter(set => set.completed).length;
       
-      setTrackingData(prev => ({
-        ...prev,
-        [selectedExerciseId]: {
-          completedSets: completedCount,
-          sets: exerciseSets
-        }
-      }));
+      updateTrackingData(selectedExerciseId, exerciseSets, completedCount);
     }
   }, [selectedExerciseId, exerciseSets]);
+
+  // Ajouter un effet de nettoyage pour les animations
+  useEffect(() => {
+    return () => {
+      // Nettoyer les animations lors du démontage du composant
+      for (const key in exerciseProgressAnimations) {
+        if (exerciseProgressAnimations[key]) {
+          exerciseProgressAnimations[key].stopAnimation();
+        }
+      }
+      for (const key in exerciseBounceAnimations) {
+        if (exerciseBounceAnimations[key]) {
+          exerciseBounceAnimations[key].stopAnimation();
+        }
+      }
+      for (const key in setAnimations) {
+        if (setAnimations[key]) {
+          setAnimations[key].stopAnimation();
+        }
+      }
+    };
+  }, []);
+
+  // Fonction pour formater le temps du timer (mm:ss)
+  const formatElapsedTime = () => {
+    if (!activeWorkout) return "00:00";
+    const minutes = Math.floor(activeWorkout.elapsedTime / 60);
+    const seconds = activeWorkout.elapsedTime % 60;
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  // Initialiser les animations des exercices une seule fois au chargement
+  useEffect(() => {
+    if (isTrackingWorkout && exercises.length > 0 && visible) {
+      // Initialiser les animations pour tous les exercices
+      const progressAnimations: { [key: string]: Animated.Value } = {};
+      const bounceAnimations: { [key: string]: Animated.Value } = {};
+      
+      exercises.forEach(exercise => {
+        const completedSets = activeWorkout?.trackingData[exercise.id]?.completedSets || 0;
+        const progress = completedSets / exercise.sets;
+        
+        // Créer une nouvelle animation à 0 pour permettre l'animation progressive
+        progressAnimations[exercise.id] = new Animated.Value(0);
+        bounceAnimations[exercise.id] = new Animated.Value(1);
+        
+        // Animer immédiatement jusqu'à la valeur actuelle
+        Animated.timing(progressAnimations[exercise.id], {
+          toValue: progress,
+          duration: 600,
+          useNativeDriver: false,
+        }).start();
+      });
+      
+      setExerciseProgressAnimations(progressAnimations);
+      setExerciseBounceAnimations(bounceAnimations);
+    }
+  }, [isTrackingWorkout, exercises.length, visible, activeWorkout?.workoutId]);
 
   if (!workout) return null;
 
@@ -912,7 +1027,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                   </TouchableOpacity>
                   
                   <View style={styles.rightButtons}>
-                    {!isTrackingMode && (
+                    {!isTrackingWorkout && (
                       <TouchableOpacity style={styles.settingsButton}>
                         <Ionicons name="settings-outline" size={24} color="#FFFFFF" />
                       </TouchableOpacity>
@@ -920,29 +1035,29 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                     
                     <TouchableOpacity 
                       style={[
-                        isTrackingMode ? styles.finishButton : styles.startButton
+                        isTrackingWorkout ? styles.finishButton : styles.startButton
                       ]}
-                      onPress={isTrackingMode ? handleFinishWorkout : handleStartWorkout}
+                      onPress={isTrackingWorkout ? handleFinishWorkout : handleStartWorkout}
                     >
                       <Text 
                         style={[
-                          isTrackingMode ? styles.finishButtonText : styles.startButtonText
+                          isTrackingWorkout ? styles.finishButtonText : styles.startButtonText
                         ]}
                       >
-                        {isTrackingMode ? "Finish" : "Start"}
+                        {isTrackingWorkout ? "Finish" : "Start"}
                       </Text>
                     </TouchableOpacity>
                   </View>
                 </View>
                 
-                {isTrackingMode && (
+                {isTrackingWorkout && (
                   <Text style={styles.workoutTimer}>{formatElapsedTime()}</Text>
                 )}
                 
                 <Text 
                   style={[
                     styles.workoutName,
-                    isTrackingMode && styles.workoutNameSmall
+                    isTrackingWorkout && styles.workoutNameSmall
                   ]}
                 >
                   {workout.name}
@@ -961,54 +1076,53 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                           key={exercise.id}
                           style={({ pressed }) => [
                             styles.exerciseItem,
-                            isTrackingMode && styles.exerciseItemTracking,
+                            isTrackingWorkout && styles.exerciseItemTracking,
                             pressed && styles.exerciseItemPressed
                           ]}
-                          onPress={() => isTrackingMode ? handleExerciseTracking(exercise.id) : {}}
+                          onPress={() => isTrackingWorkout ? handleExerciseTracking(exercise.id) : {}}
                         >
                           <View style={styles.exerciseContent}>
-                            {isTrackingMode ? (
-                              <View 
-                                style={[
-                                  styles.trackingCheckbox,
-                                  (trackingData[exercise.id]?.completedSets || 0) === exercise.sets && styles.trackingCheckboxCompleted,
-                                  { borderStyle: 'dashed' }
-                                ]}
-                              >
-                                {(trackingData[exercise.id]?.completedSets || 0) === exercise.sets ? (
-                                  <Ionicons name="checkmark" size={24} color="#000000" />
-                                ) : (
-                                  <View 
-                                    style={[
-                                      styles.progressFill,
-                                      {
-                                        height: `${getExerciseProgressPercentage(exercise.id)}%`,
+                            {isTrackingWorkout && (
+                              <View style={{position: 'relative'}}>
+                                <TouchableOpacity
+                                  onPress={() => handleExerciseTracking(exercise.id)}
+                                  style={[
+                                    styles.trackingCheckbox,
+                                    (activeWorkout?.trackingData[exercise.id]?.completedSets || 0) === exercise.sets && completedCheckmarks[exercise.id] && styles.trackingCheckboxCompleted,
+                                    { transform: [{ scale: exerciseBounceAnimations[exercise.id] || 1 }] }
+                                  ]}
+                                >
+                                  {(activeWorkout?.trackingData[exercise.id]?.completedSets || 0) === exercise.sets && completedCheckmarks[exercise.id] ? (
+                                    <Ionicons name="checkmark" size={24} color="#000000" />
+                                  ) : (
+                                    <Animated.View style={[
+                                      styles.progressFill, 
+                                      { 
+                                        height: exerciseProgressAnimations[exercise.id] 
+                                          ? exerciseProgressAnimations[exercise.id].interpolate({
+                                              inputRange: [0, 1],
+                                              outputRange: ['0%', '100%']
+                                            })
+                                          : `${(activeWorkout?.trackingData[exercise.id]?.completedSets || 0) / exercise.sets * 100}%` 
                                       }
-                                    ]}
-                                  />
-                                )}
-                              </View>
-                            ) : (
-                              <View style={styles.exerciseIconContainer}>
-                                <Ionicons 
-                                  name={getExerciseIcon(exercise)} 
-                                  size={24} 
-                                  color="#FFFFFF" 
-                                />
+                                    ]} />
+                                  )}
+                                </TouchableOpacity>
+                                <View style={styles.dashedBorder} />
                               </View>
                             )}
                             
-                            <View style={styles.exerciseInfo}>
+                            <View style={[
+                              styles.exerciseInfo,
+                              !isTrackingWorkout && { marginLeft: 0 }
+                            ]}>
                               <Text style={styles.exerciseName}>{exercise.name}</Text>
                               <Text style={styles.exerciseTrackingType}>
-                                {isTrackingMode 
-                                  ? getExerciseProgressText(exercise)
-                                  : getTrackingText(exercise)
-                                }
+                                {getExerciseProgressText(exercise)}
                               </Text>
                             </View>
                             
-                            {!isTrackingMode ? (
+                            {!isTrackingWorkout ? (
                               <TouchableOpacity 
                                 onPress={() => handleExerciseSettings(exercise.id)}
                                 style={styles.exerciseSettingsButton}
@@ -1024,7 +1138,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                         </Pressable>
                       ))}
                       
-                      {!isTrackingMode && (
+                      {!isTrackingWorkout && (
                         <View style={styles.addButtonContainer}>
                           <TouchableOpacity 
                             style={styles.addRoundButton}
@@ -1165,12 +1279,18 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                 >
                   <View style={styles.setsContainer}>
                     {exerciseSets.map((set, index) => (
-                      <View key={index} style={styles.setRow}>
+                      <Animated.View 
+                        key={index} 
+                        style={[
+                          styles.setRow,
+                          { transform: [{ scale: setAnimations[index] || 1 }] }
+                        ]}
+                      >
                         <TouchableOpacity 
                           style={[
                             styles.trackingCheckbox,
                             set.completed && styles.trackingCheckboxCompleted,
-                            { borderStyle: 'dashed' }
+                            styles.setTrackingCheckbox
                           ]}
                           onPress={() => handleToggleSet(index)}
                         >
@@ -1198,7 +1318,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                               maxLength={3}
                               textAlign="right"
                             />
-                            <Text style={styles.inputSuffix}>kg</Text>
+                            <Text style={[styles.inputSuffix, { right: 16 }]}>kg</Text>
                           </View>
                           
                           <View style={styles.inputWrapper}>
@@ -1217,7 +1337,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                               maxLength={3}
                               textAlign="right"
                             />
-                            <Text style={styles.inputSuffix}>reps</Text>
+                            <Text style={[styles.inputSuffix, { right: 12 }]}>reps</Text>
                           </View>
                         </View>
                         
@@ -1227,7 +1347,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                         >
                           <Ionicons name="close" size={24} color="#5B5B5C" />
                         </TouchableOpacity>
-                      </View>
+                      </Animated.View>
                     ))}
                   </View>
                   
@@ -1381,8 +1501,8 @@ const styles = StyleSheet.create({
   exerciseContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
     paddingHorizontal: 16,
+    paddingVertical: 16,
   },
   exerciseItemPressed: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
@@ -1396,7 +1516,7 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'transparent',
   },
   exerciseInfo: {
     flex: 1,
@@ -1623,9 +1743,6 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    borderStyle: 'dashed',
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'transparent',
@@ -1637,13 +1754,11 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
     width: '100%',
   },
   trackingCheckboxCompleted: {
     backgroundColor: '#FFFFFF',
-    borderColor: '#FFFFFF',
-    borderStyle: 'solid',
   },
   finishButton: {
     height: 44,
@@ -1759,5 +1874,27 @@ const styles = StyleSheet.create({
   },
   exerciseItemTracking: {
     marginBottom: 8,
+  },
+  dashedBorder: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderWidth: 1,
+    borderRadius: 12,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderStyle: 'dashed',
+    backgroundColor: 'transparent',
+  },
+  setTrackingCheckbox: {
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderStyle: 'solid',
+  },
+  trackingCheckboxText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '400',
   },
 }); 
