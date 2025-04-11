@@ -22,6 +22,8 @@ import { ExerciseSettingsModal } from './ExerciseSettingsModal';
 import { ExerciseFilterModal } from './ExerciseFilterModal';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useActiveWorkout, TrackingSet, TrackingData } from '../contexts/ActiveWorkoutContext';
+import { useRestTimer } from '../contexts/RestTimerContext';
+import RestTimer from './RestTimer';
 
 // Définition des types de tracking
 type TrackingType = 'trackedOnSets' | 'trackedOnTime';
@@ -327,6 +329,9 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   
   // Référence aux exerciseSets basée sur le contexte et l'exercice sélectionné
   const [exerciseSets, setExerciseSets] = useState<TrackingSet[]>([]);
+
+  // Récupération du contexte de timer de repos
+  const { startRestTimer, resetTimer } = useRestTimer();
 
   // Initialiser les animations pour chaque série
   useEffect(() => {
@@ -690,22 +695,17 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
 
   // Fonction pour obtenir le texte de progression pour un exercice
   const getExerciseProgressText = (exercise: Exercise) => {
-    const completed = activeWorkout?.trackingData[exercise.id]?.completedSets || 0;
-    if (exercise.tracking === "trackedOnSets" || exercise.sets > 1) {
-      return `${completed} of ${exercise.sets} sets completed`;
-    } else if (exercise.tracking === "trackedOnTime") {
-      return exercise.duration !== undefined && exercise.duration > 0 ? `${exercise.duration} min` : "";
+    if (!isTrackingWorkout) {
+      return exercise.tracking === 'trackedOnSets' ? 'Tracked on sets' : 'Tracked on time';
     }
-    return "";
+    const completedSets = activeWorkout?.trackingData[exercise.id]?.completedSets || 0;
+    return `${completedSets} of ${exercise.sets} sets completed`;
   };
 
   // Calcule le pourcentage de complétion d'un exercice
-  const getExerciseProgress = (exerciseId: string) => {
-    const exercise = exercises.find(ex => ex.id === exerciseId);
-    if (!exercise) return 0;
-    
-    const completed = activeWorkout?.trackingData[exerciseId]?.completedSets || 0;
-    return (completed / exercise.sets) * 100;
+  const getExerciseProgress = (exercise: Exercise) => {
+    const completedSets = activeWorkout?.trackingData[exercise.id]?.completedSets || 0;
+    return completedSets / exercise.sets;
   };
 
   // Gestion de la fermeture avec sauvegarde automatique
@@ -762,9 +762,90 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   };
 
   // Fonction pour ouvrir la modal de paramètres d'exercice
+  const [settingsModalVisible, setSettingsModalVisible] = useState(false);
+  const [currentExercise, setCurrentExercise] = useState<Exercise | undefined>(undefined);
+  // État pour indiquer si on veut ouvrir directement en mode timer
+  const [openTimerDirectly, setOpenTimerDirectly] = useState(false);
+
+  const handleOpenSettings = (exercise: Exercise) => {
+    setCurrentExercise(exercise);
+    setSettingsModalVisible(true);
+    // Réinitialiser pour ouvrir en mode normal (menu principal)
+    setOpenTimerDirectly(false);
+  };
+
+  // Fonction pour ouvrir la modal de paramètres d'exercice
   const handleExerciseSettings = (exerciseId: string) => {
-    setSelectedExerciseId(exerciseId);
-    setIsExerciseSettingsVisible(true);
+    const exercise = exercises.find(ex => ex.id === exerciseId);
+    if (exercise) {
+      handleOpenSettings(exercise);
+    }
+  };
+
+  // Fonction pour gérer le toggle d'une série (completed/uncompleted)
+  const handleSetToggle = (index: number) => {
+    // Animer la série au clic
+    Animated.sequence([
+      Animated.timing(setAnimations[index], {
+        toValue: 0.9,
+        duration: 100,
+        useNativeDriver: true
+      }),
+      Animated.timing(setAnimations[index], {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true
+      })
+    ]).start();
+
+    // Mettre à jour l'état des sets
+    const newSets = [...exerciseSets];
+    newSets[index] = {
+      ...newSets[index],
+      completed: !newSets[index].completed
+    };
+
+    // Compter le nombre de sets complétés
+    const completedCount = newSets.filter(set => set.completed).length;
+    
+    // Mettre à jour les données de tracking
+    if (selectedExerciseId) {
+      updateTrackingData(selectedExerciseId, newSets, completedCount);
+      setExerciseSets(newSets);
+      
+      // Démarrer ou réinitialiser le timer de repos si une série a été complétée
+      if (newSets[index].completed) {
+        const exercise = exercises.find(ex => ex.id === selectedExerciseId);
+        if (exercise) {
+          // Si le timer est déjà actif, le réinitialiser, sinon le démarrer
+          resetTimer(exercise);
+        }
+      }
+    }
+  };
+
+  // Fonction pour mettre à jour le temps de repos d'un exercice
+  const handleRestTimeUpdate = (seconds: number) => {
+    if (!currentExercise) return;
+    
+    // Mettre à jour l'exercice actuel avec le nouveau temps de repos
+    const updatedExercise = {
+      ...currentExercise,
+      restTimeSeconds: seconds
+    };
+    
+    // Mettre à jour la liste des exercices
+    setExercises(prev => 
+      prev.map(ex => ex.id === updatedExercise.id ? updatedExercise : ex)
+    );
+    
+    // Marquer qu'il y a des changements non sauvegardés
+    setHasUnsavedChanges(true);
+    
+    // Si on est en tracking, mettre à jour le reset timer dans le contexte
+    if (isTrackingWorkout) {
+      resetTimer(updatedExercise);
+    }
   };
 
   // Rendu de l'état vide avec le même style que la page d'accueil
@@ -1259,8 +1340,19 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                   </TouchableOpacity>
                   
                   <View style={styles.rightButtons}>
-                    <TouchableOpacity style={styles.settingsButton}>
-                      <Ionicons name="settings-outline" size={24} color="#FFFFFF" />
+                    <TouchableOpacity 
+                      style={[styles.settingsButton, { marginRight: 16 }]}
+                      onPress={() => {
+                        if (selectedExercise) {
+                          // Ouvrir directement en mode configuration du timer
+                          setCurrentExercise(selectedExercise);
+                          setSettingsModalVisible(true);
+                          // Indiquer qu'on veut ouvrir directement en mode timer
+                          setOpenTimerDirectly(true);
+                        }
+                      }}
+                    >
+                      <Ionicons name="timer-outline" size={24} color="#FFFFFF" />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -1292,7 +1384,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                             set.completed && styles.trackingCheckboxCompleted,
                             styles.setTrackingCheckbox
                           ]}
-                          onPress={() => handleToggleSet(index)}
+                          onPress={() => handleSetToggle(index)}
                         >
                           {set.completed ? (
                             <Ionicons name="checkmark" size={24} color="#000000" />
@@ -1370,18 +1462,27 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
       
-      {/* Modale pour les paramètres d'exercice */}
+      {/* Modale des paramètres d'exercice */}
       <ExerciseSettingsModal
-        visible={isExerciseSettingsVisible}
-        onClose={() => setIsExerciseSettingsVisible(false)}
+        visible={settingsModalVisible}
+        onClose={() => {
+          setSettingsModalVisible(false);
+          setOpenTimerDirectly(false);
+        }}
         onReplace={handleReplaceExercise}
         onDelete={() => {
-          if (selectedExerciseId) {
-            handleRemoveExercise(selectedExerciseId);
+          if (currentExercise) {
+            handleRemoveExercise(currentExercise.id);
+            setSettingsModalVisible(false);
           }
-          setSelectedExerciseId(null);
         }}
+        exercise={currentExercise}
+        onRestTimeUpdate={handleRestTimeUpdate}
+        openTimerDirectly={openTimerDirectly}
       />
+      
+      {/* Afficher le timer de repos s'il est actif */}
+      <RestTimer />
       
       {/* Modale pour les filtres */}
       <ExerciseFilterModal

@@ -8,9 +8,12 @@ import { Workout } from '../../types/workout';
 import { mockWorkouts } from '../../data/mockWorkouts';
 import { WorkoutCreationModal } from '../components/WorkoutCreationModal';
 import { WorkoutDetailModal } from '../components/WorkoutDetailModal';
+import ActiveWorkoutIndicator from '../components/ActiveWorkoutIndicator';
+import { useActiveWorkout } from '../contexts/ActiveWorkoutContext';
 
 export const WorkoutsScreen: React.FC = () => {
   const { workouts, loading, error, createWorkout } = useWorkout();
+  const { activeWorkout } = useActiveWorkout();
   const [isCreationModalVisible, setIsCreationModalVisible] = useState(false);
   const [isDetailModalVisible, setIsDetailModalVisible] = useState(false);
   const [selectedWorkout, setSelectedWorkout] = useState<Workout | null>(null);
@@ -24,6 +27,14 @@ export const WorkoutsScreen: React.FC = () => {
   }, []);
 
   const handleWorkoutPress = (workout: Workout) => {
+    // Si une séance est en cours pour ce workout, continuer avec ce workout
+    if (activeWorkout && activeWorkout.workoutId === workout.id) {
+      setSelectedWorkout(workout);
+      setIsDetailModalVisible(true);
+      return;
+    }
+
+    // Sinon, ouvrir le workout normalement
     setSelectedWorkout(workout);
     setIsDetailModalVisible(true);
   };
@@ -48,6 +59,18 @@ export const WorkoutsScreen: React.FC = () => {
 
   const handleCloseCreationModal = () => {
     setIsCreationModalVisible(false);
+  };
+
+  // Gestionnaire pour reprendre une séance active
+  const handleResumeActiveWorkout = () => {
+    if (activeWorkout) {
+      // Trouver le workout correspondant à la séance active
+      const workout = workouts.find(w => w.id === activeWorkout.workoutId);
+      if (workout) {
+        setSelectedWorkout(workout);
+        setIsDetailModalVisible(true);
+      }
+    }
   };
 
   if (loading) {
@@ -76,6 +99,9 @@ export const WorkoutsScreen: React.FC = () => {
         onClose={handleCloseDetailModal}
         workout={selectedWorkout}
       />
+
+      {/* Indicateur de séance active */}
+      <ActiveWorkoutIndicator onPress={handleResumeActiveWorkout} />
     </View>
   );
 };

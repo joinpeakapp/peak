@@ -5,6 +5,8 @@ import { Provider } from 'react-redux';
 import { store } from './src/store';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { loadInitialData } from './src/store/slices/workoutSlice';
+import { ActiveWorkoutProvider } from './src/workout/contexts/ActiveWorkoutContext';
+import { RestTimerProvider } from './src/workout/contexts/RestTimerContext';
 
 export default function App() {
   useEffect(() => {
@@ -14,10 +16,14 @@ export default function App() {
 
   return (
     <Provider store={store}>
-      <SafeAreaProvider>
-        <StatusBar style="light" />
-        <AppNavigator />
-      </SafeAreaProvider>
+      <ActiveWorkoutProvider>
+        <RestTimerProvider>
+          <SafeAreaProvider>
+            <StatusBar style="light" />
+            <AppNavigator />
+          </SafeAreaProvider>
+        </RestTimerProvider>
+      </ActiveWorkoutProvider>
     </Provider>
   );
 }

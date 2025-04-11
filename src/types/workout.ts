@@ -12,6 +12,7 @@ export interface Exercise {
   notes?: string;      // Notes sur l'exercice (optionnel)
   tags?: string[];     // Tags pour catégoriser les exercices
   tracking?: TrackingType; // Type de tracking (sets ou time)
+  restTimeSeconds?: number; // Temps de repos entre les séries en secondes (optionnel)
   personalRecord?: {   // Record personnel pour cet exercice
     weight: number;    // Plus gros poids utilisé
     reps: number;      // Plus grand nombre de répétitions à ce poids
