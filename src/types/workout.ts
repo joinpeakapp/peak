@@ -54,4 +54,32 @@ export interface WorkoutState {
       date: string;
     };
   };
+}
+
+export interface CompletedSet {
+  weight: number;
+  reps: number;
+  completed: boolean;
+}
+
+export interface CompletedExercise {
+  id: string;
+  name: string;
+  sets: CompletedSet[];
+  tracking: TrackingType;
+  duration?: number;
+  personalRecord?: {
+    maxWeight: number;
+    maxReps: number;
+  };
+}
+
+export interface CompletedWorkout {
+  id: string;
+  workoutId: string;
+  name: string;
+  date: string;
+  duration: number;
+  exercises: CompletedExercise[];
+  notes?: string;
 } 

@@ -12,10 +12,11 @@ import {
   KeyboardAvoidingView,
   TouchableWithoutFeedback,
   Keyboard,
-  Animated
+  Animated,
+  Modal
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Workout, Exercise } from '../../types/workout';
+import { Workout, Exercise, CompletedWorkout } from '../../types/workout';
 import { FullScreenModal } from '../../components/common/FullScreenModal';
 import { useWorkout } from '../../hooks/useWorkout';
 import { ExerciseSettingsModal } from './ExerciseSettingsModal';
@@ -24,6 +25,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useActiveWorkout, TrackingSet, TrackingData } from '../contexts/ActiveWorkoutContext';
 import { useRestTimer } from '../contexts/RestTimerContext';
 import RestTimer from './RestTimer';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { WorkoutSummaryScreen } from './WorkoutSummaryScreen';
+import { useNavigation } from '@react-navigation/native';
 
 // Définition des types de tracking
 type TrackingType = 'trackedOnSets' | 'trackedOnTime';
@@ -282,15 +286,25 @@ interface WorkoutDetailModalProps {
   visible: boolean;
   onClose: () => void;
   workout: Workout | null;
+  onStartWorkout?: () => void;
 }
 
 // Modes d'affichage de la modale
 type ModalMode = 'workout' | 'exercise-selection' | 'exercise-tracking';
 
+// Ajouter cette fonction de génération d'ID simple
+const generateId = () => {
+  return 'workout_' + 
+    Math.random().toString(36).substring(2, 15) + 
+    Math.random().toString(36).substring(2, 15) + 
+    '_' + Date.now().toString();
+};
+
 export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   visible,
   onClose,
-  workout
+  workout,
+  onStartWorkout
 }) => {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -331,7 +345,10 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   const [exerciseSets, setExerciseSets] = useState<TrackingSet[]>([]);
 
   // Récupération du contexte de timer de repos
-  const { startRestTimer, resetTimer } = useRestTimer();
+  const { startRestTimer, resetTimer, stopTimer } = useRestTimer();
+  
+  // Pour la navigation
+  const navigation = useNavigation();
 
   // Initialiser les animations pour chaque série
   useEffect(() => {
@@ -420,27 +437,164 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
 
   // Fonction pour finir la séance
   const handleFinishWorkout = () => {
+    setIsFinishModalVisible(true);
+  };
+
+  const handleDiscardWorkout = async () => {
+    // Demander confirmation avant de supprimer
     Alert.alert(
-      "Terminer la séance",
-      "Êtes-vous sûr de vouloir terminer cette séance ?",
+      "Discard Workout",
+      "Are you sure you want to discard this workout? This action cannot be undone.",
       [
         {
-          text: "Annuler",
+          text: "Cancel",
           style: "cancel"
         },
         {
-          text: "Terminer",
+          text: "Discard",
+          style: "destructive",
           onPress: async () => {
-            // Le contexte gère maintenant le timer
-            await finishWorkout();
-            
-            // Afficher un message de confirmation
-            Alert.alert("Séance terminée", "Bravo pour votre entraînement !");
+            // Terminer la séance sans sauvegarder
+            if (finishWorkout) {
+              await finishWorkout();
+            }
+            // Fermer la modale
+            setIsFinishModalVisible(false);
+            // Fermer la modale principale
             onClose();
           }
         }
       ]
     );
+  };
+
+  const handleLogWorkout = async () => {
+    console.log("handleLogWorkout called", { activeWorkout, workout });
+    if (!activeWorkout || !workout) {
+      console.log("No activeWorkout or workout", { activeWorkout, workout });
+      return;
+    }
+    
+    // Arrêter complètement le timer de repos
+    if (stopTimer) {
+      stopTimer();
+    }
+    
+    try {
+      // Création de l'objet CompletedWorkout
+      console.log("Creating CompletedWorkout");
+      const newCompletedWorkout: CompletedWorkout = {
+        id: generateId(),
+        workoutId: workout.id,
+        name: workout.name,
+        date: new Date().toISOString(),
+        duration: activeWorkout.elapsedTime,
+        exercises: exercises.map(exercise => {
+          const trackingData = activeWorkout.trackingData[exercise.id];
+          const sets = trackingData?.sets || [];
+          
+          // Déterminer si un nouveau record a été établi
+          const personalRecord = calculatePersonalRecord(exercise, sets);
+          
+          return {
+            id: exercise.id,
+            name: exercise.name,
+            sets: sets.map(set => ({
+              weight: parseInt(set.weight) || 0,
+              reps: parseInt(set.reps) || 0,
+              completed: set.completed
+            })),
+            tracking: exercise.tracking || 'trackedOnSets',
+            duration: exercise.duration,
+            personalRecord
+          };
+        }),
+        notes: workout.notes
+      };
+      
+      // Récupérer les séances existantes
+      console.log("Getting stored workouts");
+      const storedWorkouts = await AsyncStorage.getItem('completedWorkouts');
+      const completedWorkouts: CompletedWorkout[] = storedWorkouts 
+        ? JSON.parse(storedWorkouts) 
+        : [];
+      
+      // Ajouter la nouvelle séance
+      completedWorkouts.push(newCompletedWorkout);
+      console.log("Saving completed workouts", { count: completedWorkouts.length });
+      
+      // Sauvegarder la liste mise à jour
+      await AsyncStorage.setItem('completedWorkouts', JSON.stringify(completedWorkouts));
+      console.log("Completed workouts saved successfully");
+      
+      // Fermer la modale de confirmation
+      setIsFinishModalVisible(false);
+      
+      // Sauvegarder la séance terminée pour l'écran de récapitulatif
+      setCompletedWorkout(newCompletedWorkout);
+      
+      // Afficher l'écran de récapitulatif
+      setShowSummary(true);
+      
+    } catch (error) {
+      console.error('Error saving completed workout:', error);
+      Alert.alert(
+        "Error", 
+        "There was an error saving your workout. Please try again."
+      );
+    }
+  };
+
+  // Gérer le bouton de fin de l'écran de récapitulatif
+  const handleSummaryFinish = async () => {
+    // S'assurer que le timer de repos est bien arrêté
+    if (stopTimer) {
+      stopTimer();
+    }
+    
+    // Terminer la séance active
+    await finishWorkout();
+    
+    // Masquer l'écran de récapitulatif
+    setShowSummary(false);
+    
+    // Fermer la modale principale
+    onClose();
+    
+    // Rediriger vers la page Journal
+    navigation.navigate('JournalTab');
+  };
+
+  // Fonction pour calculer si un record personnel a été atteint
+  const calculatePersonalRecord = (exercise: Exercise, sets: TrackingSet[]) => {
+    if (!exercise || !sets || sets.length === 0) return undefined;
+    
+    let maxWeight = 0;
+    let maxReps = 0;
+    
+    // Chercher le poids max et les reps max parmi tous les sets complétés
+    sets.forEach(set => {
+      if (set.completed) {
+        const weight = parseInt(set.weight) || 0;
+        const reps = parseInt(set.reps) || 0;
+        
+        if (weight > maxWeight) {
+          maxWeight = weight;
+          maxReps = reps;
+        } else if (weight === maxWeight && reps > maxReps) {
+          maxReps = reps;
+        }
+      }
+    });
+    
+    // Vérifier si c'est un nouveau record par rapport à l'ancien
+    const isNewRecord = exercise.personalRecord 
+      ? maxWeight > (exercise.personalRecord.weight || 0) || 
+        (maxWeight === exercise.personalRecord.weight && maxReps > exercise.personalRecord.reps)
+      : maxWeight > 0;
+    
+    // Si c'est un nouveau record, le retourner
+    return isNewRecord ? { maxWeight, maxReps } : undefined;
   };
 
   // Fonction pour naviguer vers le tracking d'un exercice
@@ -1086,6 +1240,25 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     }
   }, [isTrackingWorkout, exercises.length, visible, activeWorkout?.workoutId]);
 
+  const [isFinishModalVisible, setIsFinishModalVisible] = useState(false);
+  const slideAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (isFinishModalVisible) {
+      Animated.timing(slideAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      slideAnim.setValue(0);
+    }
+  }, [isFinishModalVisible]);
+
+  // État pour l'écran de récapitulatif
+  const [showSummary, setShowSummary] = useState(false);
+  const [completedWorkout, setCompletedWorkout] = useState<CompletedWorkout | null>(null);
+
   if (!workout) return null;
 
   return (
@@ -1093,374 +1266,381 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       visible={visible}
       onClose={onClose}
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardAvoidingView}
-      >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={styles.container}>
-            {modalMode === 'workout' ? (
-              // Mode affichage du workout
-              <>
-                <View style={styles.header}>
-                  <TouchableOpacity onPress={handleClose} style={styles.backButton}>
-                    <Ionicons name="chevron-down" size={24} color="#FFFFFF" />
-                  </TouchableOpacity>
-                  
-                  <View style={styles.rightButtons}>
-                    {!isTrackingWorkout && (
-                      <TouchableOpacity style={styles.settingsButton}>
-                        <Ionicons name="settings-outline" size={24} color="#FFFFFF" />
-                      </TouchableOpacity>
-                    )}
-                    
-                    <TouchableOpacity 
-                      style={[
-                        isTrackingWorkout ? styles.finishButton : styles.startButton
-                      ]}
-                      onPress={isTrackingWorkout ? handleFinishWorkout : handleStartWorkout}
-                    >
-                      <Text 
-                        style={[
-                          isTrackingWorkout ? styles.finishButtonText : styles.startButtonText
-                        ]}
-                      >
-                        {isTrackingWorkout ? "Finish" : "Start"}
-                      </Text>
+      {showSummary && completedWorkout ? (
+        <WorkoutSummaryScreen 
+          workout={completedWorkout}
+          onFinish={handleSummaryFinish}
+        />
+      ) : (
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardAvoidingView}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.container}>
+              {modalMode === 'workout' ? (
+                // Mode affichage du workout
+                <>
+                  <View style={styles.header}>
+                    <TouchableOpacity onPress={handleClose} style={styles.backButton}>
+                      <Ionicons name="chevron-down" size={24} color="#FFFFFF" />
                     </TouchableOpacity>
-                  </View>
-                </View>
-                
-                {isTrackingWorkout && (
-                  <Text style={styles.workoutTimer}>{formatElapsedTime()}</Text>
-                )}
-                
-                <Text 
-                  style={[
-                    styles.workoutName,
-                    isTrackingWorkout && styles.workoutNameSmall
-                  ]}
-                >
-                  {workout.name}
-                </Text>
-                
-                <ScrollView 
-                  style={styles.content}
-                  showsVerticalScrollIndicator={false}
-                >
-                  {exercises.length === 0 ? (
-                    renderEmptyState()
-                  ) : (
-                    <View style={styles.exercisesList}>
-                      {exercises.map((exercise) => (
-                        <Pressable
-                          key={exercise.id}
-                          style={({ pressed }) => [
-                            styles.exerciseItem,
-                            isTrackingWorkout && styles.exerciseItemTracking,
-                            pressed && styles.exerciseItemPressed
-                          ]}
-                          onPress={() => isTrackingWorkout ? handleExerciseTracking(exercise.id) : {}}
-                        >
-                          <View style={styles.exerciseContent}>
-                            {isTrackingWorkout && (
-                              <View style={{position: 'relative'}}>
-                                <TouchableOpacity
-                                  onPress={() => handleExerciseTracking(exercise.id)}
-                                  style={[
-                                    styles.trackingCheckbox,
-                                    (activeWorkout?.trackingData[exercise.id]?.completedSets || 0) === exercise.sets && completedCheckmarks[exercise.id] && styles.trackingCheckboxCompleted,
-                                    { transform: [{ scale: exerciseBounceAnimations[exercise.id] || 1 }] }
-                                  ]}
-                                >
-                                  {(activeWorkout?.trackingData[exercise.id]?.completedSets || 0) === exercise.sets && completedCheckmarks[exercise.id] ? (
-                                    <Ionicons name="checkmark" size={24} color="#000000" />
-                                  ) : (
-                                    <Animated.View style={[
-                                      styles.progressFill, 
-                                      { 
-                                        height: exerciseProgressAnimations[exercise.id] 
-                                          ? exerciseProgressAnimations[exercise.id].interpolate({
-                                              inputRange: [0, 1],
-                                              outputRange: ['0%', '100%']
-                                            })
-                                          : `${(activeWorkout?.trackingData[exercise.id]?.completedSets || 0) / exercise.sets * 100}%` 
-                                      }
-                                    ]} />
-                                  )}
-                                </TouchableOpacity>
-                                <View style={styles.dashedBorder} />
-                              </View>
-                            )}
-                            
-                            <View style={[
-                              styles.exerciseInfo,
-                              !isTrackingWorkout && { marginLeft: 0 }
-                            ]}>
-                              <Text style={styles.exerciseName}>{exercise.name}</Text>
-                              <Text style={styles.exerciseTrackingType}>
-                                {getExerciseProgressText(exercise)}
-                              </Text>
-                            </View>
-                            
-                            {!isTrackingWorkout ? (
-                              <TouchableOpacity 
-                                onPress={() => handleExerciseSettings(exercise.id)}
-                                style={styles.exerciseSettingsButton}
-                              >
-                                <Ionicons name="ellipsis-vertical" size={24} color="#5B5B5C" />
-                              </TouchableOpacity>
-                            ) : (
-                              <View style={styles.exerciseChevronContainer}>
-                                <Ionicons name="chevron-forward" size={24} color="#5B5B5C" />
-                              </View>
-                            )}
-                          </View>
-                        </Pressable>
-                      ))}
-                      
+                    
+                    <View style={styles.rightButtons}>
                       {!isTrackingWorkout && (
-                        <View style={styles.addButtonContainer}>
-                          <TouchableOpacity 
-                            style={styles.addRoundButton}
-                            onPress={handleAddExercise}
-                          >
-                            <Ionicons name="add" size={24} color="#FFFFFF" />
-                          </TouchableOpacity>
-                          <Text style={styles.addButtonText}>Add exercise</Text>
-                        </View>
+                        <TouchableOpacity style={styles.settingsButton}>
+                          <Ionicons name="settings-outline" size={24} color="#FFFFFF" />
+                        </TouchableOpacity>
                       )}
+                      
+                      <TouchableOpacity 
+                        style={[
+                          isTrackingWorkout ? styles.finishButton : styles.startButton
+                        ]}
+                        onPress={isTrackingWorkout ? handleFinishWorkout : handleStartWorkout}
+                      >
+                        <Text 
+                          style={[
+                            isTrackingWorkout ? styles.finishButtonText : styles.startButtonText
+                          ]}
+                        >
+                          {isTrackingWorkout ? "Finish" : "Start"}
+                        </Text>
+                      </TouchableOpacity>
                     </View>
+                  </View>
+                  
+                  {isTrackingWorkout && (
+                    <Text style={styles.workoutTimer}>{formatElapsedTime()}</Text>
                   )}
                   
-                  {/* Padding de bas pour assurer le défilement complet */}
-                  <View style={styles.bottomPadding} />
-                </ScrollView>
-              </>
-            ) : modalMode === 'exercise-selection' ? (
-              // Mode sélection d'exercices
-              <>
-                {/* Header */}
-                <View style={styles.header}>
-                  <TouchableOpacity 
-                    style={styles.arrowBackButton} 
-                    onPress={handleClose}
+                  <Text 
+                    style={[
+                      styles.workoutName,
+                      isTrackingWorkout && styles.workoutNameSmall
+                    ]}
                   >
-                    <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+                    {workout.name}
+                  </Text>
+                  
+                  <ScrollView 
+                    style={styles.content}
+                    showsVerticalScrollIndicator={false}
+                  >
+                    {exercises.length === 0 ? (
+                      renderEmptyState()
+                    ) : (
+                      <View style={styles.exercisesList}>
+                        {exercises.map((exercise) => (
+                          <Pressable
+                            key={exercise.id}
+                            style={({ pressed }) => [
+                              styles.exerciseItem,
+                              isTrackingWorkout && styles.exerciseItemTracking,
+                              pressed && styles.exerciseItemPressed
+                            ]}
+                            onPress={() => isTrackingWorkout ? handleExerciseTracking(exercise.id) : {}}
+                          >
+                            <View style={styles.exerciseContent}>
+                              {isTrackingWorkout && (
+                                <View style={{position: 'relative'}}>
+                                  <TouchableOpacity
+                                    onPress={() => handleExerciseTracking(exercise.id)}
+                                    style={[
+                                      styles.trackingCheckbox,
+                                      (activeWorkout?.trackingData[exercise.id]?.completedSets || 0) === exercise.sets && completedCheckmarks[exercise.id] && styles.trackingCheckboxCompleted,
+                                      { transform: [{ scale: exerciseBounceAnimations[exercise.id] || 1 }] }
+                                    ]}
+                                  >
+                                    {(activeWorkout?.trackingData[exercise.id]?.completedSets || 0) === exercise.sets && completedCheckmarks[exercise.id] ? (
+                                      <Ionicons name="checkmark" size={24} color="#000000" />
+                                    ) : (
+                                      <Animated.View style={[
+                                        styles.progressFill, 
+                                        { 
+                                          height: exerciseProgressAnimations[exercise.id] 
+                                            ? exerciseProgressAnimations[exercise.id].interpolate({
+                                                inputRange: [0, 1],
+                                                outputRange: ['0%', '100%']
+                                              })
+                                            : `${(activeWorkout?.trackingData[exercise.id]?.completedSets || 0) / exercise.sets * 100}%` 
+                                        }
+                                      ]} />
+                                    )}
+                                  </TouchableOpacity>
+                                  <View style={styles.dashedBorder} />
+                                </View>
+                              )}
+                              
+                              <View style={[
+                                styles.exerciseInfo,
+                                !isTrackingWorkout && { marginLeft: 0 }
+                              ]}>
+                                <Text style={styles.exerciseName}>{exercise.name}</Text>
+                                <Text style={styles.exerciseTrackingType}>
+                                  {getExerciseProgressText(exercise)}
+                                </Text>
+                              </View>
+                              
+                              {!isTrackingWorkout ? (
+                                <TouchableOpacity 
+                                  onPress={() => handleExerciseSettings(exercise.id)}
+                                  style={styles.exerciseSettingsButton}
+                                >
+                                  <Ionicons name="ellipsis-vertical" size={24} color="#5B5B5C" />
+                                </TouchableOpacity>
+                              ) : (
+                                <View style={styles.exerciseChevronContainer}>
+                                  <Ionicons name="chevron-forward" size={24} color="#5B5B5C" />
+                                </View>
+                              )}
+                            </View>
+                          </Pressable>
+                        ))}
+                        
+                        {!isTrackingWorkout && (
+                          <View style={styles.addButtonContainer}>
+                            <TouchableOpacity 
+                              style={styles.addRoundButton}
+                              onPress={handleAddExercise}
+                            >
+                              <Ionicons name="add" size={24} color="#FFFFFF" />
+                            </TouchableOpacity>
+                            <Text style={styles.addButtonText}>Add exercise</Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
+                    
+                    {/* Padding de bas pour assurer le défilement complet */}
+                    <View style={styles.bottomPadding} />
+                  </ScrollView>
+                </>
+              ) : modalMode === 'exercise-selection' ? (
+                // Mode sélection d'exercices
+                <>
+                  {/* Header */}
+                  <View style={styles.header}>
+                    <TouchableOpacity 
+                      style={styles.arrowBackButton} 
+                      onPress={handleClose}
+                    >
+                      <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+                    </TouchableOpacity>
+                    
+                    <View style={styles.searchContainer}>
+                      <Ionicons name="search" size={20} color="rgba(255, 255, 255, 0.5)" style={styles.searchIcon} />
+                      <TextInput
+                        style={styles.searchInput}
+                        placeholder="Search exercises..."
+                        placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                      />
+                    </View>
+                    
+                    <TouchableOpacity style={styles.addButton}>
+                      <Ionicons name="add" size={24} color="#FFFFFF" />
+                    </TouchableOpacity>
+                  </View>
+                  
+                  {/* Filter Button */}
+                  <TouchableOpacity 
+                    style={[
+                      styles.filterButton, 
+                      selectedTags.length > 0 && styles.filterButtonActive
+                    ]} 
+                    onPress={handleOpenFilterModal}
+                  >
+                    <Text 
+                      style={[
+                        styles.filterButtonText,
+                        selectedTags.length > 0 && styles.filterButtonTextActive
+                      ]}
+                    >
+                      {getFilterButtonText()}
+                    </Text>
+                    {selectedTags.length === 0 ? (
+                      <Ionicons name="chevron-down" size={20} color="#FFFFFF" />
+                    ) : (
+                      <TouchableOpacity onPress={handleResetFilters}>
+                        <Ionicons name="close" size={20} color="#000000" />
+                      </TouchableOpacity>
+                    )}
                   </TouchableOpacity>
                   
-                  <View style={styles.searchContainer}>
-                    <Ionicons name="search" size={20} color="rgba(255, 255, 255, 0.5)" style={styles.searchIcon} />
-                    <TextInput
-                      style={styles.searchInput}
-                      placeholder="Search exercises..."
-                      placeholderTextColor="rgba(255, 255, 255, 0.5)"
-                      value={searchQuery}
-                      onChangeText={setSearchQuery}
+                  {/* Exercise List */}
+                  <View style={styles.exerciseListContainer}>
+                    <ScrollView style={styles.scrollView}>
+                      {groupedExercises.map((section) => (
+                        <View key={section.letter}>
+                          {renderSectionHeader({ letter: section.letter })}
+                          {section.data.map((exercise) => (
+                            <View key={exercise.id}>
+                              {renderExerciseItem(exercise)}
+                            </View>
+                          ))}
+                        </View>
+                      ))}
+                      <View style={styles.bottomPadding} />
+                    </ScrollView>
+                    
+                    {/* Fade Out Gradient */}
+                    <LinearGradient
+                      colors={['rgba(13, 13, 15, 0)', 'rgba(13, 13, 15, 0.8)', 'rgba(13, 13, 15, 1)']}
+                      style={styles.fadeGradient}
                     />
                   </View>
                   
-                  <TouchableOpacity style={styles.addButton}>
-                    <Ionicons name="add" size={24} color="#FFFFFF" />
-                  </TouchableOpacity>
-                </View>
-                
-                {/* Filter Button */}
-                <TouchableOpacity 
-                  style={[
-                    styles.filterButton, 
-                    selectedTags.length > 0 && styles.filterButtonActive
-                  ]} 
-                  onPress={handleOpenFilterModal}
-                >
-                  <Text 
-                    style={[
-                      styles.filterButtonText,
-                      selectedTags.length > 0 && styles.filterButtonTextActive
-                    ]}
-                  >
-                    {getFilterButtonText()}
-                  </Text>
-                  {selectedTags.length === 0 ? (
-                    <Ionicons name="chevron-down" size={20} color="#FFFFFF" />
-                  ) : (
-                    <TouchableOpacity onPress={handleResetFilters}>
-                      <Ionicons name="close" size={20} color="#000000" />
-                    </TouchableOpacity>
-                  )}
-                </TouchableOpacity>
-                
-                {/* Exercise List */}
-                <View style={styles.exerciseListContainer}>
-                  <ScrollView style={styles.scrollView}>
-                    {groupedExercises.map((section) => (
-                      <View key={section.letter}>
-                        {renderSectionHeader({ letter: section.letter })}
-                        {section.data.map((exercise) => (
-                          <View key={exercise.id}>
-                            {renderExerciseItem(exercise)}
-                          </View>
-                        ))}
-                      </View>
-                    ))}
-                    <View style={styles.bottomPadding} />
-                  </ScrollView>
-                  
-                  {/* Fade Out Gradient */}
-                  <LinearGradient
-                    colors={['rgba(13, 13, 15, 0)', 'rgba(13, 13, 15, 0.8)', 'rgba(13, 13, 15, 1)']}
-                    style={styles.fadeGradient}
-                  />
-                </View>
-                
-                {/* Bottom Add Button */}
-                <View style={styles.bottomButtonContainer}>
-                  <TouchableOpacity 
-                    style={[
-                      styles.addExercisesButton,
-                      selectedExercises.length === 0 && styles.addExercisesButtonDisabled
-                    ]}
-                    onPress={handleExercisesSelected}
-                    disabled={selectedExercises.length === 0}
-                  >
-                    <Text style={styles.addExercisesButtonText}>
-                      {selectedExercises.length === 0 
-                        ? 'Select exercises' 
-                        : `Add ${selectedExercises.length} exercise${selectedExercises.length > 1 ? 's' : ''}`}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            ) : (
-              // Mode tracking d'un exercice spécifique
-              <>
-                <View style={styles.header}>
-                  <TouchableOpacity onPress={handleBackToWorkout} style={styles.backButton}>
-                    <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-                  </TouchableOpacity>
-                  
-                  <View style={styles.rightButtons}>
+                  {/* Bottom Add Button */}
+                  <View style={styles.bottomButtonContainer}>
                     <TouchableOpacity 
-                      style={[styles.settingsButton, { marginRight: 16 }]}
-                      onPress={() => {
-                        if (selectedExercise) {
-                          // Ouvrir directement en mode configuration du timer
-                          setCurrentExercise(selectedExercise);
-                          setSettingsModalVisible(true);
-                          // Indiquer qu'on veut ouvrir directement en mode timer
-                          setOpenTimerDirectly(true);
-                        }
-                      }}
+                      style={[
+                        styles.addExercisesButton,
+                        selectedExercises.length === 0 && styles.addExercisesButtonDisabled
+                      ]}
+                      onPress={handleExercisesSelected}
+                      disabled={selectedExercises.length === 0}
                     >
-                      <Ionicons name="timer-outline" size={24} color="#FFFFFF" />
+                      <Text style={styles.addExercisesButtonText}>
+                        {selectedExercises.length === 0 
+                          ? 'Select exercises' 
+                          : `Add ${selectedExercises.length} exercise${selectedExercises.length > 1 ? 's' : ''}`}
+                      </Text>
                     </TouchableOpacity>
                   </View>
-                </View>
-                
-                <Text style={styles.exerciseTrackingTitle}>
-                  {selectedExercise?.name || 'Exercise'}
-                </Text>
-                
-                <Text style={styles.exerciseTrackingSubtitle}>
-                  Tick checkboxes as you complete the sets
-                </Text>
-                
-                <ScrollView 
-                  style={styles.content}
-                  showsVerticalScrollIndicator={false}
-                >
-                  <View style={styles.setsContainer}>
-                    {exerciseSets.map((set, index) => (
-                      <Animated.View 
-                        key={index} 
-                        style={[
-                          styles.setRow,
-                          { transform: [{ scale: setAnimations[index] || 1 }] }
-                        ]}
+                </>
+              ) : (
+                // Mode tracking d'un exercice spécifique
+                <>
+                  <View style={styles.header}>
+                    <TouchableOpacity onPress={handleBackToWorkout} style={styles.backButton}>
+                      <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+                    </TouchableOpacity>
+                    
+                    <View style={styles.rightButtons}>
+                      <TouchableOpacity 
+                        style={[styles.settingsButton, { marginRight: 16 }]}
+                        onPress={() => {
+                          if (selectedExercise) {
+                            // Ouvrir directement en mode configuration du timer
+                            setCurrentExercise(selectedExercise);
+                            setSettingsModalVisible(true);
+                            // Indiquer qu'on veut ouvrir directement en mode timer
+                            setOpenTimerDirectly(true);
+                          }
+                        }}
                       >
-                        <TouchableOpacity 
+                        <Ionicons name="timer-outline" size={24} color="#FFFFFF" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  
+                  <Text style={styles.exerciseTrackingTitle}>
+                    {selectedExercise?.name || 'Exercise'}
+                  </Text>
+                  
+                  <Text style={styles.exerciseTrackingSubtitle}>
+                    Tick checkboxes as you complete the sets
+                  </Text>
+                  
+                  <ScrollView 
+                    style={styles.content}
+                    showsVerticalScrollIndicator={false}
+                  >
+                    <View style={styles.setsContainer}>
+                      {exerciseSets.map((set, index) => (
+                        <Animated.View 
+                          key={index} 
                           style={[
-                            styles.trackingCheckbox,
-                            set.completed && styles.trackingCheckboxCompleted,
-                            styles.setTrackingCheckbox
+                            styles.setRow,
+                            { transform: [{ scale: setAnimations[index] || 1 }] }
                           ]}
-                          onPress={() => handleSetToggle(index)}
                         >
-                          {set.completed ? (
-                            <Ionicons name="checkmark" size={24} color="#000000" />
-                          ) : (
-                            <View style={[styles.progressFill, { height: '0%' }]} />
-                          )}
-                        </TouchableOpacity>
-                        
-                        <View style={styles.setInputsContainer}>
-                          <View style={styles.inputWrapper}>
-                            <TextInput
-                              style={styles.setInput}
-                              placeholder="0"
-                              placeholderTextColor="rgba(255, 255, 255, 0.5)"
-                              keyboardType="numeric"
-                              value={set.weight}
-                              onChangeText={(value) => {
-                                // Limiter à 3 chiffres maximum
-                                if (value.length <= 3) {
-                                  handleWeightChange(index, value.replace(/[^0-9]/g, ''))
-                                }
-                              }}
-                              maxLength={3}
-                              textAlign="right"
-                            />
-                            <Text style={[styles.inputSuffix, { right: 16 }]}>kg</Text>
+                          <TouchableOpacity 
+                            style={[
+                              styles.trackingCheckbox,
+                              set.completed && styles.trackingCheckboxCompleted,
+                              styles.setTrackingCheckbox
+                            ]}
+                            onPress={() => handleSetToggle(index)}
+                          >
+                            {set.completed ? (
+                              <Ionicons name="checkmark" size={24} color="#000000" />
+                            ) : (
+                              <View style={[styles.progressFill, { height: '0%' }]} />
+                            )}
+                          </TouchableOpacity>
+                          
+                          <View style={styles.setInputsContainer}>
+                            <View style={styles.inputWrapper}>
+                              <TextInput
+                                style={styles.setInput}
+                                placeholder="0"
+                                placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                                keyboardType="numeric"
+                                value={set.weight}
+                                onChangeText={(value) => {
+                                  // Limiter à 3 chiffres maximum
+                                  if (value.length <= 3) {
+                                    handleWeightChange(index, value.replace(/[^0-9]/g, ''))
+                                  }
+                                }}
+                                maxLength={3}
+                                textAlign="right"
+                              />
+                              <Text style={[styles.inputSuffix, { right: 16 }]}>kg</Text>
+                            </View>
+                            
+                            <View style={styles.inputWrapper}>
+                              <TextInput
+                                style={styles.setInput}
+                                placeholder="0"
+                                placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                                keyboardType="numeric"
+                                value={set.reps}
+                                onChangeText={(value) => {
+                                  // Limiter à 3 chiffres maximum
+                                  if (value.length <= 3) {
+                                    handleRepsChange(index, value.replace(/[^0-9]/g, ''))
+                                  }
+                                }}
+                                maxLength={3}
+                                textAlign="right"
+                              />
+                              <Text style={[styles.inputSuffix, { right: 12 }]}>reps</Text>
+                            </View>
                           </View>
                           
-                          <View style={styles.inputWrapper}>
-                            <TextInput
-                              style={styles.setInput}
-                              placeholder="0"
-                              placeholderTextColor="rgba(255, 255, 255, 0.5)"
-                              keyboardType="numeric"
-                              value={set.reps}
-                              onChangeText={(value) => {
-                                // Limiter à 3 chiffres maximum
-                                if (value.length <= 3) {
-                                  handleRepsChange(index, value.replace(/[^0-9]/g, ''))
-                                }
-                              }}
-                              maxLength={3}
-                              textAlign="right"
-                            />
-                            <Text style={[styles.inputSuffix, { right: 12 }]}>reps</Text>
-                          </View>
-                        </View>
-                        
-                        <TouchableOpacity 
-                          style={styles.setSettingsButton}
-                          onPress={() => handleRemoveSet(index)}
-                        >
-                          <Ionicons name="close" size={24} color="#5B5B5C" />
-                        </TouchableOpacity>
-                      </Animated.View>
-                    ))}
-                  </View>
-                  
-                  <View style={styles.addSetContainer}>
-                    <TouchableOpacity 
-                      style={styles.addSetButton}
-                      onPress={handleAddSet}
-                    >
-                      <Ionicons name="add" size={24} color="#FFFFFF" />
-                    </TouchableOpacity>
-                    <Text style={styles.addSetText}>Add a set</Text>
-                  </View>
-                  
-                  {/* Padding de bas pour assurer le défilement complet */}
-                  <View style={styles.bottomPadding} />
-                </ScrollView>
-              </>
-            )}
-          </View>
-        </TouchableWithoutFeedback>
-      </KeyboardAvoidingView>
+                          <TouchableOpacity 
+                            style={styles.setSettingsButton}
+                            onPress={() => handleRemoveSet(index)}
+                          >
+                            <Ionicons name="close" size={24} color="#5B5B5C" />
+                          </TouchableOpacity>
+                        </Animated.View>
+                      ))}
+                    </View>
+                    
+                    <View style={styles.addSetContainer}>
+                      <TouchableOpacity 
+                        style={styles.addSetButton}
+                        onPress={handleAddSet}
+                      >
+                        <Ionicons name="add" size={24} color="#FFFFFF" />
+                      </TouchableOpacity>
+                      <Text style={styles.addSetText}>Add a set</Text>
+                    </View>
+                    
+                    {/* Padding de bas pour assurer le défilement complet */}
+                    <View style={styles.bottomPadding} />
+                  </ScrollView>
+                </>
+              )}
+            </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
+      )}
       
       {/* Modale des paramètres d'exercice */}
       <ExerciseSettingsModal
@@ -1492,6 +1672,52 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
         selectedTags={selectedTags}
         onTagsSelected={handleTagsSelected}
       />
+      
+      {/* Finish Workout Modal */}
+      <Modal
+        visible={isFinishModalVisible}
+        transparent={true}
+        animationType="none"
+        onRequestClose={() => setIsFinishModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Animated.View 
+            style={[
+              styles.modalContainer,
+              {
+                transform: [{
+                  translateY: slideAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [300, 0]
+                  })
+                }]
+              }
+            ]}
+          >
+            <View style={styles.modalIndicator} />
+            <Text style={styles.modalTitle}>Finish Workout</Text>
+            <Text style={styles.modalSubtitle}>What would you like to do with this workout?</Text>
+            
+            <View style={styles.modalButtonsContainer}>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.discardButton]}
+                onPress={handleDiscardWorkout}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.discardButtonText}>Discard</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.logButton]}
+                onPress={handleLogWorkout}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.logButtonText}>Log Workout</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </View>
+      </Modal>
     </FullScreenModal>
   );
 };
@@ -1997,5 +2223,62 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '400',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: '#242526',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    paddingBottom: 40,
+  },
+  modalIndicator: {
+    width: 40,
+    height: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#AAAAAA',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  modalButtonsContainer: {
+    gap: 12,
+  },
+  modalButton: {
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  discardButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  logButton: {
+    backgroundColor: '#FFFFFF',
+  },
+  discardButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  logButtonText: {
+    color: '#000000',
+    fontSize: 16,
+    fontWeight: '500',
   },
 }); 

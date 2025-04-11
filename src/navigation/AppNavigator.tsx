@@ -4,6 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { WorkoutsScreen } from '../workout/screens/WorkoutsScreen';
+import { JournalScreen } from '../workout/screens/JournalScreen';
 import {
   WorkoutStackParamList,
   JournalStackParamList,
@@ -11,14 +12,8 @@ import {
   RootTabParamList,
 } from '../types/navigation';
 
-// Écrans temporaires pour les autres onglets
+// Écran temporaire pour le profil
 import { View, Text } from 'react-native';
-
-const JournalScreen = () => (
-  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0D0D0F' }}>
-    <Text style={{ color: '#FFFFFF', fontSize: 24 }}>Journal</Text>
-  </View>
-);
 
 const ProfileScreen = () => (
   <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0D0D0F' }}>
