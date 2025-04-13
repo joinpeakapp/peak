@@ -13,6 +13,13 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { CompletedWorkout, CompletedSet } from '../../types/workout';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useNavigation, NavigationProp } from '@react-navigation/native';
+
+// Type de navigation pour l'application
+type RootStackParamList = {
+  JournalTab: { newWorkoutId?: string } | undefined;
+  // Ajouter d'autres écrans si nécessaire
+};
 
 interface WorkoutSummaryScreenProps {
   workout: CompletedWorkout;
@@ -28,6 +35,9 @@ export const WorkoutSummaryScreen: React.FC<WorkoutSummaryScreenProps> = ({
   workout,
   onFinish
 }) => {
+  // Navigation
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
+  
   // State pour animations
   const [showContent, setShowContent] = useState(false);
   const [currentStickerIndex, setCurrentStickerIndex] = useState(-1);
@@ -262,6 +272,15 @@ export const WorkoutSummaryScreen: React.FC<WorkoutSummaryScreenProps> = ({
   // Info de l'étape courante
   const currentStepInfo = getCurrentStepInfo();
 
+  // Fonction pour naviguer vers l'écran Journal avec l'ID du workout
+  const handleViewInJournal = () => {
+    // Naviguer vers l'écran Journal en passant l'ID du workout terminé
+    navigation.navigate('JournalTab', { newWorkoutId: workout.id });
+    
+    // Appeler aussi la fonction onFinish fournie par le parent
+    onFinish();
+  };
+
   return (
     <TouchableOpacity
       activeOpacity={1}
@@ -420,7 +439,7 @@ export const WorkoutSummaryScreen: React.FC<WorkoutSummaryScreenProps> = ({
           ]}>
             <TouchableOpacity 
               style={styles.finishButton}
-              onPress={onFinish}
+              onPress={handleViewInJournal}
               activeOpacity={0.8}
             >
               <Text style={styles.finishButtonText}>View in Journal</Text>

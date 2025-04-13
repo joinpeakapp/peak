@@ -82,4 +82,5 @@ export interface CompletedWorkout {
   duration: number;
   exercises: CompletedExercise[];
   notes?: string;
+  photo: string; // URI de la photo prise après la séance
 } 

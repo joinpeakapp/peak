@@ -1,8 +1,34 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  ScrollView, 
+  TouchableOpacity, 
+  ActivityIndicator, 
+  Alert,
+  FlatList,
+  Dimensions,
+  ImageBackground,
+  Image,
+  Animated
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CompletedWorkout } from '../../types/workout';
+import { useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
+
+// Type pour les paramètres de route
+type JournalScreenParams = {
+  newWorkoutId?: string;
+}
+
+// Calcul de la largeur des cards (3 par rangée, 8px d'espacement, 16px de padding externe)
+const { width } = Dimensions.get('window');
+const PADDING = 16;
+const GAP = 8;
+const CARD_WIDTH = (width - (PADDING * 2) - (GAP * 2)) / 3;
+const CARD_HEIGHT = CARD_WIDTH * (192 / 114); // Ratio 114x192px
 
 /**
  * Écran qui affiche les séances d'entraînement enregistrées
@@ -11,32 +37,84 @@ export const JournalScreen: React.FC = () => {
   const [completedWorkouts, setCompletedWorkouts] = useState<CompletedWorkout[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Référence pour stocker les animations des cartes
+  const cardAnimations = useRef<{[key: string]: Animated.Value}>({});
+  
+  // Récupérer les paramètres de route pour identifier une nouvelle séance
+  const route = useRoute();
+  const params = route.params as JournalScreenParams || {};
+  const newWorkoutId = params.newWorkoutId;
 
   // Charger les séances enregistrées
-  useEffect(() => {
-    const loadCompletedWorkouts = async () => {
-      try {
-        setLoading(true);
-        const storedWorkouts = await AsyncStorage.getItem('completedWorkouts');
+  const loadCompletedWorkouts = async () => {
+    try {
+      setLoading(true);
+      const storedWorkouts = await AsyncStorage.getItem('completedWorkouts');
+      
+      if (storedWorkouts) {
+        const parsedWorkouts: CompletedWorkout[] = JSON.parse(storedWorkouts);
+        // Tri par date (plus récentes en premier)
+        const sortedWorkouts = parsedWorkouts.sort((a, b) => 
+          new Date(b.date).getTime() - new Date(a.date).getTime()
+        );
         
-        if (storedWorkouts) {
-          const parsedWorkouts: CompletedWorkout[] = JSON.parse(storedWorkouts);
-          // Tri par date (plus récentes en premier)
-          const sortedWorkouts = parsedWorkouts.sort((a, b) => 
-            new Date(b.date).getTime() - new Date(a.date).getTime()
-          );
-          setCompletedWorkouts(sortedWorkouts);
-        }
-      } catch (error) {
-        console.error('Error loading completed workouts:', error);
-        setError('Failed to load your workout history');
-      } finally {
-        setLoading(false);
+        // Initialiser les animations pour chaque workout
+        sortedWorkouts.forEach(workout => {
+          if (!cardAnimations.current[workout.id]) {
+            // Pour les nouvelles séances (celle qu'on vient de terminer), commencer à scale=0
+            const initialValue = workout.id === newWorkoutId ? 0 : 1;
+            cardAnimations.current[workout.id] = new Animated.Value(initialValue);
+          }
+        });
+        
+        setCompletedWorkouts(sortedWorkouts);
       }
-    };
+    } catch (error) {
+      console.error('Error loading completed workouts:', error);
+      setError('Failed to load your workout history');
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  // Effet pour charger les séances au montage et chaque fois que newWorkoutId change
+  useEffect(() => {
     loadCompletedWorkouts();
-  }, []);
+  }, [newWorkoutId]);
+
+  // Effet pour animer la nouvelle séance quand l'écran reçoit le focus
+  useFocusEffect(
+    React.useCallback(() => {
+      // Si on a un nouvel ID de séance et que l'animation correspondante existe
+      if (newWorkoutId && !loading && completedWorkouts.length > 0) {
+        // S'assurer que l'animation est initialisée
+        if (!cardAnimations.current[newWorkoutId]) {
+          cardAnimations.current[newWorkoutId] = new Animated.Value(0);
+        } else {
+          // Réinitialiser l'animation pour être sûr qu'elle s'exécute à chaque focus
+          cardAnimations.current[newWorkoutId].setValue(0);
+        }
+        
+        // Attendre un court instant pour que la FlatList ait le temps de se rendre
+        setTimeout(() => {
+          // Animation pour faire apparaître la carte avec un effet de "pop"
+          Animated.sequence([
+            Animated.timing(cardAnimations.current[newWorkoutId], {
+              toValue: 1.1, // Légèrement plus grand
+              duration: 300,
+              useNativeDriver: true,
+            }),
+            Animated.timing(cardAnimations.current[newWorkoutId], {
+              toValue: 1, // Retour à la taille normale
+              duration: 150,
+              useNativeDriver: true,
+            })
+          ]).start();
+        }, 500); // Un délai un peu plus long pour s'assurer que la transition d'écran est terminée
+      }
+    }, [newWorkoutId, loading, completedWorkouts])
+  );
 
   // Formater la date pour l'affichage
   const formatDate = (dateString: string) => {
@@ -69,30 +147,115 @@ export const JournalScreen: React.FC = () => {
     return `${minutes} min`;
   };
 
+  // Récupérer les stickers d'une séance (maximum 5)
+  const getWorkoutStickers = (workout: CompletedWorkout) => {
+    // Pour l'instant, simulons des stickers basés sur les exercices
+    // À terme, cela sera remplacé par les vrais stickers obtenus
+    const stickers = [];
+    
+    // Exemple : un sticker pour chaque record personnel
+    for (const exercise of workout.exercises) {
+      if (exercise.personalRecord) {
+        stickers.push({
+          id: `pr-${exercise.id}`,
+          type: 'personal-record',
+          icon: 'trophy-outline' as const
+        });
+      }
+    }
+    
+    // Exemple : sticker d'endurance si la séance a duré plus de 45 minutes
+    if (workout.duration > 45 * 60) {
+      stickers.push({
+        id: 'endurance',
+        type: 'endurance',
+        icon: 'fitness-outline' as const
+      });
+    }
+    
+    // Exemple : sticker de variété si plus de 5 exercices
+    if (workout.exercises.length > 5) {
+      stickers.push({
+        id: 'variety',
+        type: 'variety',
+        icon: 'grid-outline' as const
+      });
+    }
+    
+    // Limiter à 5 stickers maximum
+    return stickers.slice(0, 5);
+  };
+
   // Rendu d'une carte de séance terminée
-  const renderWorkoutCard = (workout: CompletedWorkout) => (
-    <TouchableOpacity 
-      key={workout.id} 
-      style={styles.workoutCard}
-      onPress={() => handleWorkoutPress(workout)}
-    >
-      <View style={styles.cardContent}>
-        <View style={styles.cardMainInfo}>
-          <Text style={styles.workoutName}>{workout.name}</Text>
-          <Text style={styles.workoutDate}>{formatDate(workout.date)}</Text>
-        </View>
-        
-        <View style={styles.badgesContainer}>
-          {/* À terme, ajouter les badges de performance ici */}
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
+  const renderWorkoutCard = ({ item }: { item: CompletedWorkout }) => {
+    const stickers = getWorkoutStickers(item);
+    
+    // Utiliser une image temporaire jusqu'à ce que la vraie photo soit prise
+    const imageUri = item.photo || 'https://via.placeholder.com/114x192/242526/FFFFFF?text=Workout';
+    
+    // Obtenir ou créer l'animation pour cette carte
+    if (!cardAnimations.current[item.id]) {
+      cardAnimations.current[item.id] = new Animated.Value(1);
+    }
+    
+    const isNewWorkout = item.id === newWorkoutId;
+    
+    return (
+      <Animated.View 
+        style={[
+          styles.animatedCardContainer,
+          { 
+            transform: [{ scale: cardAnimations.current[item.id] }],
+          }
+        ]}
+      >
+        <TouchableOpacity 
+          key={item.id} 
+          style={[
+            styles.workoutCard,
+            isNewWorkout && styles.newWorkoutCard
+          ]}
+          onPress={() => handleWorkoutPress(item)}
+        >
+          <ImageBackground 
+            source={{ uri: imageUri }} 
+            style={styles.cardBackground}
+            imageStyle={styles.cardBackgroundImage}
+          >
+            <View style={styles.cardOverlay}>
+              <View style={styles.cardContent}>
+                {/* Stickers */}
+                {stickers.length > 0 && (
+                  <View style={styles.stickersContainer}>
+                    {stickers.map(sticker => (
+                      <View key={sticker.id} style={styles.stickerBadge}>
+                        <Ionicons name={sticker.icon} size={16} color="#FFFFFF" />
+                      </View>
+                    ))}
+                  </View>
+                )}
+                
+                {/* Nom de la séance */}
+                <Text style={styles.workoutName} numberOfLines={1}>
+                  {item.name}
+                </Text>
+              </View>
+            </View>
+          </ImageBackground>
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  };
 
   const handleWorkoutPress = (workout: CompletedWorkout) => {
     // TODO: Implémenter l'ouverture du détail de la séance
     console.log('Workout pressed:', workout.id);
     Alert.alert('Coming Soon', 'Workout details will be available soon!');
+  };
+
+  // Mettre à jour manuellement les séances
+  const handleRefresh = () => {
+    loadCompletedWorkouts();
   };
 
   // Afficher un état de chargement
@@ -135,15 +298,22 @@ export const JournalScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <ScrollView>
-        <View style={styles.header}>
-          <Text style={styles.title}>Journal</Text>
-        </View>
-        
-        <View style={styles.content}>
-          {completedWorkouts.map(workout => renderWorkoutCard(workout))}
-        </View>
-      </ScrollView>
+      <FlatList
+        ListHeaderComponent={() => (
+          <View style={styles.header}>
+            <Text style={styles.title}>Journal</Text>
+          </View>
+        )}
+        data={completedWorkouts}
+        renderItem={renderWorkoutCard}
+        keyExtractor={item => item.id}
+        numColumns={3}
+        columnWrapperStyle={styles.row}
+        contentContainerStyle={styles.gridContainer}
+        showsVerticalScrollIndicator={false}
+        onRefresh={handleRefresh}
+        refreshing={loading}
+      />
     </View>
   );
 };
@@ -169,39 +339,66 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
   },
-  content: {
-    paddingHorizontal: 16,
-    paddingTop: 24,
+  gridContainer: {
+    paddingHorizontal: PADDING,
+    paddingBottom: 24,
+  },
+  row: {
+    justifyContent: 'space-between',
+  },
+  animatedCardContainer: {
+    width: CARD_WIDTH,
+    height: CARD_HEIGHT,
+    marginBottom: 8,
   },
   workoutCard: {
-    backgroundColor: 'rgba(36, 37, 38, 0.5)',
+    width: '100%',
+    height: '100%',
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: '#242526',
+  },
+  newWorkoutCard: {
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 24,
-    padding: 24,
-    marginBottom: 16,
+    borderColor: 'rgba(255, 138, 36, 0.7)',
+  },
+  cardBackground: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'flex-end',
+  },
+  cardBackgroundImage: {
+    borderRadius: 8,
+  },
+  cardOverlay: {
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    paddingBottom: 8,
+    width: '100%',
   },
   cardContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'center',
+    padding: 8,
   },
-  cardMainInfo: {
-    flex: 1,
-  },
-  workoutName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
+  stickersContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
     marginBottom: 4,
   },
-  workoutDate: {
-    fontSize: 14,
-    color: '#5B5B5C',
-  },
-  badgesContainer: {
-    flexDirection: 'row',
+  stickerBadge: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 138, 36, 0.8)',
+    justifyContent: 'center',
     alignItems: 'center',
+    marginHorizontal: 2,
+  },
+  workoutName: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    textAlign: 'center',
   },
   emptyStateContainer: {
     flex: 1,
