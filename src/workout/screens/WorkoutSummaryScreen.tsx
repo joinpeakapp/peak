@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { 
   View, 
   Text, 
@@ -11,31 +11,34 @@ import {
   Image
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { CompletedWorkout, CompletedSet } from '../../types/workout';
+import { CompletedWorkout } from '../../types/workout';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation, NavigationProp, CommonActions, useRoute, RouteProp } from '@react-navigation/native';
-import { RootStackParamList } from '../../types/navigation';
+import { 
+  useNavigation, 
+  useRoute, 
+  NavigationProp, 
+  CommonActions, 
+  RouteProp 
+} from '@react-navigation/native';
+import { RootStackParamList, SummaryStackParamList } from '../../types/navigation';
 
 interface StepInfo {
   title: string;
   subtitle: string;
 }
 
+type WorkoutSummaryRouteProp = RouteProp<SummaryStackParamList, 'WorkoutSummary'>;
+
 export const WorkoutSummaryScreen: React.FC = () => {
   // Navigation
-  const navigation = useNavigation<NavigationProp<any>>();
-  const route = useRoute<RouteProp<RootStackParamList, 'Summary'>>();
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
+  const route = useRoute<WorkoutSummaryRouteProp>();
   
   // Récupérer le workout depuis les paramètres de route
-  const params = route.params;
-  console.log('WorkoutSummaryScreen - Route params:', JSON.stringify(params));
-  
-  const { workout } = params || {};
-  console.log('WorkoutSummaryScreen - Workout:', workout ? 'exists' : 'not found');
+  const { workout } = route.params;
   
   // Si pas de workout, ne rien afficher
   if (!workout) {
-    console.log('WorkoutSummaryScreen - No workout data received');
     return (
       <View style={styles.container}>
         <Text style={styles.errorText}>Erreur: Impossible de charger le résumé d'entraînement.</Text>
@@ -91,8 +94,116 @@ export const WorkoutSummaryScreen: React.FC = () => {
     }
   };
 
-  // Gestion du tap pour passer à l'animation suivante
-  const handleTapToContinue = () => {
+  // Animation finale pour afficher le contenu
+  const animateFinalContent = () => {
+    setAnimationComplete(true);
+    
+    // Animer l'apparition du contenu stats
+    Animated.timing(statsOpacity, {
+      toValue: 1,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => {
+      setShowStats(true);
+      
+      // Animer l'apparition des exercices après les stats
+      setTimeout(() => {
+        Animated.timing(exercisesOpacity, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }).start(() => {
+          setShowExercises(true);
+          
+          // Animer l'apparition du bouton après les exercices
+          setTimeout(() => {
+            Animated.timing(buttonOpacity, {
+              toValue: 1,
+              duration: 250,
+              useNativeDriver: true,
+            }).start();
+          }, 200);
+        });
+      }, 200);
+    });
+  };
+
+  // Déterminer quels stickers afficher
+  const getStickers = () => {
+    const stickers = [];
+    
+    // Vérifier si le temps total est supérieur à 45 minutes
+    if (workout.duration > 45 * 60) {
+      stickers.push({
+        name: "Endurance",
+        icon: "fitness-outline" as any,
+        color: "#3498db"
+      });
+    }
+    
+    // Vérifier si au moins 5 exercices différents ont été effectués
+    if (workout.exercises.length >= 5) {
+      stickers.push({
+        name: "Variety",
+        icon: "grid-outline" as any,
+        color: "#9b59b6"
+      });
+    }
+    
+    // Vérifier les records personnels
+    const prExercises = workout.exercises.filter(ex => ex.personalRecord);
+    if (prExercises.length > 0) {
+      stickers.push({
+        name: "New Record",
+        icon: "trophy-outline" as any,
+        color: "#f39c12"
+      });
+    }
+    
+    // Sticker par défaut si aucun autre
+    if (stickers.length === 0) {
+      stickers.push({
+        name: "Complete",
+        icon: "checkmark-circle-outline" as any,
+        color: "#2ecc71"
+      });
+    }
+    
+    return stickers.slice(0, 3); // Limiter à 3 stickers maximum
+  };
+
+  const stickers = getStickers();
+  
+  // Détermine l'information à afficher selon le sticker courant ou l'état de l'animation
+  const getCurrentStepInfo = (): StepInfo => {
+    if (showInitialTitle) {
+      return badgeInfo.Complete;
+    }
+    
+    if (!animationComplete && currentStickerIndex >= 0 && currentStickerIndex < stickers.length) {
+      const currentSticker = stickers[currentStickerIndex];
+      return badgeInfo[currentSticker.name] || badgeInfo.Complete;
+    }
+    
+    // Animation finale ou pas de sticker
+    return badgeInfo.Complete;
+  };
+  
+  // Obtenir la couleur du gradient
+  const getGradientColor = () => {
+    if (!animationComplete && currentStickerIndex >= 0 && currentStickerIndex < stickers.length) {
+      return stickers[currentStickerIndex].color;
+    }
+    
+    // Utiliser la couleur du premier sticker ou une couleur par défaut
+    return stickers.length > 0 ? stickers[0].color : "#2ecc71";
+  };
+  
+  // Info de l'étape courante
+  const currentStepInfo = getCurrentStepInfo();
+
+  // Memoize les fonctions pour éviter des re-rendus inutiles
+  const handleTapToContinue = useCallback(() => {
     if (showInitialTitle) {
       // Passer de l'écran initial aux animations de stickers
       setShowInitialTitle(false);
@@ -108,7 +219,88 @@ export const WorkoutSummaryScreen: React.FC = () => {
       // Si on est sur le dernier sticker, passer à l'animation finale
       animateFinalContent();
     }
-  };
+  }, [showInitialTitle, currentStickerIndex, stickers, animateFinalContent]);
+
+  // Memoize la fonction de navigation pour éviter des re-rendus inutiles
+  const handleViewInJournal = useCallback(() => {
+    // Navigation directe et fiable vers l'onglet Journal
+    // En utilisant une seule action de reset avec la configuration complète
+    
+    // Créer un état de navigation complet qui indique JournalTab comme actif
+    navigation.dispatch(
+      CommonActions.reset({
+        index: 0,
+        routes: [
+          {
+            name: 'MainTabs',
+            state: {
+              routes: [
+                { name: 'WorkoutsTab' },
+                { 
+                  name: 'JournalTab',
+                  state: {
+                    routes: [
+                      {
+                        name: 'Journal',
+                        params: {
+                          newWorkoutId: workout.id,
+                          shouldAnimateWorkout: true,
+                          fromSummary: true
+                        }
+                      }
+                    ],
+                    index: 0
+                  }
+                },
+                { name: 'ProfileTab' }
+              ],
+              index: 1 // JournalTab est l'index 1
+            }
+          }
+        ]
+      })
+    );
+  }, [navigation, workout.id]);
+
+  // Memoize la fonction de retour pour éviter des re-rendus inutiles
+  const handleBackToWorkouts = useCallback(() => {
+    navigation.dispatch(
+      CommonActions.reset({
+        index: 0,
+        routes: [{ name: 'MainTabs' }]
+      })
+    );
+  }, [navigation]);
+
+  // Memoize le component pour les stickers pour éviter des re-rendus inutiles
+  const StickersComponent = useMemo(() => {
+    return (
+      <View style={styles.stickersContentContainer}>
+        {stickers.map((sticker, index) => (
+          <Animated.View 
+            key={`sticker-content-${index}`}
+            style={[
+              styles.stickerContentCircle,
+              { 
+                backgroundColor: sticker.color,
+                opacity: index <= currentStickerIndex ? 1 : 0,
+                transform: [
+                  { 
+                    scale: index === currentStickerIndex 
+                      ? stickerAnims[index] 
+                      : index < currentStickerIndex ? 1 : 0 
+                  }
+                ]
+              }
+            ]}
+          >
+            <Ionicons name={sticker.icon} size={32} color="#FFFFFF" />
+            <Text style={styles.stickerContentText}>{sticker.name}</Text>
+          </Animated.View>
+        ))}
+      </View>
+    );
+  }, [stickers, currentStickerIndex, stickerAnims]);
 
   // Animation d'entrée
   useEffect(() => {
@@ -169,136 +361,6 @@ export const WorkoutSummaryScreen: React.FC = () => {
     });
   };
 
-  // Animation finale pour afficher le contenu
-  const animateFinalContent = () => {
-    setAnimationComplete(true);
-    
-    // Animer l'apparition du contenu stats
-    Animated.timing(statsOpacity, {
-      toValue: 1,
-      duration: 200,
-      useNativeDriver: true,
-    }).start(() => {
-      setShowStats(true);
-      
-      // Animer l'apparition des exercices après les stats
-      setTimeout(() => {
-        Animated.timing(exercisesOpacity, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
-        }).start(() => {
-          setShowExercises(true);
-          
-          // Animer l'apparition du bouton après les exercices
-          setTimeout(() => {
-            Animated.timing(buttonOpacity, {
-              toValue: 1,
-              duration: 250,
-              useNativeDriver: true,
-            }).start();
-          }, 200);
-        });
-      }, 200);
-    });
-  };
-
-  // Déterminer quels stickers afficher
-  const getStickers = () => {
-    const stickers = [];
-    
-    // Sticker pour la durée
-    if (workout.duration > 30 * 60) { // Plus de 30 minutes
-      stickers.push({
-        name: "Endurance",
-        icon: "timer-outline" as any,
-        color: "#FF8A24"
-      });
-    }
-    
-    // Sticker pour le nombre d'exercices
-    if (workout.exercises.length >= 5) {
-      stickers.push({
-        name: "Variety",
-        icon: "grid-outline" as any,
-        color: "#3498db"
-      });
-    }
-    
-    // Sticker pour les records personnels
-    const hasPersonalRecords = workout.exercises.some(ex => ex.personalRecord);
-    if (hasPersonalRecords) {
-      stickers.push({
-        name: "New Record",
-        icon: "trophy-outline" as any,
-        color: "#f1c40f"
-      });
-    }
-    
-    // Sticker par défaut si aucun autre
-    if (stickers.length === 0) {
-      stickers.push({
-        name: "Complete",
-        icon: "checkmark-circle-outline" as any,
-        color: "#2ecc71"
-      });
-    }
-    
-    return stickers.slice(0, 3); // Limiter à 3 stickers maximum
-  };
-
-  const stickers = getStickers();
-  
-  // Détermine l'information à afficher selon le sticker courant ou l'état de l'animation
-  const getCurrentStepInfo = (): StepInfo => {
-    if (showInitialTitle) {
-      return badgeInfo.Complete;
-    }
-    
-    if (!animationComplete && currentStickerIndex >= 0 && currentStickerIndex < stickers.length) {
-      const currentSticker = stickers[currentStickerIndex];
-      return badgeInfo[currentSticker.name] || badgeInfo.Complete;
-    }
-    
-    // Animation finale ou pas de sticker
-    return badgeInfo.Complete;
-  };
-  
-  // Obtenir la couleur du gradient
-  const getGradientColor = () => {
-    if (!animationComplete && currentStickerIndex >= 0 && currentStickerIndex < stickers.length) {
-      return stickers[currentStickerIndex].color;
-    }
-    
-    // Utiliser la couleur du premier sticker ou une couleur par défaut
-    return stickers.length > 0 ? stickers[0].color : "#2ecc71";
-  };
-  
-  // Info de l'étape courante
-  const currentStepInfo = getCurrentStepInfo();
-
-  // Fonction pour naviguer vers l'écran Journal avec l'ID du workout
-  const handleViewInJournal = () => {
-    // Utiliser CommonActions.reset pour naviguer proprement vers l'onglet Journal
-    // en vidant entièrement la pile de navigation pour éviter que WorkoutSummary reste dans la pile
-    navigation.dispatch(
-      CommonActions.reset({
-        index: 0,
-        routes: [
-          { 
-            name: 'MainTabs',
-            state: {
-              routes: [
-                { name: 'JournalTab', params: { newWorkoutId: workout.id, shouldAnimateWorkout: true } }
-              ],
-              index: 1 // L'index 1 correspond à JournalTab
-            }
-          }
-        ]
-      })
-    );
-  };
-
   return (
     <TouchableOpacity
       activeOpacity={1}
@@ -339,35 +401,7 @@ export const WorkoutSummaryScreen: React.FC = () => {
             </Animated.View>
             
             {/* Container pour les stickers (toujours visible, même vide) */}
-            <View style={styles.stickersContentContainer}>
-              {stickers.map((sticker, index) => (
-                <Animated.View 
-                  key={`sticker-content-${index}`}
-                  style={[
-                    styles.stickerContentCircle,
-                    { 
-                      backgroundColor: sticker.color,
-                      opacity: index <= currentStickerIndex ? 1 : 0,
-                      transform: [
-                        { 
-                          scale: index === currentStickerIndex 
-                            ? stickerAnims[index] 
-                            : index < currentStickerIndex ? 1 : 0 
-                        }
-                      ]
-                    }
-                  ]}
-                >
-                  <Ionicons name={sticker.icon} size={32} color="#FFFFFF" />
-                  <Text style={styles.stickerContentText}>{sticker.name}</Text>
-                </Animated.View>
-              ))}
-            </View>
-            
-            {/* Texte "Tap to continue" */}
-            {!animationComplete && (
-              <Text style={styles.tapToContinueText}>Tap to continue</Text>
-            )}
+            {StickersComponent}
             
             {/* Stats */}
             <Animated.View style={{ opacity: statsOpacity }}>
@@ -465,6 +499,11 @@ export const WorkoutSummaryScreen: React.FC = () => {
             </TouchableOpacity>
           </Animated.View>
         </Animated.View>
+        
+        {/* Texte "Tap to continue" déplacé ici, à l'extérieur du ScrollView */}
+        {!animationComplete && (
+          <Text style={styles.tapToContinueText}>Tap to continue</Text>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -476,20 +515,14 @@ const stickerSize = width * 0.25;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    backgroundColor: '#0D0D0F',
   },
   gradient: {
     position: 'absolute',
+    top: 0,
     left: 0,
     right: 0,
-    top: 0,
-    height: '100%',
-  },
-  contentContainer: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
+    bottom: 0,
   },
   titleContainer: {
     height: 240,
@@ -542,13 +575,19 @@ const styles = StyleSheet.create({
   },
   tapToContinueText: {
     position: 'absolute',
-    bottom: 48,
+    bottom: 64,
     left: 0,
     right: 0,
     color: 'rgba(255, 255, 255, 0.6)',
     fontSize: 14,
     fontWeight: '500',
     textAlign: 'center',
+  },
+  contentContainer: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
   },
   stickersContentContainer: {
     flexDirection: 'row',

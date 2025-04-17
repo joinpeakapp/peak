@@ -1,69 +1,82 @@
+import { NavigatorScreenParams } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { CompositeScreenProps } from '@react-navigation/native';
+import { CompletedWorkout, Exercise, WorkoutState } from './workout';
 
-// Paramètres pour les écrans de la pile des workouts
+// Types pour le stack WorkoutTab
 export type WorkoutStackParamList = {
   WorkoutsList: undefined;
-  WorkoutDetail: { workoutId: string };
-  WorkoutEdit: { workoutId: string };
-  WorkoutCreate: undefined;
+  WorkoutDetail: { id: string; template?: WorkoutState };
+  ExercisesList: undefined;
+  ExerciseDetail: { id: string; exercise?: Exercise };
 };
 
-// Paramètres pour les écrans du journal
+// Types pour le stack JournalTab
 export type JournalStackParamList = {
-  JournalList: undefined;
-  JournalDetail: { entryId: string };
-  JournalCreate: undefined;
+  Journal: { newWorkoutId?: string; shouldAnimateWorkout?: boolean };
 };
 
-// Paramètres pour les écrans du profil
+// Types pour le stack ProfileTab
 export type ProfileStackParamList = {
-  ProfileMain: undefined;
-  ProfileEdit: undefined;
-  Settings: undefined;
+  Profile: undefined;
 };
 
-// Paramètres pour les onglets principaux
-export type RootTabParamList = {
-  WorkoutsTab: undefined;
-  JournalTab: undefined;
-  ProfileTab: undefined;
+// Types pour le stack WorkoutSummary (séparé du Tab Navigator)
+export type SummaryStackParamList = {
+  WorkoutSummary: { workout: CompletedWorkout };
 };
 
-// Types pour les props des écrans dans la pile des workouts
-export type WorkoutsListScreenProps = NativeStackScreenProps<
-  WorkoutStackParamList,
-  'WorkoutsList'
+// Types pour le TabNavigator principal
+export type MainTabParamList = {
+  WorkoutsTab: NavigatorScreenParams<WorkoutStackParamList>;
+  JournalTab: NavigatorScreenParams<JournalStackParamList>;
+  ProfileTab: NavigatorScreenParams<ProfileStackParamList>;
+};
+
+// Définition des types de props pour chaque écran
+export type WorkoutsListScreenProps = CompositeScreenProps<
+  NativeStackScreenProps<WorkoutStackParamList, 'WorkoutsList'>,
+  BottomTabScreenProps<MainTabParamList, 'WorkoutsTab'>
 >;
 
-export type WorkoutDetailScreenProps = NativeStackScreenProps<
-  WorkoutStackParamList,
-  'WorkoutDetail'
+export type WorkoutDetailScreenProps = CompositeScreenProps<
+  NativeStackScreenProps<WorkoutStackParamList, 'WorkoutDetail'>,
+  BottomTabScreenProps<MainTabParamList, 'WorkoutsTab'>
 >;
 
-export type WorkoutEditScreenProps = NativeStackScreenProps<
-  WorkoutStackParamList,
-  'WorkoutEdit'
+export type ExercisesListScreenProps = CompositeScreenProps<
+  NativeStackScreenProps<WorkoutStackParamList, 'ExercisesList'>,
+  BottomTabScreenProps<MainTabParamList, 'WorkoutsTab'>
 >;
 
-export type WorkoutCreateScreenProps = NativeStackScreenProps<
-  WorkoutStackParamList,
-  'WorkoutCreate'
+export type ExerciseDetailScreenProps = CompositeScreenProps<
+  NativeStackScreenProps<WorkoutStackParamList, 'ExerciseDetail'>,
+  BottomTabScreenProps<MainTabParamList, 'WorkoutsTab'>
 >;
 
-// Types composites qui combinent Tab et Stack navigation
-export type WorkoutsTabScreenProps = CompositeScreenProps<
-  BottomTabScreenProps<RootTabParamList, 'WorkoutsTab'>,
-  NativeStackScreenProps<WorkoutStackParamList>
+export type JournalScreenProps = CompositeScreenProps<
+  NativeStackScreenProps<JournalStackParamList, 'Journal'>,
+  BottomTabScreenProps<MainTabParamList, 'JournalTab'>
 >;
 
-export type JournalTabScreenProps = CompositeScreenProps<
-  BottomTabScreenProps<RootTabParamList, 'JournalTab'>,
-  NativeStackScreenProps<JournalStackParamList>
+export type ProfileScreenProps = CompositeScreenProps<
+  NativeStackScreenProps<ProfileStackParamList, 'Profile'>,
+  BottomTabScreenProps<MainTabParamList, 'ProfileTab'>
 >;
 
-export type ProfileTabScreenProps = CompositeScreenProps<
-  BottomTabScreenProps<RootTabParamList, 'ProfileTab'>,
-  NativeStackScreenProps<ProfileStackParamList>
->; 
+// Type pour l'écran WorkoutSummary (pas lié au Tab Navigator)
+export type WorkoutSummaryScreenProps = NativeStackScreenProps<
+  SummaryStackParamList, 
+  'WorkoutSummary'
+>;
+
+// Type pour le RootNavigator qui contient à la fois les tabs et la stack indépendante
+export type RootStackParamList = {
+  MainTabs: NavigatorScreenParams<MainTabParamList>;
+  SummaryFlow: NavigatorScreenParams<SummaryStackParamList>;
+};
+
+// Types pour les écrans au niveau racine
+export type RootScreenProps<T extends keyof RootStackParamList> = 
+  NativeStackScreenProps<RootStackParamList, T>; 
