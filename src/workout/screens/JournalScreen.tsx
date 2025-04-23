@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CompletedWorkout } from '../../types/workout';
 import { useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
 
 // Type pour les paramètres de route
 type JournalScreenParams = {
@@ -102,24 +103,24 @@ export const JournalScreen: React.FC = () => {
       // Réinitialiser l'animation
       newWorkoutAnimation.setValue(0);
       
-      // Ajuster le délai en fonction de la source (plus court si venant du résumé)
-      const animationDelay = params.fromSummary ? 300 : 500;
+      // Optimiser le timing de l'animation basé sur la source
+      const animationDelay = params.fromSummary ? 150 : 300;
       
-      // Démarrer l'animation après un court délai
+      // Démarrer l'animation avec un délai optimisé
       setTimeout(() => {
-        // Animation simple et rapide de 0 à 1 avec ease-out pour plus de fluidité
+        // Animation fluide avec une courbe d'accélération personnalisée
         Animated.timing(newWorkoutAnimation, {
           toValue: 1,
-          duration: 350, // Durée un peu plus longue pour un effet plus smooth
-          easing: Easing.out(Easing.cubic), // Effet ease-out pour une fin d'animation plus douce
+          duration: 400,
+          easing: Easing.bezier(0.25, 0.1, 0.25, 1), // Courbe plus naturelle
           useNativeDriver: true,
         }).start(() => {
-          // Réinitialiser l'index après l'animation
+          // Une fois l'animation terminée, réinitialiser l'index
           setNewWorkoutIndex(-1);
         });
       }, animationDelay);
     }
-  }, [newWorkoutId, shouldAnimateWorkout, newWorkoutIndex, newWorkoutAnimation]);
+  }, [newWorkoutId, shouldAnimateWorkout, newWorkoutIndex, newWorkoutAnimation, params.fromSummary]);
 
   // Formater la date pour l'affichage
   const formatDate = (dateString: string) => {
@@ -195,7 +196,7 @@ export const JournalScreen: React.FC = () => {
   const renderWorkoutCard = ({ item, index }: { item: CompletedWorkout, index: number }) => {
     const stickers = getWorkoutStickers(item);
     
-    // Utiliser une image temporaire jusqu'à ce que la vraie photo soit prise
+    // Utiliser l'image réelle de l'entraînement ou un placeholder
     const imageUri = item.photo || 'https://via.placeholder.com/114x192/242526/FFFFFF?text=Workout';
     
     // Obtenir ou créer l'animation pour cette carte
@@ -206,21 +207,59 @@ export const JournalScreen: React.FC = () => {
     // Déterminer si cette carte est la nouvelle à animer
     const isNewWorkout = index === newWorkoutIndex;
     
-    // Créer les styles animés pour la carte - suppression de l'effet de bordure
+    // Améliorer les styles d'animation pour la nouvelle carte
     const animatedCardStyle = {
       transform: [{ 
         scale: isNewWorkout 
           ? newWorkoutAnimation 
           : cardAnimations.current[item.id] 
       }],
-      // Légère élévation pour mettre en valeur le nouvel entraînement
-      // sans utiliser de bordure blanche
+      // Effet visuel amélioré pour la nouvelle carte
       shadowColor: isNewWorkout ? '#FFFFFF' : 'transparent',
-      shadowOffset: { width: 0, height: isNewWorkout ? 2 : 0 },
-      shadowOpacity: isNewWorkout ? 0.2 : 0,
-      shadowRadius: isNewWorkout ? 3 : 0,
-      elevation: isNewWorkout ? 3 : 0,
+      shadowOffset: { width: 0, height: isNewWorkout ? 4 : 0 },
+      shadowOpacity: isNewWorkout ? 0.3 : 0,
+      shadowRadius: isNewWorkout ? 6 : 0,
+      elevation: isNewWorkout ? 5 : 0,
+      zIndex: isNewWorkout ? 10 : 1, // S'assurer que la carte animée est au-dessus des autres
     };
+
+    // Memo pour optimiser les re-rendus uniquement lorsque nécessaire
+    const cardContent = (
+      <ImageBackground 
+        source={{ uri: imageUri }} 
+        style={styles.cardImage}
+        imageStyle={styles.cardImageStyle}
+      >
+        <LinearGradient
+          colors={['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0.5)']}
+          style={styles.cardGradient}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+        >
+          <View style={styles.cardContent}>
+            {/* Container de stickers */}
+            {stickers.length > 0 && (
+              <View style={styles.stickersContainer}>
+                {stickers.map((sticker, idx) => (
+                  <View key={sticker.id} style={styles.stickerCircle}>
+                    <Ionicons 
+                      name={sticker.icon} 
+                      size={12} 
+                      color="#FFFFFF" 
+                    />
+                  </View>
+                ))}
+              </View>
+            )}
+            
+            {/* Nom de la séance */}
+            <Text style={styles.cardTitle} numberOfLines={1}>
+              {item.name || 'Quick Workout'}
+            </Text>
+          </View>
+        </LinearGradient>
+      </ImageBackground>
+    );
 
     return (
       <TouchableOpacity 
@@ -229,45 +268,7 @@ export const JournalScreen: React.FC = () => {
         activeOpacity={0.8}
       >
         <Animated.View style={[styles.card, animatedCardStyle]}>
-          <ImageBackground 
-            source={{ uri: imageUri }} 
-            style={styles.cardImage}
-            imageStyle={styles.cardImageStyle}
-          >
-            {/* Overlay pour le texte plus visible */}
-            <View style={styles.cardOverlay}>
-              {/* Date de la séance */}
-              <Text style={styles.cardDate}>{formatDate(item.date)}</Text>
-              
-              {/* Nom de la séance */}
-              <Text style={styles.cardTitle} numberOfLines={1}>
-                {item.name || 'Quick Workout'}
-              </Text>
-              
-              {/* Durée en bas à droite */}
-              <View style={styles.cardDuration}>
-                <Ionicons name="time-outline" size={14} color="#FFFFFF" />
-                <Text style={styles.cardDurationText}>
-                  {formatDuration(item.duration)}
-                </Text>
-              </View>
-              
-              {/* Container de stickers */}
-              {stickers.length > 0 && (
-                <View style={styles.stickersContainer}>
-                  {stickers.map((sticker, idx) => (
-                    <View key={sticker.id} style={styles.stickerCircle}>
-                      <Ionicons 
-                        name={sticker.icon} 
-                        size={12} 
-                        color="#FFFFFF" 
-                      />
-                    </View>
-                  ))}
-                </View>
-              )}
-            </View>
-          </ImageBackground>
+          {cardContent}
         </Animated.View>
       </TouchableOpacity>
     );
@@ -322,6 +323,7 @@ export const JournalScreen: React.FC = () => {
         ListHeaderComponent={() => (
           <View style={styles.header}>
             <Text style={styles.title}>Journal</Text>
+            <View style={{ width: 44, height: 44 }} />
           </View>
         )}
         data={completedWorkouts}
@@ -330,7 +332,7 @@ export const JournalScreen: React.FC = () => {
         numColumns={3}
         columnWrapperStyle={styles.row}
         contentContainerStyle={styles.workoutsList}
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={true}
         onRefresh={handleRefresh}
         refreshing={loading}
       />
@@ -345,11 +347,17 @@ const styles = StyleSheet.create({
     padding: PADDING,
   },
   header: {
-    marginBottom: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 0,
+    paddingTop: 80,
+    paddingBottom: 24,
+    marginBottom: 0,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 32,
+    fontWeight: '600',
     color: '#FFFFFF',
     marginBottom: 8,
   },
@@ -359,7 +367,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   workoutsList: {
-    flex: 1,
+    paddingBottom: 20, // Ajouter du padding en bas pour éviter que le dernier élément soit caché
   },
   errorContainer: {
     flex: 1,
@@ -392,39 +400,30 @@ const styles = StyleSheet.create({
   cardImageStyle: {
     borderRadius: 8,
   },
-  cardOverlay: {
-    padding: 8,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    borderBottomLeftRadius: 8,
-    borderBottomRightRadius: 8,
+  cardGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '100%',
+    borderRadius: 8,
+    justifyContent: 'flex-end',
   },
-  cardDate: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginBottom: 4,
+  cardContent: {
+    padding: 8,
+    alignItems: 'center',
   },
   cardTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  cardDuration: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  cardDurationText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginLeft: 4,
+    marginTop: 8,
+    textAlign: 'center',
   },
   stickersContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginBottom: 4,
+    gap: 4,
   },
   stickerCircle: {
     width: 24,
