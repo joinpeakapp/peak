@@ -24,7 +24,23 @@ export type ProfileStackParamList = {
 
 // Types pour le stack WorkoutSummary (séparé du Tab Navigator)
 export type SummaryStackParamList = {
-  WorkoutSummary: { workout: CompletedWorkout };
+  WorkoutSummary: { 
+    workout: CompletedWorkout;
+    sourceType?: 'journal' | 'completion';
+    workouts?: CompletedWorkout[];
+    currentIndex?: number;
+  };
+  WorkoutPhoto: { 
+    workout: CompletedWorkout;
+    fromSummary?: boolean;
+  };
+  WorkoutOverview: {
+    workout: CompletedWorkout;
+    photoUri: string;
+    sourceType?: 'tracking' | 'journal';
+    workouts?: CompletedWorkout[];
+    currentIndex?: number;
+  };
 };
 
 // Types pour le TabNavigator principal

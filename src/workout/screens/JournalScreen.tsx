@@ -17,8 +17,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CompletedWorkout } from '../../types/workout';
-import { useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
+import { useRoute, RouteProp, useFocusEffect, useNavigation, NavigationProp } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { RootStackParamList } from '../../types/navigation';
 
 // Type pour les paramètres de route
 type JournalScreenParams = {
@@ -52,6 +53,9 @@ export const JournalScreen: React.FC = () => {
   const params = route.params as JournalScreenParams || {};
   const newWorkoutId = params.newWorkoutId;
   const shouldAnimateWorkout = params.shouldAnimateWorkout;
+
+  // Récupérer la navigation
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
 
   // Charger les séances enregistrées
   const loadCompletedWorkouts = async () => {
@@ -275,9 +279,17 @@ export const JournalScreen: React.FC = () => {
   };
 
   const handleWorkoutPress = (workout: CompletedWorkout) => {
-    // TODO: Implémenter l'ouverture du détail de la séance
-    console.log('Workout pressed:', workout.id);
-    Alert.alert('Coming Soon', 'Workout details will be available soon!');
+    // Naviguer vers l'écran de détail du workout avec tous les workouts pour le carousel
+    navigation.navigate('SummaryFlow', {
+      screen: 'WorkoutOverview',
+      params: {
+        workout: workout,
+        photoUri: workout.photo || 'https://via.placeholder.com/400x600/242526/FFFFFF?text=Workout',
+        sourceType: 'journal',
+        workouts: completedWorkouts,
+        currentIndex: completedWorkouts.findIndex(w => w.id === workout.id)
+      }
+    });
   };
 
   // Mettre à jour manuellement les séances

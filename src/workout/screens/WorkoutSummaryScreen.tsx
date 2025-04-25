@@ -8,7 +8,6 @@ import {
   Animated, 
   Dimensions, 
   Platform,
-  Image
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { CompletedWorkout } from '../../types/workout';
@@ -34,17 +33,8 @@ export const WorkoutSummaryScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const route = useRoute<WorkoutSummaryRouteProp>();
   
-  // Récupérer le workout depuis les paramètres de route
+  // Récupérer le workout et les paramètres depuis la route
   const { workout } = route.params;
-  
-  // Si pas de workout, ne rien afficher
-  if (!workout) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>Erreur: Impossible de charger le résumé d'entraînement.</Text>
-      </View>
-    );
-  }
   
   // State pour animations
   const [showContent, setShowContent] = useState(false);
@@ -219,48 +209,19 @@ export const WorkoutSummaryScreen: React.FC = () => {
       // Si on est sur le dernier sticker, passer à l'animation finale
       animateFinalContent();
     }
-  }, [showInitialTitle, currentStickerIndex, stickers, animateFinalContent]);
+  }, [showInitialTitle, currentStickerIndex, stickers]);
 
   // Memoize la fonction de navigation pour éviter des re-rendus inutiles
   const handleViewInJournal = useCallback(() => {
-    // Navigation directe et fiable vers l'onglet Journal
-    // En utilisant une seule action de reset avec la configuration complète
-    
-    // Créer un état de navigation complet qui indique JournalTab comme actif
-    navigation.dispatch(
-      CommonActions.reset({
-        index: 0,
-        routes: [
-          {
-            name: 'MainTabs',
-            state: {
-              routes: [
-                { name: 'WorkoutsTab' },
-                { 
-                  name: 'JournalTab',
-                  state: {
-                    routes: [
-                      {
-                        name: 'Journal',
-                        params: {
-                          newWorkoutId: workout.id,
-                          shouldAnimateWorkout: true,
-                          fromSummary: true
-                        }
-                      }
-                    ],
-                    index: 0
-                  }
-                },
-                { name: 'ProfileTab' }
-              ],
-              index: 1 // JournalTab est l'index 1
-            }
-          }
-        ]
-      })
-    );
-  }, [navigation, workout.id]);
+    // Naviguer vers l'écran de prise de photo
+    navigation.navigate('SummaryFlow', {
+      screen: 'WorkoutPhoto',
+      params: {
+        workout: workout,
+        fromSummary: true
+      }
+    });
+  }, [navigation, workout]);
 
   // Memoize la fonction de retour pour éviter des re-rendus inutiles
   const handleBackToWorkouts = useCallback(() => {
@@ -386,7 +347,7 @@ export const WorkoutSummaryScreen: React.FC = () => {
             {/* Titre et sous-titre */}
             <Animated.View 
               style={[
-                styles.titleContainer,
+                styles.completionTitleContainer,
                 { 
                   transform: [{ translateY: slideAnim }]
                 }
@@ -494,7 +455,7 @@ export const WorkoutSummaryScreen: React.FC = () => {
               onPress={handleViewInJournal}
               activeOpacity={0.8}
             >
-              <Text style={styles.finishButtonText}>View in Journal</Text>
+              <Text style={styles.finishButtonText}>Continue</Text>
               <Ionicons name="arrow-forward" size={20} color="#000000" />
             </TouchableOpacity>
           </Animated.View>
@@ -524,11 +485,11 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
   },
-  titleContainer: {
+  completionTitleContainer: {
     height: 240,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: 0,
+    paddingTop: 40,
     paddingBottom: 0,
   },
   congratsText: {
@@ -634,7 +595,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     alignItems: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    marginTop: 0,
     marginBottom: 16,
     marginHorizontal: 16,
     borderRadius: 16,
@@ -644,6 +604,7 @@ const styles = StyleSheet.create({
   },
   statItem: {
     alignItems: 'center',
+    flex: 1,
   },
   statValue: {
     fontSize: 18,
@@ -660,14 +621,6 @@ const styles = StyleSheet.create({
     width: 1,
     height: '80%',
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginLeft: 16,
-    marginBottom: 16,
-    display: 'none',
   },
   exerciseContainer: {
     marginHorizontal: 16,
@@ -720,6 +673,7 @@ const styles = StyleSheet.create({
   setContainer: {
     flexDirection: 'row',
     marginBottom: 8,
+    position: 'relative',
   },
   dataContainer: {
     flex: 1,
@@ -772,10 +726,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   errorText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
+    color: '#FF6B6B',
     textAlign: 'center',
     marginTop: 20,
+    fontSize: 16,
   },
 }); 

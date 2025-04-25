@@ -6,6 +6,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { WorkoutsScreen } from '../workout/screens/WorkoutsScreen';
 import { JournalScreen } from '../workout/screens/JournalScreen';
 import { WorkoutSummaryScreen } from '../workout/screens/WorkoutSummaryScreen';
+import { WorkoutPhotoScreen } from '../workout/screens/WorkoutPhotoScreen';
+import { WorkoutOverviewScreen } from '../workout/screens/WorkoutOverviewScreen';
 import {
   WorkoutStackParamList,
   JournalStackParamList,
@@ -79,6 +81,14 @@ const SummaryNavigator = () => {
       <SummaryStack.Screen 
         name="WorkoutSummary" 
         component={WorkoutSummaryScreen} 
+      />
+      <SummaryStack.Screen 
+        name="WorkoutPhoto" 
+        component={WorkoutPhotoScreen} 
+      />
+      <SummaryStack.Screen 
+        name="WorkoutOverview" 
+        component={WorkoutOverviewScreen} 
       />
     </SummaryStack.Navigator>
   );
