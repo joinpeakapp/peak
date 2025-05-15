@@ -1,6 +1,7 @@
 import React, { createContext, useContext, ReactNode, useCallback, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { CompletedWorkout, CompletedSet } from '../../types/workout';
+import { CompletedWorkout, CompletedSet, Workout } from '../../types/workout';
+import { useStreak } from './StreakContext';
 
 interface ExerciseWithTracking {
   id: string;
@@ -37,7 +38,7 @@ interface PreviousWorkoutData {
 
 interface WorkoutHistoryContextType {
   completedWorkouts: CompletedWorkout[];
-  addCompletedWorkout: (workout: CompletedWorkout) => Promise<void>;
+  addCompletedWorkout: (workout: CompletedWorkout, originalWorkout?: Workout) => Promise<void>;
   getPreviousWorkoutData: (workoutId: string, exerciseName: string) => PreviousWorkoutData;
   getPersonalRecords: (exerciseName: string) => { maxWeight: number; maxReps: number };
 }
@@ -46,6 +47,7 @@ const WorkoutHistoryContext = createContext<WorkoutHistoryContextType | undefine
 
 export const WorkoutHistoryProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [completedWorkouts, setCompletedWorkouts] = useState<CompletedWorkout[]>([]);
+  const { updateStreakOnCompletion } = useStreak();
 
   // Charger l'historique des entraînements depuis AsyncStorage
   useEffect(() => {
@@ -64,11 +66,16 @@ export const WorkoutHistoryProvider: React.FC<{ children: ReactNode }> = ({ chil
   }, []);
 
   // Ajouter un nouvel entraînement terminé
-  const addCompletedWorkout = async (workout: CompletedWorkout) => {
+  const addCompletedWorkout = async (workout: CompletedWorkout, originalWorkout?: Workout) => {
     try {
       const updatedWorkouts = [...completedWorkouts, workout];
       setCompletedWorkouts(updatedWorkouts);
       await AsyncStorage.setItem('completedWorkouts', JSON.stringify(updatedWorkouts));
+      
+      // Mettre à jour la streak si l'originalWorkout est fourni
+      if (originalWorkout) {
+        await updateStreakOnCompletion(originalWorkout);
+      }
     } catch (error) {
       console.error('[WorkoutHistory] Error adding completed workout:', error);
     }

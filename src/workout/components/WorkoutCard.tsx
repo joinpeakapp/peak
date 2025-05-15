@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native
 import { Ionicons } from '@expo/vector-icons';
 import { Workout } from '../../types/workout';
 import { WorkoutSettingsModal } from './WorkoutSettingsModal';
+import { StreakDisplay } from './StreakDisplay';
 
 interface WorkoutCardProps {
   /** The workout data to display */
@@ -72,8 +73,7 @@ export const WorkoutCard = memo<WorkoutCardProps>(({
   onEdit,
   onDelete,
 }) => {
-  const { name, frequency, streak } = workout;
-  const hasStreak = streak > 0;
+  const { name, frequency } = workout;
   const [isSettingsVisible, setIsSettingsVisible] = useState(false);
 
   return (
@@ -89,28 +89,16 @@ export const WorkoutCard = memo<WorkoutCardProps>(({
             <Text style={styles.frequency}>{formatFrequency(frequency)}</Text>
           </View>
 
-          <View style={[styles.streakContainer, !hasStreak && styles.streakContainerOff]}>
-            <View style={[styles.flameContainer, !hasStreak && styles.flameContainerOff]}>
-              <View style={[styles.flameShadow, !hasStreak && styles.flameShadowOff]}>
-                <Ionicons 
-                  name="flame" 
-                  size={20} 
-                  color={hasStreak ? "#FF8A24" : "#5B5B5C"} 
-                />
-              </View>
-              <Text style={[styles.streakText, !hasStreak && styles.streakTextOff]}>
-                {streak}
-              </Text>
-            </View>
+          <View style={styles.rightContent}>
+            <StreakDisplay workout={workout} showDaysRemaining={false} />
+            <TouchableOpacity
+              testID="settings-button"
+              style={styles.settingsButton}
+              onPress={() => setIsSettingsVisible(true)}
+            >
+              <Ionicons name="settings-outline" size={24} color="#5B5B5C" />
+            </TouchableOpacity>
           </View>
-
-          <TouchableOpacity
-            testID="settings-button"
-            style={styles.settingsButton}
-            onPress={() => setIsSettingsVisible(true)}
-          >
-            <Ionicons name="settings-outline" size={24} color="#5B5B5C" />
-          </TouchableOpacity>
         </View>
       </TouchableOpacity>
 
@@ -138,73 +126,27 @@ const styles = StyleSheet.create({
   content: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
   leftContent: {
     flex: 1,
+  },
+  rightContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   name: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
-    marginBottom: 4,
+    marginBottom: 8,
   },
   frequency: {
     fontSize: 14,
     color: '#5B5B5C',
   },
-  streakContainer: {
-    backgroundColor: 'rgba(255, 138, 36, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 138, 36, 0.5)',
-    borderRadius: 100,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginHorizontal: 12,
-  },
-  streakContainerOff: {
-    backgroundColor: 'transparent',
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  flameContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  flameContainerOff: {
-    opacity: 0.5,
-  },
-  flameShadow: {
-    ...Platform.select({
-      ios: {
-        shadowColor: '#FF8A24',
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.75,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
-  },
-  flameShadowOff: {
-    ...Platform.select({
-      ios: {
-        shadowOpacity: 0,
-      },
-      android: {
-        elevation: 0,
-      },
-    }),
-  },
-  streakText: {
-    color: '#FFFFFF',
-    marginLeft: 4,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  streakTextOff: {
-    color: '#5B5B5C',
-  },
   settingsButton: {
     padding: 4,
+    marginLeft: 16,
   },
 }); 

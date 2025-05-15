@@ -6,7 +6,6 @@ Une application mobile de suivi d'entraînement construite avec React Native et 
 
 - 📱 Interface utilisateur moderne et intuitive
 - 💪 Suivi des workouts et des exercices
-- 🔥 Système de streak pour motiver la régularité
 - 📊 Suivi des records personnels
 - 🎯 Catégorisation des exercices par partie du corps
 - 💾 Stockage local des données

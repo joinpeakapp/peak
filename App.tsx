@@ -7,6 +7,8 @@ import { AppNavigator } from './src/navigation/AppNavigator';
 import { loadInitialData } from './src/store/slices/workoutSlice';
 import { ActiveWorkoutProvider } from './src/workout/contexts/ActiveWorkoutContext';
 import { RestTimerProvider } from './src/workout/contexts/RestTimerContext';
+import { StreakProvider } from './src/workout/contexts/StreakContext';
+import { WorkoutHistoryProvider } from './src/workout/contexts/WorkoutHistoryContext';
 
 export default function App() {
   useEffect(() => {
@@ -16,6 +18,8 @@ export default function App() {
 
   return (
     <Provider store={store}>
+      <StreakProvider>
+        <WorkoutHistoryProvider>
       <ActiveWorkoutProvider>
         <RestTimerProvider>
           <SafeAreaProvider>
@@ -24,6 +28,8 @@ export default function App() {
           </SafeAreaProvider>
         </RestTimerProvider>
       </ActiveWorkoutProvider>
+        </WorkoutHistoryProvider>
+      </StreakProvider>
     </Provider>
   );
 }

@@ -1,7 +1,9 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Exercise } from '../../types/workout';
 import { AppState, AppStateStatus } from 'react-native';
+import { useStreak } from './StreakContext';
+import { useWorkout } from '../../hooks/useWorkout';
 
 // Types pour la séance active
 export interface TrackingSet {
@@ -66,6 +68,8 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isTrackingWorkout, setIsTrackingWorkout] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const appStateRef = useRef(AppState.currentState);
+  const { getWorkoutStreak, updateStreakOnCompletion } = useStreak();
+  const { workouts } = useWorkout();
 
   // Chargement de la séance active depuis AsyncStorage au démarrage
   useEffect(() => {
@@ -276,9 +280,11 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   // Terminer une séance
-  const finishWorkout = async () => {
+  const finishWorkout = useCallback(async (skipNavigation?: boolean) => {
+    console.log("[ActiveWorkout] Finishing workout");
+    if (!activeWorkout) return;
+
     try {
-      if (activeWorkout) {
         // Arrêter le timer
         stopGlobalTimer();
         
@@ -287,11 +293,16 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
         setActiveWorkout(null);
         setIsTrackingWorkout(false);
         await AsyncStorage.removeItem(STORAGE_KEY);
+
+      // Récupérer le workout original pour mettre à jour la streak
+      const originalWorkout = workouts.find(w => w.id === activeWorkout.workoutId);
+      if (originalWorkout) {
+        await updateStreakOnCompletion(originalWorkout);
       }
     } catch (error) {
-      console.error('Erreur lors de la finalisation de la séance:', error);
+      console.error("[ActiveWorkout] Error finishing workout:", error);
     }
-  };
+  }, [activeWorkout, workouts, updateStreakOnCompletion]);
 
   // Mettre à jour les données de tracking pour un exercice
   const updateTrackingData = (exerciseId: string, sets: TrackingSet[], completedSets: number) => {

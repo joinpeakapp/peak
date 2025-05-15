@@ -533,27 +533,27 @@ export const WorkoutOverviewScreen: React.FC = () => {
             </View>
           ))}
         </View>
-        
-        {/* Save button - only shown in tracking mode */}
-        {sourceType === 'tracking' && (
-          <View style={styles.buttonContainer}>
-            <TouchableOpacity
-              style={styles.saveButton}
-              onPress={handleSaveAndViewJournal}
-              disabled={saving}
-            >
-              {saving ? (
-                <ActivityIndicator color="#000000" size="small" />
-              ) : (
-                <>
-                  <Text style={styles.saveButtonText}>Save to Journal</Text>
-                  <Ionicons name="arrow-forward" size={20} color="#000000" />
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-        )}
       </ScrollView>
+      
+      {/* Save button - only shown in tracking mode */}
+      {sourceType === 'tracking' && (
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity
+            style={styles.saveButton}
+            onPress={handleSaveAndViewJournal}
+            disabled={saving}
+          >
+            {saving ? (
+              <ActivityIndicator color="#000000" size="small" />
+            ) : (
+              <>
+                <Text style={styles.saveButtonText}>Save to Journal</Text>
+                <Ionicons name="arrow-forward" size={20} color="#000000" />
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Back button et SafeAreaView en overlay */}
       <SafeAreaView style={styles.safeAreaOverlay} pointerEvents="box-none">
@@ -578,6 +578,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+    paddingBottom: 120,
   },
   photoContainer: {
     width: '100%',
@@ -773,11 +774,10 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     position: 'absolute',
-    bottom: 0,
+    bottom: 64,
     left: 0,
     right: 0,
     paddingHorizontal: 16,
-    paddingBottom: 24,
     backgroundColor: 'transparent',
   },
   saveButton: {

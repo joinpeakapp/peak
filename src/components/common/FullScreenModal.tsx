@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { 
   View, 
   StyleSheet, 
@@ -34,65 +34,19 @@ export const FullScreenModal: React.FC<FullScreenModalProps> = ({
   children,
   title
 }) => {
+  // État local pour la visibilité de la modale (permet l'animation)
   const [modalVisible, setModalVisible] = useState(visible);
-  const slideAnim = React.useRef(new Animated.Value(height)).current;
-  const fadeAnim = React.useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(height)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const hasAnimationStarted = useRef(false);
+  const isInitialRender = useRef(true);
 
-  useEffect(() => {
-    if (visible) {
-      setModalVisible(true);
-      // Animation d'entrée de la modale
-      Animated.parallel([
-        Animated.spring(slideAnim, {
-          toValue: 0,
-          useNativeDriver: true,
-          bounciness: 0,
-        }),
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: ANIMATION_DURATION,
-          useNativeDriver: true
-        })
-      ]).start();
-    } else {
-      // Animation de sortie de la modale
-      Animated.parallel([
-        Animated.timing(slideAnim, {
-          toValue: height,
-          duration: ANIMATION_DURATION,
-          useNativeDriver: true
-        }),
-        Animated.timing(fadeAnim, {
-          toValue: 0,
-          duration: ANIMATION_DURATION,
-          useNativeDriver: true
-        })
-      ]).start(() => {
-        setModalVisible(false);
-      });
-    }
-  }, [visible]);
-
-  // Gérer le bouton retour sur Android
-  useEffect(() => {
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (modalVisible) {
-        closeModal();
-        return true;
-      }
-      return false;
-    });
-
-    return () => backHandler.remove();
-  }, [modalVisible]);
-
-  const dismissKeyboard = () => {
-    Keyboard.dismiss();
-  };
-
-  // Fonction pour fermer la modale avec animation
-  const closeModal = () => {
-    // Animation de sortie de la modale
+  // Fonction pour animer la fermeture de la modale
+  const animateClose = useCallback(() => {
+    if (hasAnimationStarted.current) return;
+    
+    hasAnimationStarted.current = true;
+    
     Animated.parallel([
       Animated.timing(slideAnim, {
         toValue: height,
@@ -105,8 +59,72 @@ export const FullScreenModal: React.FC<FullScreenModalProps> = ({
         useNativeDriver: true
       })
     ]).start(() => {
-      onClose();
+      setModalVisible(false);
+      hasAnimationStarted.current = false;
     });
+  }, [slideAnim, fadeAnim]);
+
+  // Gérer l'ouverture et la fermeture de la modale
+  useEffect(() => {
+    if (visible && !modalVisible) {
+      // Ouverture de la modale
+      setModalVisible(true);
+      hasAnimationStarted.current = false;
+    } else if (!visible && modalVisible && !hasAnimationStarted.current) {
+      // Fermeture de la modale
+      animateClose();
+    }
+  }, [visible, modalVisible, animateClose]);
+
+  // Animation d'ouverture lorsque modalVisible devient true
+  useEffect(() => {
+    // Lorsque la modale devient visible, lancer l'animation d'entrée
+    if (modalVisible) {
+      // Réinitialiser l'animation d'entrée si ce n'est pas le rendu initial
+      if (!isInitialRender.current) {
+        slideAnim.setValue(height);
+        fadeAnim.setValue(0);
+      }
+      isInitialRender.current = false;
+      
+      // Animation d'entrée
+      Animated.parallel([
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          useNativeDriver: true,
+          bounciness: 0,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: ANIMATION_DURATION,
+          useNativeDriver: true
+        })
+      ]).start();
+    }
+  }, [modalVisible, slideAnim, fadeAnim]);
+
+  // Gérer le bouton retour sur Android
+  useEffect(() => {
+    const backAction = () => {
+      if (modalVisible) {
+        onClose();
+        return true;
+      }
+      return false;
+    };
+
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+    return () => backHandler.remove();
+  }, [modalVisible, onClose]);
+
+  // Fermer le clavier
+  const dismissKeyboard = () => {
+    Keyboard.dismiss();
+  };
+
+  // Gérer la fermeture
+  const handleClose = () => {
+    onClose();
   };
 
   return (
@@ -115,7 +133,7 @@ export const FullScreenModal: React.FC<FullScreenModalProps> = ({
       visible={modalVisible}
       animationType="none"
       statusBarTranslucent
-      onRequestClose={closeModal}
+      onRequestClose={handleClose}
     >
       <StatusBar barStyle="light-content" />
       <View style={styles.overlay}>
@@ -128,7 +146,7 @@ export const FullScreenModal: React.FC<FullScreenModalProps> = ({
           <TouchableOpacity 
             style={StyleSheet.absoluteFill} 
             activeOpacity={1} 
-            onPress={closeModal} 
+            onPress={handleClose} 
           />
         </Animated.View>
         <Animated.View 

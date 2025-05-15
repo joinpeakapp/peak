@@ -52,6 +52,20 @@ export const useWorkout = () => {
     (state: RootState) => state.workout
   );
 
+  const defaultWorkout: Workout = {
+    id: '',
+    name: '',
+    date: new Date().toISOString().split('T')[0],
+    duration: 0,
+    exercises: [],
+    frequency: {
+      type: 'weekly',
+      value: 1
+    },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+
   /**
    * Creates a new workout and adds it to the store.
    * @param workout - The workout to create (without ID)

@@ -17,8 +17,6 @@ export const mockWorkouts: Workout[] = [
       type: 'weekly',
       value: 1 // Tuesday
     },
-    streak: 12, // Streak active
-    nextDueDate: getFutureDate(7), // Prochain dans 7 jours
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   },
@@ -32,8 +30,6 @@ export const mockWorkouts: Workout[] = [
       type: 'interval',
       value: 3 // Every 3 days
     },
-    streak: 0, // Streak inactive
-    nextDueDate: getFutureDate(3), // Prochain dans 3 jours
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   }

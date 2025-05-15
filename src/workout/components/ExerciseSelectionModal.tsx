@@ -19,34 +19,91 @@ import { Ionicons } from '@expo/vector-icons';
 import { Exercise } from '../../types/workout';
 import { FullScreenModal } from '../../components/common/FullScreenModal';
 import { LinearGradient } from 'expo-linear-gradient';
+import { ExerciseFilterModal } from './ExerciseFilterModal';
 
 // Exemple de données d'exercices
-const SAMPLE_EXERCISES: Exercise[] = [
-  { id: '1', name: 'Bench Press', sets: 3, reps: 10, weight: 60 },
-  { id: '2', name: 'Squats', sets: 3, reps: 12, weight: 80 },
-  { id: '3', name: 'Deadlift', sets: 3, reps: 8, weight: 100 },
-  { id: '4', name: 'Pull-up', sets: 3, reps: 8, weight: 0 },
-  { id: '5', name: 'Push-up', sets: 3, reps: 15, weight: 0 },
-  { id: '6', name: 'Leg Press', sets: 3, reps: 12, weight: 120 },
-  { id: '7', name: 'Lat Pulldown', sets: 3, reps: 10, weight: 50 },
-  { id: '8', name: 'Shoulder Press', sets: 3, reps: 10, weight: 40 },
-  { id: '9', name: 'Bicep Curl', sets: 3, reps: 12, weight: 15 },
-  { id: '10', name: 'Tricep Extension', sets: 3, reps: 12, weight: 15 },
-  { id: '11', name: 'Calf Raise', sets: 3, reps: 15, weight: 30 },
-  { id: '12', name: 'Dumbbell Fly', sets: 3, reps: 12, weight: 12 },
-  { id: '13', name: 'Bent Over Row', sets: 3, reps: 10, weight: 40 },
-  { id: '14', name: 'Ab Crunch', sets: 3, reps: 20, weight: 0 },
-  { id: '15', name: 'Plank', sets: 3, reps: 0, duration: 60, weight: 0 },
-  { id: '16', name: 'Lunges', sets: 3, reps: 10, weight: 20 },
-  { id: '17', name: 'Glute Bridge', sets: 3, reps: 15, weight: 0 },
-  { id: '18', name: 'Side Plank', sets: 3, reps: 0, duration: 30, weight: 0 },
-  { id: '19', name: 'Mountain Climber', sets: 3, reps: 0, duration: 45, weight: 0 },
-  { id: '20', name: 'Box Jump', sets: 3, reps: 10, weight: 0 },
-  { id: '21', name: 'Jumping Jack', sets: 3, reps: 0, duration: 60, weight: 0 },
-  { id: '22', name: 'Russian Twist', sets: 3, reps: 20, weight: 5 },
-  { id: '23', name: 'Face Pull', sets: 3, reps: 15, weight: 15 },
-  { id: '24', name: 'Cable Crunch', sets: 3, reps: 15, weight: 25 },
-  { id: '25', name: 'Hanging Leg Raise', sets: 3, reps: 12, weight: 0 },
+export const SAMPLE_EXERCISES: Exercise[] = [
+  // Chest exercises
+  { id: '1', name: 'Flat Bench Press', sets: 3, reps: 10, weight: 60, tags: ['Chest', 'Upper Body'] },
+  { id: '2', name: 'Incline Bench Press', sets: 3, reps: 10, weight: 50, tags: ['Chest', 'Upper Body'] },
+  { id: '3', name: 'Decline Bench Press', sets: 3, reps: 10, weight: 55, tags: ['Chest', 'Upper Body'] },
+  { id: '4', name: 'Dumbbell Bench Press', sets: 3, reps: 10, weight: 25, tags: ['Chest', 'Upper Body'] },
+  { id: '5', name: 'Dumbbell Fly', sets: 3, reps: 12, weight: 12, tags: ['Chest', 'Upper Body'] },
+  { id: '6', name: 'Cable Crossover', sets: 3, reps: 12, weight: 15, tags: ['Chest', 'Upper Body'] },
+  { id: '7', name: 'Chest Dips', sets: 3, reps: 10, weight: 0, tags: ['Chest', 'Triceps', 'Upper Body'] },
+  { id: '8', name: 'Machine Chest Press', sets: 3, reps: 10, weight: 50, tags: ['Chest', 'Upper Body'] },
+  { id: '9', name: 'Push-up', sets: 3, reps: 15, weight: 0, tags: ['Chest', 'Triceps', 'Upper Body'] },
+  { id: '10', name: 'Wide Push-up', sets: 3, reps: 12, weight: 0, tags: ['Chest', 'Upper Body'] },
+  { id: '11', name: 'Diamond Push-up', sets: 3, reps: 10, weight: 0, tags: ['Chest', 'Triceps', 'Upper Body'] },
+  
+  // Leg exercises
+  { id: '12', name: 'Back Squat', sets: 3, reps: 12, weight: 80, tags: ['Quads', 'Glutes', 'Lower Body'] },
+  { id: '13', name: 'Front Squat', sets: 3, reps: 10, weight: 70, tags: ['Quads', 'Glutes', 'Lower Body'] },
+  { id: '14', name: 'Bulgarian Split Squat', sets: 3, reps: 10, weight: 20, tags: ['Quads', 'Glutes', 'Lower Body'] },
+  { id: '15', name: 'Leg Press', sets: 3, reps: 12, weight: 120, tags: ['Quads', 'Glutes', 'Lower Body'] },
+  { id: '16', name: 'Hack Squat', sets: 3, reps: 10, weight: 90, tags: ['Quads', 'Lower Body'] },
+  { id: '17', name: 'Walking Lunge', sets: 3, reps: 10, weight: 20, tags: ['Quads', 'Glutes', 'Lower Body'] },
+  { id: '18', name: 'Step-up', sets: 3, reps: 12, weight: 15, tags: ['Quads', 'Glutes', 'Lower Body'] },
+  { id: '19', name: 'Leg Extension', sets: 3, reps: 12, weight: 40, tags: ['Quads', 'Lower Body'] },
+  { id: '20', name: 'Leg Curl', sets: 3, reps: 12, weight: 35, tags: ['Hamstrings', 'Lower Body'] },
+  { id: '21', name: 'Deadlift', sets: 3, reps: 8, weight: 100, tags: ['Back', 'Glutes', 'Hamstrings', 'Lower Body'] },
+  { id: '22', name: 'Sumo Deadlift', sets: 3, reps: 8, weight: 90, tags: ['Glutes', 'Hamstrings', 'Lower Body'] },
+  { id: '23', name: 'Romanian Deadlift', sets: 3, reps: 10, weight: 80, tags: ['Hamstrings', 'Glutes', 'Lower Body'] },
+  { id: '24', name: 'Glute Bridge', sets: 3, reps: 15, weight: 0, tags: ['Glutes', 'Lower Body'] },
+  { id: '25', name: 'Hip Thrust', sets: 3, reps: 12, weight: 60, tags: ['Glutes', 'Lower Body'] },
+  { id: '26', name: 'Standing Calf Raise', sets: 3, reps: 15, weight: 30, tags: ['Calves', 'Lower Body'] },
+  { id: '27', name: 'Seated Calf Raise', sets: 3, reps: 15, weight: 25, tags: ['Calves', 'Lower Body'] },
+  { id: '28', name: 'Box Jump', sets: 3, reps: 10, weight: 0, tags: ['Quads', 'Calves', 'Lower Body'] },
+  { id: '29', name: 'Jump Squat', sets: 3, reps: 12, weight: 0, tags: ['Quads', 'Glutes', 'Lower Body'] },
+  
+  // Arm exercises
+  { id: '30', name: 'Barbell Curl', sets: 3, reps: 12, weight: 20, tags: ['Biceps', 'Upper Body'] },
+  { id: '31', name: 'Dumbbell Curl', sets: 3, reps: 12, weight: 15, tags: ['Biceps', 'Upper Body'] },
+  { id: '32', name: 'Hammer Curl', sets: 3, reps: 12, weight: 15, tags: ['Biceps', 'Upper Body'] },
+  { id: '33', name: 'Preacher Curl', sets: 3, reps: 10, weight: 15, tags: ['Biceps', 'Upper Body'] },
+  { id: '34', name: 'Concentration Curl', sets: 3, reps: 10, weight: 10, tags: ['Biceps', 'Upper Body'] },
+  { id: '35', name: 'Tricep Pushdown', sets: 3, reps: 12, weight: 20, tags: ['Triceps', 'Upper Body'] },
+  { id: '36', name: 'Overhead Tricep Extension', sets: 3, reps: 12, weight: 15, tags: ['Triceps', 'Upper Body'] },
+  { id: '37', name: 'Skullcrusher', sets: 3, reps: 10, weight: 15, tags: ['Triceps', 'Upper Body'] },
+  { id: '38', name: 'Close-grip Bench Press', sets: 3, reps: 10, weight: 50, tags: ['Chest', 'Triceps', 'Upper Body'] },
+  { id: '39', name: 'Tricep Dips', sets: 3, reps: 12, weight: 0, tags: ['Triceps', 'Chest', 'Upper Body'] },
+  
+  // Back exercises
+  { id: '40', name: 'Pull-up', sets: 3, reps: 8, weight: 0, tags: ['Back', 'Biceps', 'Upper Body'] },
+  { id: '41', name: 'Chin-up', sets: 3, reps: 8, weight: 0, tags: ['Back', 'Biceps', 'Upper Body'] },
+  { id: '42', name: 'Lat Pulldown', sets: 3, reps: 10, weight: 50, tags: ['Back', 'Biceps', 'Upper Body'] },
+  { id: '43', name: 'Bent Over Row', sets: 3, reps: 10, weight: 40, tags: ['Back', 'Upper Body'] },
+  { id: '44', name: 'Seated Cable Row', sets: 3, reps: 10, weight: 45, tags: ['Back', 'Upper Body'] },
+  { id: '45', name: 'T-bar Row', sets: 3, reps: 10, weight: 40, tags: ['Back', 'Upper Body'] },
+  { id: '46', name: 'Face Pull', sets: 3, reps: 15, weight: 15, tags: ['Shoulders', 'Upper Body'] },
+  { id: '47', name: 'Single-arm Dumbbell Row', sets: 3, reps: 10, weight: 20, tags: ['Back', 'Upper Body'] },
+  
+  // Shoulder exercises
+  { id: '48', name: 'Overhead Press', sets: 3, reps: 10, weight: 40, tags: ['Shoulders', 'Upper Body'] },
+  { id: '49', name: 'Dumbbell Shoulder Press', sets: 3, reps: 10, weight: 20, tags: ['Shoulders', 'Upper Body'] },
+  { id: '50', name: 'Lateral Raise', sets: 3, reps: 12, weight: 8, tags: ['Shoulders', 'Upper Body'] },
+  { id: '51', name: 'Front Raise', sets: 3, reps: 12, weight: 8, tags: ['Shoulders', 'Upper Body'] },
+  { id: '52', name: 'Rear Delt Fly', sets: 3, reps: 12, weight: 8, tags: ['Shoulders', 'Upper Body'] },
+  { id: '53', name: 'Reverse Pec Deck', sets: 3, reps: 12, weight: 25, tags: ['Shoulders', 'Upper Body'] },
+  { id: '54', name: 'Arnold Press', sets: 3, reps: 10, weight: 15, tags: ['Shoulders', 'Upper Body'] },
+  { id: '55', name: 'Upright Row', sets: 3, reps: 10, weight: 25, tags: ['Shoulders', 'Upper Body'] },
+  
+  // Ab exercises
+  { id: '56', name: 'Crunch', sets: 3, reps: 20, weight: 0, tags: ['Abs'] },
+  { id: '57', name: 'Cable Crunch', sets: 3, reps: 15, weight: 25, tags: ['Abs'] },
+  { id: '58', name: 'Plank', sets: 3, reps: 0, duration: 60, weight: 0, tags: ['Abs'] },
+  { id: '59', name: 'Side Plank', sets: 3, reps: 0, duration: 30, weight: 0, tags: ['Abs'] },
+  { id: '60', name: 'Russian Twist', sets: 3, reps: 20, weight: 5, tags: ['Abs'] },
+  { id: '61', name: 'Hanging Leg Raise', sets: 3, reps: 12, weight: 0, tags: ['Abs'] },
+  { id: '62', name: 'Toes to Bar', sets: 3, reps: 10, weight: 0, tags: ['Abs'] },
+  { id: '63', name: 'Mountain Climber', sets: 3, reps: 0, duration: 45, weight: 0, tags: ['Abs'] },
+  { id: '64', name: 'Ab Wheel Rollout', sets: 3, reps: 10, weight: 0, tags: ['Abs'] },
+  { id: '65', name: 'Leg Raise', sets: 3, reps: 15, weight: 0, tags: ['Abs'] },
+  { id: '66', name: 'V-up', sets: 3, reps: 15, weight: 0, tags: ['Abs'] },
+  { id: '67', name: 'Sit-up', sets: 3, reps: 20, weight: 0, tags: ['Abs'] },
+  
+  // Cardio
+  { id: '68', name: 'Jumping Jack', sets: 3, reps: 0, duration: 60, weight: 0, tags: ['Cardio'] },
 ];
 
 interface ExerciseSelectionModalProps {
@@ -69,6 +126,8 @@ export const ExerciseSelectionModal: React.FC<ExerciseSelectionModalProps> = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedExercises, setSelectedExercises] = useState<Exercise[]>([]);
+  const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   
   // Reset selections when modal is opened
   useEffect(() => {
@@ -78,16 +137,47 @@ export const ExerciseSelectionModal: React.FC<ExerciseSelectionModalProps> = ({
     }
   }, [visible]);
 
-  // Filter exercises based on search query
+  // Ouvrir la modale de filtres
+  const handleOpenFilterModal = () => {
+    setIsFilterModalVisible(true);
+  };
+
+  // Fonction pour mettre à jour les tags sélectionnés
+  const handleTagsSelected = (tags: string[]) => {
+    setSelectedTags(tags);
+  };
+
+  // Fonction pour obtenir le texte du bouton de filtre
+  const getFilterButtonText = () => {
+    if (selectedTags.length === 0) {
+      return "Filter by";
+    } else if (selectedTags.length === 1) {
+      return selectedTags[0];
+    } else {
+      return `${selectedTags.length} filters`;
+    }
+  };
+
+  // Filter exercises based on search query and tags
   const filteredExercises = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return SAMPLE_EXERCISES;
+    let filtered = SAMPLE_EXERCISES;
+    
+    // Filter by search query
+    if (searchQuery.trim()) {
+      filtered = filtered.filter(exercise => 
+        exercise.name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
     }
     
-    return SAMPLE_EXERCISES.filter(exercise => 
-      exercise.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }, [searchQuery]);
+    // Filter by selected tags
+    if (selectedTags.length > 0) {
+      filtered = filtered.filter(exercise => 
+        exercise.tags?.some(tag => selectedTags.includes(tag))
+      );
+    }
+    
+    return filtered;
+  }, [searchQuery, selectedTags]);
 
   // Group exercises by first letter
   const groupedExercises = useMemo(() => {
@@ -195,8 +285,11 @@ export const ExerciseSelectionModal: React.FC<ExerciseSelectionModalProps> = ({
               </View>
               
               {/* Filter Button */}
-              <TouchableOpacity style={styles.filterButton}>
-                <Text style={styles.filterButtonText}>Filter by</Text>
+              <TouchableOpacity 
+                style={styles.filterButton}
+                onPress={handleOpenFilterModal}
+              >
+                <Text style={styles.filterButtonText}>{getFilterButtonText()}</Text>
                 <Ionicons name="chevron-down" size={20} color="#FFFFFF" />
               </TouchableOpacity>
               
@@ -240,6 +333,38 @@ export const ExerciseSelectionModal: React.FC<ExerciseSelectionModalProps> = ({
                   </Text>
                 </TouchableOpacity>
               </View>
+
+              {/* Filter Modal */}
+              <ExerciseFilterModal
+                visible={isFilterModalVisible}
+                onClose={() => setIsFilterModalVisible(false)}
+                availableTags={useMemo(() => {
+                  const tagSet = new Set<string>();
+                  
+                  // Ajouter les catégories de base (Upper/Lower Body)
+                  tagSet.add("Upper Body");
+                  tagSet.add("Lower Body");
+                  
+                  // Ajouter les groupes musculaires principaux
+                  const muscleGroups = [
+                    "Chest", "Back", "Shoulders", "Biceps", "Triceps", 
+                    "Abs", "Quads", "Hamstrings", "Glutes", "Calves"
+                  ];
+                  
+                  muscleGroups.forEach(muscle => tagSet.add(muscle));
+                  
+                  // Ajouter les tags des exercices
+                  SAMPLE_EXERCISES.forEach(exercise => {
+                    if (exercise.tags) {
+                      exercise.tags.forEach(tag => tagSet.add(tag));
+                    }
+                  });
+                  
+                  return Array.from(tagSet).sort();
+                }, [])}
+                selectedTags={selectedTags}
+                onTagsSelected={handleTagsSelected}
+              />
             </View>
           </TouchableWithoutFeedback>
         </KeyboardAvoidingView>

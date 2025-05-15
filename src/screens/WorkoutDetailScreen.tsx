@@ -9,12 +9,12 @@ import {
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
-import { RootStackParamList } from '../navigation/AppNavigator';
+import { RootStackParamList } from '../types/navigation';
 import { Workout } from '../types/workout';
 
 type WorkoutDetailScreenProps = {
-  navigation: NativeStackNavigationProp<RootStackParamList, 'WorkoutDetail'>;
-  route: RouteProp<RootStackParamList, 'WorkoutDetail'>;
+  navigation: NativeStackNavigationProp<RootStackParamList, 'MainTabs'>;
+  route: RouteProp<RootStackParamList, 'MainTabs'>;
 };
 
 export const WorkoutDetailScreen: React.FC<WorkoutDetailScreenProps> = ({
@@ -22,7 +22,14 @@ export const WorkoutDetailScreen: React.FC<WorkoutDetailScreenProps> = ({
   route,
 }) => {
   // This would come from your state management solution
-  const workout: Workout | null = null;
+  const workout: Workout = {
+    id: '1',
+    name: 'Sample Workout',
+    date: new Date().toISOString(),
+    duration: 60,
+    exercises: [],
+    frequency: { type: 'weekly', value: 1 }
+  };
 
   if (!workout) {
     return (

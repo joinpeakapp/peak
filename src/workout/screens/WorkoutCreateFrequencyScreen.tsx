@@ -12,6 +12,12 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useWorkout } from '../../hooks/useWorkout';
 import { WorkoutFrequency } from '../../types/workout';
+import { Workout } from '../../types/workout';
+
+// Fonction pour générer un ID unique compatible avec Hermes
+const generateId = (): string => {
+  return Date.now().toString() + Math.random().toString(36).substring(2, 15);
+};
 
 interface WorkoutCreateFrequencyScreenProps {
   name: string;
@@ -50,15 +56,18 @@ export const WorkoutCreateFrequencyScreen: React.FC<WorkoutCreateFrequencyScreen
       };
 
       // Créer et ajouter le nouveau workout
-      createWorkout({
+      const newWorkout: Workout = {
+        id: generateId(),
         name,
-        frequency,
         date: new Date().toISOString().split('T')[0],
         duration: 0, // Valeur par défaut
         exercises: [],
-        streak: 0, // Nouvelle streak commence à 0
-        nextDueDate: new Date().toISOString().split('T')[0], // Date initiale, sera calculée après création
-      });
+        frequency,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      createWorkout(newWorkout);
 
       // Terminer le flow
       onComplete();

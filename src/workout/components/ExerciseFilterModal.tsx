@@ -37,6 +37,20 @@ export const ExerciseFilterModal: React.FC<ExerciseFilterModalProps> = ({
   const slideAnim = React.useRef(new Animated.Value(height)).current;
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
 
+  // Catégoriser les tags disponibles
+  const bodySectionTags = availableTags.filter(tag => 
+    tag.includes("Body")
+  );
+  
+  const muscleSectionTags = availableTags.filter(tag => 
+    ["Chest", "Back", "Shoulders", "Biceps", "Triceps", 
+     "Abs", "Quads", "Hamstrings", "Glutes", "Calves"].includes(tag)
+  );
+  
+  const otherTags = availableTags.filter(tag => 
+    !bodySectionTags.includes(tag) && !muscleSectionTags.includes(tag)
+  );
+
   // Synchroniser avec les tags sélectionnés quand la modale s'ouvre
   React.useEffect(() => {
     if (visible) {
@@ -157,6 +171,38 @@ export const ExerciseFilterModal: React.FC<ExerciseFilterModalProps> = ({
     });
   };
 
+  // Rendu d'une section de tags avec titre
+  const renderTagSection = (title: string, tags: string[]) => {
+    if (tags.length === 0) return null;
+    
+    return (
+      <View style={styles.sectionContainer}>
+        <Text style={styles.sectionTitle}>{title}</Text>
+        <View style={styles.tagsGrid}>
+          {tags.map(tag => (
+            <TouchableOpacity
+              key={tag}
+              style={[
+                styles.tagButton,
+                localSelectedTags.includes(tag) && styles.tagButtonSelected
+              ]}
+              onPress={() => toggleTag(tag)}
+            >
+              <Text 
+                style={[
+                  styles.tagButtonText,
+                  localSelectedTags.includes(tag) && styles.tagButtonTextSelected
+                ]}
+              >
+                {tag}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+    );
+  };
+
   return (
     <Modal
       visible={modalVisible}
@@ -191,34 +237,16 @@ export const ExerciseFilterModal: React.FC<ExerciseFilterModalProps> = ({
           <View style={styles.handle} />
           
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Filter by tags</Text>
+            <Text style={styles.modalTitle}>Filter exercises</Text>
             <TouchableOpacity onPress={closeModal} style={styles.closeButton}>
               <Ionicons name="close" size={24} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
 
           <ScrollView style={styles.tagsContainer}>
-            <View style={styles.tagsGrid}>
-              {availableTags.map(tag => (
-                <TouchableOpacity
-                  key={tag}
-                  style={[
-                    styles.tagButton,
-                    localSelectedTags.includes(tag) && styles.tagButtonSelected
-                  ]}
-                  onPress={() => toggleTag(tag)}
-                >
-                  <Text 
-                    style={[
-                      styles.tagButtonText,
-                      localSelectedTags.includes(tag) && styles.tagButtonTextSelected
-                    ]}
-                  >
-                    {tag}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            {renderTagSection("Body Focus", bodySectionTags)}
+            {renderTagSection("Muscle Groups", muscleSectionTags)}
+            {renderTagSection("Other Tags", otherTags)}
           </ScrollView>
 
           <View style={styles.buttonsContainer}>
@@ -287,6 +315,16 @@ const styles = StyleSheet.create({
   },
   tagsContainer: {
     maxHeight: 400,
+  },
+  sectionContainer: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 12,
+    paddingHorizontal: 4,
   },
   tagsGrid: {
     flexDirection: 'row',

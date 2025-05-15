@@ -78,6 +78,10 @@ export const WorkoutSummaryScreen: React.FC = () => {
       title: "New Personal Best!",
       subtitle: "You just crushed your limits - and set a new one"
     },
+    "Streak": {
+      title: `${workout.streakData?.current || 0} Day Streak!`,
+      subtitle: "You're building consistency - keep that momentum going!"
+    },
     "Complete": {
       title: "Workout Complete",
       subtitle: "Great job on completing your workout!"
@@ -147,6 +151,15 @@ export const WorkoutSummaryScreen: React.FC = () => {
         name: "New Record",
         icon: "trophy-outline" as any,
         color: "#f39c12"
+      });
+    }
+    
+    // Vérifier si la streak est supérieure à 1
+    if (workout.streakData && workout.streakData.current > 1) {
+      stickers.push({
+        name: "Streak",
+        icon: "flame-outline" as any,
+        color: "#FF8A24"
       });
     }
     
