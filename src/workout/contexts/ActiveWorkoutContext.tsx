@@ -34,7 +34,7 @@ export interface ActiveWorkout {
 interface ActiveWorkoutContextValue {
   activeWorkout: ActiveWorkout | null;
   startWorkout: (workoutId: string, workoutName: string, exercises: Exercise[]) => void;
-  finishWorkout: () => Promise<void>;
+  finishWorkout: (updateStreak?: boolean) => Promise<void>;
   updateTrackingData: (exerciseId: string, sets: TrackingSet[], completedSets: number) => void;
   updateElapsedTime: (newElapsedTime: number) => void;
   resumeWorkout: () => void;
@@ -280,7 +280,7 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   // Terminer une séance
-  const finishWorkout = useCallback(async (skipNavigation?: boolean) => {
+  const finishWorkout = useCallback(async (updateStreak: boolean = false) => {
     console.log("[ActiveWorkout] Finishing workout");
     if (!activeWorkout) return;
 
@@ -295,9 +295,12 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
         await AsyncStorage.removeItem(STORAGE_KEY);
 
       // Récupérer le workout original pour mettre à jour la streak
-      const originalWorkout = workouts.find(w => w.id === activeWorkout.workoutId);
-      if (originalWorkout) {
-        await updateStreakOnCompletion(originalWorkout);
+      // Uniquement si updateStreak est true (uniquement quand on clique sur "Log Workout")
+      if (updateStreak) {
+        const originalWorkout = workouts.find(w => w.id === activeWorkout.workoutId);
+        if (originalWorkout) {
+          await updateStreakOnCompletion(originalWorkout);
+        }
       }
     } catch (error) {
       console.error("[ActiveWorkout] Error finishing workout:", error);

@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { WorkoutCard } from './WorkoutCard';
 import { Workout } from '../../types/workout';
 import { useWorkout } from '../../hooks/useWorkout';
+import { WorkoutEditModal } from './WorkoutEditModal';
 
 interface WorkoutListProps {
   /** Array of workouts to display */
@@ -39,14 +40,43 @@ export const WorkoutList: React.FC<WorkoutListProps> = ({
   onAddPress 
 }) => {
   const { removeWorkout } = useWorkout();
+  const [editingWorkout, setEditingWorkout] = useState<Workout | null>(null);
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
 
-  const handleEdit = (workoutId: string) => {
-    // TODO: Implement edit functionality
-    console.log('Edit workout:', workoutId);
+  const handleEdit = (workout: Workout) => {
+    console.log('handleEdit called with workout:', workout.name);
+    
+    // Force update to trigger a clean render
+    setEditingWorkout(null);
+    setIsEditModalVisible(false);
+    
+    // Utilisons requestAnimationFrame pour garantir que la réinitialisation est traitée
+    requestAnimationFrame(() => {
+      // Puis définir le workout et rendre visible
+      console.log('Setting workout in next frame');
+      setEditingWorkout(workout);
+      setIsEditModalVisible(true);
+    });
   };
 
   const handleDelete = (workoutId: string) => {
     removeWorkout(workoutId);
+  };
+
+  const handleEditClose = () => {
+    console.log('handleEditClose called');
+    setIsEditModalVisible(false);
+    setTimeout(() => {
+      console.log('Clearing editingWorkout');
+      setEditingWorkout(null);
+    }, 300);
+  };
+
+  const handleEditSave = () => {
+    setIsEditModalVisible(false);
+    setTimeout(() => {
+      setEditingWorkout(null);
+    }, 300);
   };
 
   const renderEmptyState = () => (
@@ -65,30 +95,41 @@ export const WorkoutList: React.FC<WorkoutListProps> = ({
   );
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Workouts</Text>
-        <TouchableOpacity style={styles.addButton} onPress={onAddPress}>
-          <Ionicons name="add" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-      </View>
+    <>
+      <ScrollView style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Workouts</Text>
+          <TouchableOpacity style={styles.addButton} onPress={onAddPress}>
+            <Ionicons name="add" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
 
-      <View style={styles.content}>
-        {workouts.length > 0 ? (
-          workouts.map(workout => (
-            <WorkoutCard
-              key={workout.id}
-              workout={workout}
-              onPress={() => onWorkoutPress(workout)}
-              onEdit={() => handleEdit(workout.id)}
-              onDelete={() => handleDelete(workout.id)}
-            />
-          ))
-        ) : (
-          renderEmptyState()
-        )}
-      </View>
-    </ScrollView>
+        <View style={styles.content}>
+          {workouts.length > 0 ? (
+            workouts.map(workout => (
+              <WorkoutCard
+                key={workout.id}
+                workout={workout}
+                onPress={() => onWorkoutPress(workout)}
+                onEdit={() => handleEdit(workout)}
+                onDelete={() => handleDelete(workout.id)}
+              />
+            ))
+          ) : (
+            renderEmptyState()
+          )}
+        </View>
+      </ScrollView>
+      
+      {editingWorkout && (
+        <WorkoutEditModal
+          visible={isEditModalVisible}
+          workout={editingWorkout}
+          onClose={handleEditClose}
+          onSave={handleEditSave}
+        />
+      )}
+    </>
   );
 };
 

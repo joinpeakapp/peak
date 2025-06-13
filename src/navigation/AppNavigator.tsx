@@ -8,6 +8,9 @@ import { JournalScreen } from '../workout/screens/JournalScreen';
 import { WorkoutSummaryScreen } from '../workout/screens/WorkoutSummaryScreen';
 import { WorkoutPhotoScreen } from '../workout/screens/WorkoutPhotoScreen';
 import { WorkoutOverviewScreen } from '../workout/screens/WorkoutOverviewScreen';
+import { ProfileScreen } from '../screens/ProfileScreen';
+import { RecordsDebugScreen } from '../screens/DebugScreen/RecordsDebugScreen';
+import { ExerciseDetailScreen } from '../screens/ExerciseDetailScreen';
 import {
   WorkoutStackParamList,
   JournalStackParamList,
@@ -18,12 +21,7 @@ import {
 } from '../types/navigation';
 import { View, Text } from 'react-native';
 
-// Écran temporaire pour le profil
-const ProfileScreen = () => (
-  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0D0D0F' }}>
-    <Text style={{ color: '#FFFFFF', fontSize: 24 }}>Profil</Text>
-  </View>
-);
+// ProfileScreen est importé depuis '../screens/ProfileScreen'
 
 // Création des navigateurs
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -66,6 +64,8 @@ const ProfileNavigator = () => (
     }}
   >
     <ProfileStack.Screen name="Profile" component={ProfileScreen} />
+    <ProfileStack.Screen name="RecordsDebug" component={RecordsDebugScreen} />
+    <ProfileStack.Screen name="ExerciseDetail" component={ExerciseDetailScreen} />
   </ProfileStack.Navigator>
 );
 

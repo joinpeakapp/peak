@@ -115,41 +115,15 @@ export const WorkoutSettingsModal: React.FC<WorkoutSettingsModalProps> = ({
     });
   };
 
-  // Fonctions améliorées pour assurer une fermeture correcte avec animation
+  // Simplifions - appeler simplement le onEdit fourni
   const handleEditPress = () => {
-    Animated.parallel([
-      Animated.timing(slideAnim, {
-        toValue: height,
-        duration: ANIMATION_DURATION,
-        useNativeDriver: true,
-      }),
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: ANIMATION_DURATION,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      onClose();
-      onEdit();
-    });
+    console.log('handleEditPress in WorkoutSettingsModal - calling onEdit directly');
+    onEdit();
   };
 
   const handleDeletePress = () => {
-    Animated.parallel([
-      Animated.timing(slideAnim, {
-        toValue: height,
-        duration: ANIMATION_DURATION,
-        useNativeDriver: true,
-      }),
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: ANIMATION_DURATION,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      onClose();
-      onDelete();
-    });
+    console.log('handleDeletePress in WorkoutSettingsModal - calling onDelete directly');
+    onDelete();
   };
 
   return (
@@ -190,7 +164,7 @@ export const WorkoutSettingsModal: React.FC<WorkoutSettingsModalProps> = ({
             onPress={handleEditPress}
           >
             <Ionicons name="pencil-outline" size={24} color="#FFFFFF" />
-            <Text style={styles.optionText}>Modifier les informations</Text>
+            <Text style={styles.optionText}>Edit workout</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -199,7 +173,7 @@ export const WorkoutSettingsModal: React.FC<WorkoutSettingsModalProps> = ({
           >
             <Ionicons name="trash-outline" size={24} color="#FF3B30" />
             <Text style={[styles.optionText, styles.deleteText]}>
-              Supprimer le workout
+              Delete workout
             </Text>
           </TouchableOpacity>
         </Animated.View>

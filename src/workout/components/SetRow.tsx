@@ -228,6 +228,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 24,
+    overflow: 'visible',
   },
   trackingCheckbox: {
     width: 48,
@@ -261,11 +262,13 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     alignItems: 'center',
     gap: 16,
+    overflow: 'visible',
   },
   inputWrapper: {
     position: 'relative',
     height: 48,
     minWidth: 70,
+    overflow: 'visible',
   },
   setInput: {
     height: 48,
@@ -310,8 +313,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -10,
     right: -5,
-    zIndex: 20,
-    elevation: 10, // Pour Android
+    zIndex: 9999,
+    elevation: 20,
   },
   prHighlight: {
     position: 'absolute',

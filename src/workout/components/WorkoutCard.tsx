@@ -76,6 +76,25 @@ export const WorkoutCard = memo<WorkoutCardProps>(({
   const { name, frequency } = workout;
   const [isSettingsVisible, setIsSettingsVisible] = useState(false);
 
+  // Fonction pour gérer le clic sur l'option d'édition
+  const handleEditPress = () => {
+    // Fermer le modal de paramètres
+    setIsSettingsVisible(false);
+    // Utiliser setTimeout pour s'assurer que le modal est bien fermé avant d'ouvrir l'édition
+    setTimeout(() => {
+      // Puis appeler le callback d'édition
+      onEdit();
+    }, 400);
+  };
+
+  // Fonction pour gérer le clic sur l'option de suppression
+  const handleDeletePress = () => {
+    setIsSettingsVisible(false);
+    setTimeout(() => {
+      onDelete();
+    }, 400);
+  };
+
   return (
     <>
       <TouchableOpacity
@@ -105,8 +124,8 @@ export const WorkoutCard = memo<WorkoutCardProps>(({
       <WorkoutSettingsModal
         visible={isSettingsVisible}
         onClose={() => setIsSettingsVisible(false)}
-        onEdit={onEdit}
-        onDelete={onDelete}
+        onEdit={handleEditPress}
+        onDelete={handleDeletePress}
       />
     </>
   );

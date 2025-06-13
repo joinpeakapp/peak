@@ -38,7 +38,7 @@ export const EnhancedPersonalRecordService = {
 
     const exerciseRecord = records[exerciseName];
     
-    // Nouveau record si on bat le record existant
+    // Nouveau record si on bat le record existant (strictement supérieur)
     if (exerciseRecord) {
       if (weight > exerciseRecord.maxWeight) {
         return {
@@ -76,26 +76,20 @@ export const EnhancedPersonalRecordService = {
     const exerciseRecord = records[exerciseName];
     if (!exerciseRecord) {
       // Premier record pour cet exercice
-      return {
-        isNew: true,
-        weight,
-        reps,
-        previousReps: 0
-      };
+      // Pas de sticker "+X" car c'est la première utilisation de ce poids
+      return null;
     }
 
     const weightKey = weight.toString();
     const previousRecord = exerciseRecord.repsPerWeight[weightKey];
     
-    // Si pas de record précédent pour ce poids, ou si on bat le record existant
+    // Si pas de record précédent pour ce poids, pas de sticker "+X"
     if (!previousRecord) {
-      return {
-        isNew: true,
-        weight,
-        reps,
-        previousReps: 0
-      };
+      return null;
     } else if (reps > previousRecord.reps) {
+      // On détecte un PR de répétitions uniquement si:
+      // 1. Il y a un record précédent pour ce poids
+      // 2. Les nouvelles répétitions sont supérieures au record précédent
       return {
         isNew: true,
         weight,
@@ -148,7 +142,7 @@ export const EnhancedPersonalRecordService = {
     let weightPR;
     let repsPR;
     
-    // Vérifier record de poids
+    // Vérifier record de poids - uniquement si strictement supérieur
     if (weight > exerciseRecord.maxWeight) {
       exerciseRecord.maxWeight = weight;
       exerciseRecord.maxWeightDate = date;
@@ -157,19 +151,31 @@ export const EnhancedPersonalRecordService = {
     
     // Vérifier record de répétitions pour ce poids
     const previousReps = exerciseRecord.repsPerWeight[weightKey]?.reps || 0;
+    const hasPreviousRecord = weightKey in exerciseRecord.repsPerWeight;
     
-    if (!exerciseRecord.repsPerWeight[weightKey] || reps > previousReps) {
+    // Mettre à jour le record de répétitions si c'est mieux que précédemment
+    if (reps > previousReps) {
       exerciseRecord.repsPerWeight[weightKey] = {
         reps,
         date
       };
       
-      repsPR = {
-        isNew: true,
-        weight,
+      // Retourner un PR de répétitions seulement s'il y avait déjà un record
+      if (hasPreviousRecord) {
+        repsPR = {
+          isNew: true,
+          weight,
+          reps,
+          previousReps
+        };
+      }
+    } else if (!hasPreviousRecord) {
+      // Premier enregistrement pour ce poids
+      exerciseRecord.repsPerWeight[weightKey] = {
         reps,
-        previousReps
+        date
       };
+      // Pas de repsPR retourné ici car c'est le premier enregistrement
     }
     
     return {

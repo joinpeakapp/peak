@@ -1,0 +1,672 @@
+import React, { useCallback, useMemo, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Image,
+  SafeAreaView,
+  Dimensions
+} from 'react-native';
+import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
+import { useWorkout } from '../hooks/useWorkout';
+import { useNavigation } from '@react-navigation/native';
+import { ProfileScreenProps } from '../types/navigation';
+import { PersonalRecordService } from '../services/personalRecordService';
+import { PersonalRecordBadge } from '../workout/components/PersonalRecordBadge';
+import { useWorkoutHistory } from '../workout/contexts/WorkoutHistoryContext';
+import { useStreak } from '../workout/contexts/StreakContext';
+import { LinearGradient } from 'expo-linear-gradient';
+
+// Define tab type to prevent type comparison errors
+type SelectedTab = 'stats' | 'records';
+
+const ProfileScreen: React.FC = () => {
+  const { personalRecords } = useWorkout();
+  const { completedWorkouts, getPersonalRecords } = useWorkoutHistory();
+  const { getWorkoutStreak } = useStreak();
+  const navigation = useNavigation<ProfileScreenProps['navigation']>();
+  const [selectedTab, setSelectedTab] = useState<SelectedTab>('stats');
+
+  // Calculate workout statistics
+  const workoutStats = useMemo(() => {
+    // Total workouts completed
+    const totalWorkouts = completedWorkouts.length;
+    
+    // Total exercises performed (counting each exercise in a workout)
+    const totalExercises = completedWorkouts.reduce(
+      (total, workout) => total + workout.exercises.length, 
+      0
+    );
+    
+    // Total sets completed
+    const totalSets = completedWorkouts.reduce(
+      (total, workout) => total + workout.exercises.reduce(
+        (subTotal, exercise) => subTotal + exercise.sets.filter(set => set.completed).length, 
+        0
+      ), 
+      0
+    );
+    
+    // Total weight lifted (kg)
+    const totalWeight = completedWorkouts.reduce(
+      (total, workout) => total + workout.exercises.reduce(
+        (subTotal, exercise) => subTotal + exercise.sets.reduce(
+          (setTotal, set) => set.completed ? setTotal + (set.weight * set.reps) : setTotal,
+          0
+        ),
+        0
+      ),
+      0
+    );
+    
+    // Find unique workout types
+    const workoutTypes = new Set(completedWorkouts.map(workout => workout.name));
+    
+    // Calculate best streak across all workouts
+    let bestStreak = 0;
+    let currentStreakTotal = 0;
+    let workoutsThisMonth = 0;
+    
+    // Get current month
+    const currentMonth = new Date().getMonth();
+    
+    // Count workouts this month
+    completedWorkouts.forEach(workout => {
+      const workoutDate = new Date(workout.date);
+      if (workoutDate.getMonth() === currentMonth) {
+        workoutsThisMonth++;
+      }
+    });
+
+    // Extract all unique exercises with their records (max weight)
+    const exercisesMap = new Map();
+    
+    completedWorkouts.forEach(workout => {
+      workout.exercises.forEach(exercise => {
+        // For each exercise, check if it has completed sets
+        const completedSets = exercise.sets.filter(set => set.completed);
+        if (completedSets.length > 0) {
+          // Find the set with the highest weight
+          const maxWeightSet = [...completedSets].sort((a, b) => b.weight - a.weight)[0];
+          
+          // If the exercise doesn't exist in the map yet or if this weight is higher, store it
+          if (!exercisesMap.has(exercise.name) || maxWeightSet.weight > exercisesMap.get(exercise.name).weight) {
+            exercisesMap.set(exercise.name, {
+              name: exercise.name,
+              weight: maxWeightSet.weight,
+              reps: maxWeightSet.reps,
+              date: workout.date
+            });
+          }
+        }
+      });
+    });
+    
+    // Convert the map to array and sort by weight (highest to lowest)
+    const exercisesList = Array.from(exercisesMap.values()).sort((a, b) => b.weight - a.weight);
+    
+    return {
+      totalWorkouts,
+      totalExercises,
+      totalSets,
+      totalWeight,
+      uniqueWorkoutTypes: workoutTypes.size,
+      bestStreak,
+      currentStreakTotal,
+      workoutsThisMonth,
+      exercisesList
+    };
+  }, [completedWorkouts]);
+  
+  // Utiliser le service pour récupérer les records par catégorie
+  const recordsByCategory = useMemo(() => {
+    return PersonalRecordService.getRecordsByCategory(personalRecords);
+  }, [personalRecords]);
+
+  // Liste des catégories qui ont au moins un record
+  const categoriesWithRecords = useMemo(() => {
+    return Object.entries(recordsByCategory)
+      .filter(([_, records]) => records.length > 0)
+      .map(([category]) => category);
+  }, [recordsByCategory]);
+  
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  // Check if we should show records tab (empty state)
+  const isRecordsTab = selectedTab === 'records' as const;
+  
+  // Afficher un message si aucun record n'est disponible
+  if (categoriesWithRecords.length === 0 && isRecordsTab) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Profil</Text>
+        </View>
+        
+        {/* Tabs */}
+        <View style={styles.tabContainer}>
+          <TouchableOpacity 
+            style={[styles.tab, selectedTab === 'stats' ? styles.activeTab : undefined]} 
+            onPress={() => setSelectedTab('stats')}
+          >
+            <Text style={[styles.tabText, selectedTab === 'stats' ? styles.activeTabText : undefined]}>
+              Statistiques
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.tab, selectedTab === 'records' ? styles.activeTab : undefined]} 
+            onPress={() => setSelectedTab('records')}
+          >
+            <Text style={[styles.tabText, selectedTab === 'records' ? styles.activeTabText : undefined]}>
+              Records
+            </Text>
+          </TouchableOpacity>
+        </View>
+        
+        <View style={styles.emptyContainer}>
+          <Ionicons name="trophy-outline" size={64} color="#444" />
+          <Text style={styles.emptyText}>
+            Aucun record personnel enregistré
+          </Text>
+          <Text style={styles.emptySubtext}>
+            Complétez des entraînements pour voir vos records apparaître ici
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Profil</Text>
+      </View>
+      
+      {/* Tabs */}
+      <View style={styles.tabContainer}>
+        <TouchableOpacity 
+          style={[styles.tab, selectedTab === 'stats' ? styles.activeTab : undefined]} 
+          onPress={() => setSelectedTab('stats')}
+        >
+          <Text style={[styles.tabText, selectedTab === 'stats' ? styles.activeTabText : undefined]}>
+            Statistiques
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.tab, selectedTab === 'records' ? styles.activeTab : undefined]} 
+          onPress={() => setSelectedTab('records')}
+        >
+          <Text style={[styles.tabText, selectedTab === 'records' ? styles.activeTabText : undefined]}>
+            Records
+          </Text>
+        </TouchableOpacity>
+      </View>
+      
+      <ScrollView style={styles.contentContainer}>
+        {selectedTab === ('stats' as const) ? (
+          <>
+            {/* Hero Banner (Duolingo Style) */}
+            <LinearGradient
+              colors={['#1A237E', '#3949AB']}
+              style={styles.heroBanner}
+            >
+              <View style={styles.heroContent}>
+                <View style={styles.heroAvatarContainer}>
+                  <View style={styles.heroAvatar}>
+                    <FontAwesome5 name="dumbbell" size={32} color="#FFF" />
+                  </View>
+                </View>
+                <View style={styles.heroTextContainer}>
+                  <Text style={styles.heroTitle}>Athlète</Text>
+                  <View style={styles.streakContainer}>
+                    <MaterialCommunityIcons name="fire" size={24} color="#FF9800" />
+                    <Text style={styles.streakText}>{workoutStats.currentStreakTotal} jours</Text>
+                  </View>
+                </View>
+              </View>
+            </LinearGradient>
+            
+            {/* Stats Grid */}
+            <View style={styles.statsGrid}>
+              <View style={styles.statsCard}>
+                <Text style={styles.statsNumber}>{workoutStats.totalWorkouts}</Text>
+                <Text style={styles.statsLabel}>Entraînements</Text>
+              </View>
+              
+              <View style={styles.statsCard}>
+                <Text style={styles.statsNumber}>{workoutStats.totalExercises}</Text>
+                <Text style={styles.statsLabel}>Exercices</Text>
+              </View>
+              
+              <View style={styles.statsCard}>
+                <Text style={styles.statsNumber}>{workoutStats.totalSets}</Text>
+                <Text style={styles.statsLabel}>Séries</Text>
+              </View>
+              
+              <View style={styles.statsCard}>
+                <Text style={styles.statsNumber}>{(workoutStats.totalWeight / 1000).toFixed(1)}k</Text>
+                <Text style={styles.statsLabel}>Kg soulevés</Text>
+              </View>
+            </View>
+            
+            {/* Monthly Progress */}
+            <View style={styles.monthlyProgressContainer}>
+              <Text style={styles.sectionTitle}>Ce mois-ci</Text>
+              <View style={styles.monthlyProgress}>
+                <View style={styles.progressCircle}>
+                  <Text style={styles.progressNumber}>{workoutStats.workoutsThisMonth}</Text>
+                  <Text style={styles.progressLabel}>Entraînements</Text>
+                </View>
+              </View>
+            </View>
+            
+            {/* Liste des exercices avec leurs records personnels */}
+            <View style={styles.exercisesContainer}>
+              <Text style={styles.sectionTitle}>Mes Exercices</Text>
+              
+              {workoutStats.exercisesList.length === 0 ? (
+                <View style={styles.emptyExercisesMessage}>
+                  <Text style={styles.emptyText}>Aucun exercice enregistré</Text>
+                </View>
+              ) : (
+                workoutStats.exercisesList.map((exercise, index) => (
+                  <View key={`exercise-${index}`} style={styles.exerciseCard}>
+                    <View style={styles.exerciseInfo}>
+                      <Text style={styles.exerciseName}>{exercise.name}</Text>
+                      <Text style={styles.exerciseDate}>
+                        {new Date(exercise.date).toLocaleDateString('fr-FR', {
+                          day: 'numeric', 
+                          month: 'short',
+                          year: 'numeric'
+                        })}
+                      </Text>
+                    </View>
+                    <View style={styles.exerciseRecord}>
+                      <View style={styles.recordValue}>
+                        <Text style={styles.recordValueNumber}>{exercise.weight}</Text>
+                        <Text style={styles.recordValueUnit}>kg</Text>
+                      </View>
+                      <Text style={styles.recordValueSeparator}>×</Text>
+                      <View style={styles.recordValue}>
+                        <Text style={styles.recordValueNumber}>{exercise.reps}</Text>
+                        <Text style={styles.recordValueUnit}>reps</Text>
+                      </View>
+                    </View>
+                  </View>
+                ))
+              )}
+            </View>
+          </>
+        ) : (
+          <>
+            {/* Sélecteur de catégorie */}
+            <View style={styles.categorySelector}>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.categorySelectorContent}
+              >
+                <TouchableOpacity
+                  style={[
+                    styles.categoryButton,
+                    selectedCategory === null && styles.categoryButtonActive
+                  ]}
+                  onPress={() => setSelectedCategory(null)}
+                >
+                  <Text style={[
+                    styles.categoryButtonText,
+                    selectedCategory === null && styles.categoryButtonTextActive
+                  ]}>
+                    Tous
+                  </Text>
+                </TouchableOpacity>
+                
+                {categoriesWithRecords.map((category) => (
+                  <TouchableOpacity
+                    key={category}
+                    style={[
+                      styles.categoryButton,
+                      selectedCategory === category && styles.categoryButtonActive
+                    ]}
+                    onPress={() => setSelectedCategory(category)}
+                  >
+                    <Text style={[
+                      styles.categoryButtonText,
+                      selectedCategory === category && styles.categoryButtonTextActive
+                    ]}>
+                      {category}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+            
+            {/* Liste des records */}
+            <View style={styles.recordsContainer}>
+              {(selectedCategory === null ? categoriesWithRecords : [selectedCategory]).map((category) => (
+                <View key={category} style={styles.categorySection}>
+                  <Text style={styles.categoryTitle}>{category}</Text>
+                  
+                  {recordsByCategory[category].map((record, index) => (
+                    <View key={`${record.exerciseName}_${index}`} style={styles.recordCard}>
+                      <View style={styles.recordInfo}>
+                        <View style={styles.exerciseNameContainer}>
+                          <Text style={styles.exerciseName}>
+                            {record.exerciseName}
+                          </Text>
+                          <PersonalRecordBadge size="small" />
+                        </View>
+                        <Text style={styles.recordDate}>
+                          {new Date(record.date).toLocaleDateString('fr-FR', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric'
+                          })}
+                        </Text>
+                      </View>
+                      
+                      <View style={styles.recordValues}>
+                        <View style={styles.recordValue}>
+                          <Text style={styles.recordValueNumber}>{record.weight}</Text>
+                          <Text style={styles.recordValueUnit}>kg</Text>
+                        </View>
+                        
+                        <Text style={styles.recordValueSeparator}>×</Text>
+                        
+                        <View style={styles.recordValue}>
+                          <Text style={styles.recordValueNumber}>{record.reps}</Text>
+                          <Text style={styles.recordValueUnit}>reps</Text>
+                        </View>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              ))}
+            </View>
+          </>
+        )}
+      </ScrollView>
+    </SafeAreaView>
+  );
+};
+
+const { width } = Dimensions.get('window');
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#0D0D0F',
+  },
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    marginVertical: 10,
+    paddingHorizontal: 20,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  activeTab: {
+    borderBottomColor: '#4680FF',
+  },
+  tabText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#888888',
+  },
+  activeTabText: {
+    color: '#FFFFFF',
+  },
+  contentContainer: {
+    flex: 1,
+  },
+  heroBanner: {
+    paddingVertical: 25,
+    paddingHorizontal: 20,
+    marginBottom: 20,
+  },
+  heroContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  heroAvatarContainer: {
+    marginRight: 20,
+  },
+  heroAvatar: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  heroTextContainer: {
+    flex: 1,
+  },
+  heroTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 5,
+  },
+  streakContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  streakText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 5,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    padding: 10,
+    marginBottom: 20,
+  },
+  statsCard: {
+    width: width / 2 - 20,
+    backgroundColor: '#1A1A1D',
+    borderRadius: 10,
+    padding: 15,
+    margin: 5,
+    alignItems: 'center',
+  },
+  statsNumber: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 5,
+  },
+  statsLabel: {
+    fontSize: 14,
+    color: '#888888',
+  },
+  monthlyProgressContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 15,
+  },
+  monthlyProgress: {
+    alignItems: 'center',
+  },
+  progressCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#1A1A1D',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 4,
+    borderColor: '#4680FF',
+  },
+  progressNumber: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  progressLabel: {
+    fontSize: 14,
+    color: '#888888',
+  },
+  exercisesContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 30,
+  },
+  exerciseCard: {
+    backgroundColor: '#1A1A1D',
+    borderRadius: 10,
+    padding: 15,
+    marginBottom: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  exerciseInfo: {
+    flex: 1,
+  },
+  exerciseName: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#FFFFFF',
+    marginBottom: 5,
+  },
+  exerciseDate: {
+    fontSize: 12,
+    color: '#888',
+  },
+  exerciseRecord: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  emptyExercisesMessage: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 30,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  emptyText: {
+    fontSize: 18,
+    color: '#FFFFFF',
+    marginTop: 20,
+    textAlign: 'center',
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: '#888',
+    marginTop: 10,
+    textAlign: 'center',
+  },
+  categorySelector: {
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  categorySelectorContent: {
+    paddingHorizontal: 15,
+  },
+  categoryButton: {
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginHorizontal: 5,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  categoryButtonActive: {
+    backgroundColor: '#4680FF',
+  },
+  categoryButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  categoryButtonTextActive: {
+    color: '#FFFFFF',
+  },
+  recordsContainer: {
+    flex: 1,
+    padding: 15,
+  },
+  categorySection: {
+    marginBottom: 20,
+  },
+  categoryTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 10,
+  },
+  recordCard: {
+    backgroundColor: '#1A1A1D',
+    borderRadius: 10,
+    padding: 15,
+    marginBottom: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  recordInfo: {
+    flex: 1,
+  },
+  exerciseNameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 5,
+  },
+  recordDate: {
+    fontSize: 12,
+    color: '#888',
+  },
+  recordValues: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  recordValue: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  recordValueNumber: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  recordValueUnit: {
+    fontSize: 12,
+    color: '#888',
+    marginLeft: 2,
+  },
+  recordValueSeparator: {
+    fontSize: 16,
+    color: '#888',
+    marginHorizontal: 8,
+  },
+});
+
+export { ProfileScreen }; 

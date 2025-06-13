@@ -16,10 +16,12 @@ import {
   Modal,
   Image,
   FlatList,
-  Vibration
+  Vibration,
+  ActivityIndicator,
+  StatusBar
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Workout, Exercise, CompletedWorkout } from '../../types/workout';
+import { Workout, Exercise, CompletedWorkout, EnhancedPersonalRecords } from '../../types/workout';
 import { FullScreenModal } from '../../components/common/FullScreenModal';
 import { useWorkout } from '../../hooks/useWorkout';
 import { ExerciseSettingsModal } from './ExerciseSettingsModal';
@@ -29,17 +31,19 @@ import { useActiveWorkout, TrackingSet, TrackingData } from '../contexts/ActiveW
 import { useRestTimer } from '../contexts/RestTimerContext';
 import RestTimer from './RestTimer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation, CommonActions } from '@react-navigation/native';
-import { StreakDisplay } from './StreakDisplay';
+import { useNavigation, CommonActions, NavigationProp } from '@react-navigation/native';
 import { StreakHistory } from './StreakHistory';
 import { useStreak } from '../contexts/StreakContext';
 import { SAMPLE_EXERCISES } from './ExerciseSelectionModal';
 import { useEnhancedPersonalRecords } from '../../hooks/useEnhancedPersonalRecords';
 import { PRBadge } from './PRBadge';
 import { SetRow } from './SetRow';
+import { WorkoutEditModal } from './WorkoutEditModal';
+import { EnhancedPersonalRecordService } from '../../services/enhancedPersonalRecordService';
+import { RootStackParamList, WorkoutStackParamList } from '../../types/navigation';
 
 // Définition d'un type pour ModalMode
-type ModalMode = 'workout' | 'exercise-selection' | 'exercise-tracking';
+type ModalMode = 'workout' | 'exercise-selection' | 'exercise-tracking' | 'exercise-replacement';
 
 // Fonction pour générer un ID unique
 const generateId = (): string => {
@@ -71,6 +75,8 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   const [selectedExercises, setSelectedExercises] = useState<Exercise[]>([]);
   // État pour les filtres de tags
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  // État pour stocker l'ID de l'exercice à remplacer
+  const [exerciseToReplaceId, setExerciseToReplaceId] = useState<string | null>(null);
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   
@@ -101,18 +107,40 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   const { startRestTimer, resetTimer, stopTimer } = useRestTimer();
   
   // Pour la navigation
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavigationProp<RootStackParamList | WorkoutStackParamList>>();
 
   // Récupération du contexte de streak
-  const { updateStreakOnCompletion } = useStreak();
+  const { updateStreakOnCompletion, getWorkoutStreak } = useStreak();
   
   // État pour les records personnels améliorés
   const enhancedPersonalRecords = useEnhancedPersonalRecords();
+  
+  // Mémoriser les records originaux pour les comparaisons (avant le début de la séance)
+  const [originalRecords, setOriginalRecords] = useState<EnhancedPersonalRecords>({});
+  
+  // Suivre les records maximaux atteints pendant la séance en cours
+  // Seuls les PR de poids tiendront compte de cet état (les PR de répétitions utilisent toujours originalRecords)
+  const [currentSessionMaxWeights, setCurrentSessionMaxWeights] = useState<{[exerciseName: string]: number}>({});
+  
+  // États pour les PR
   const [prResults, setPrResults] = useState<{
     setIndex: number;
     weightPR?: { isNew: boolean; weight: number } | null;
     repsPR?: { isNew: boolean; weight: number; reps: number; previousReps: number } | null;
+    isWeightPR?: boolean;
+    isRepsPR?: boolean;
   } | null>(null);
+  
+  // État pour stocker les PR par exercice
+  const [exercisePRResults, setExercisePRResults] = useState<{
+    [exerciseId: string]: {
+      setIndex: number;
+      weightPR?: { isNew: boolean; weight: number } | null;
+      repsPR?: { isNew: boolean; weight: number; reps: number; previousReps: number } | null;
+      isWeightPR?: boolean;
+      isRepsPR?: boolean;
+    } | null
+  }>({});
 
   // Référence pour l'animation du badge PR
   const prBadgeAnim = useRef(new Animated.Value(0)).current;
@@ -138,8 +166,14 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
         useNativeDriver: true
       })
     ]).start(() => {
-      // Reset PR results after animation completes
-      setTimeout(() => setPrResults(null), 300);
+      // Reset PR results after animation completes - mais seulement si le composant est monté
+      if (isMounted.current) {
+        setTimeout(() => {
+          if (isMounted.current) {
+            setPrResults(null);
+          }
+        }, 300);
+      }
     });
   };
   
@@ -214,13 +248,54 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
 
   // Fonction pour remplacer un exercice
   const handleReplaceExercise = () => {
-    // TODO: Implémenter la fonctionnalité de remplacement
-    Alert.alert("Remplacer l'exercice", "Fonctionnalité à implémenter");
+    // Démarrer le processus de remplacement si un exercice est sélectionné
+    if (currentExercise) {
+      startReplaceExercise(currentExercise.id);
+      setSettingsModalVisible(false); // Fermer la modale des paramètres
+    }
+  };
+
+  // Fonction pour démarrer le processus de remplacement d'un exercice
+  const startReplaceExercise = (exerciseId: string) => {
+    setExerciseToReplaceId(exerciseId);
+    setModalMode('exercise-replacement');
+    setSearchQuery('');
+    setSelectedExercises([]);
+    setSelectedTags([]);
+  };
+
+  // Fonction pour finaliser le remplacement d'un exercice
+  const handleExerciseReplaced = () => {
+    // Vérifier qu'on a bien un exercice à remplacer et un nouvel exercice sélectionné
+    if (exerciseToReplaceId && selectedExercises.length === 1) {
+      const newExercise = selectedExercises[0];
+      
+      // Mettre à jour la liste des exercices en remplaçant l'ancien par le nouveau
+      setExercises(prev => prev.map(ex => 
+        ex.id === exerciseToReplaceId 
+          ? { ...newExercise, id: exerciseToReplaceId } // Conserve l'ID original pour maintenir les références
+          : ex
+      ));
+      
+      // Marquer qu'il y a des changements non sauvegardés
+      setHasUnsavedChanges(true);
+    }
+    
+    // Réinitialiser et retourner au mode workout
+    setExerciseToReplaceId(null);
+    setModalMode('workout');
   };
 
   // Fonction pour démarrer une séance
   const handleStartWorkout = () => {
     if (!workout) return;
+    
+    // Capturer les records actuels qui serviront de référence pour toute la séance
+    // Utiliser une copie profonde pour éviter toute référence partagée
+    setOriginalRecords(JSON.parse(JSON.stringify(enhancedPersonalRecords.records)));
+    
+    // Réinitialiser les records de séance
+    setCurrentSessionMaxWeights({});
     
     // Démarrer une nouvelle séance via le contexte
     // Le contexte gère maintenant le timer
@@ -249,16 +324,24 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
           onPress: async () => {
             // Annuler tout record temporaire
             if (prResults) {
-              setPrResults(null);
+              safeSetPrResults(null);
               
               // Pas besoin de recharger les records, il suffit de réinitialiser l'UI
               // Les records permanents n'ont jamais été sauvegardés, donc rien à annuler côté stockage
               console.log("Personal record UI display reset")
             }
             
+            // Réinitialiser tous les PR stockés par exercice
+            setExercisePRResults({});
+            
+            // Réinitialiser les records de séance
+            setCurrentSessionMaxWeights({});
+            
             // Terminer la séance sans sauvegarder
+            // NOTE: La streak n'est pas mise à jour lors d'un abandon de workout
+            // Les streaks sont uniquement mises à jour lors d'un "Log Workout" complet
             if (finishWorkout) {
-              await finishWorkout();
+              await finishWorkout(false); // Ne pas mettre à jour la streak lors d'un abandon
             }
             // Fermer la modale
             setIsFinishModalVisible(false);
@@ -283,31 +366,106 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     }
     
     try {
-      // Sauvegarder définitivement les records personnels en mémoire
-      if (prResults) {
-        // Trouver l'exercice correspondant
+      // Sauvegarder définitivement TOUS les records personnels détectés pendant la séance
+      const prSavePromises = [];
+      
+      // 1. D'abord sauvegarder le PR actuellement affiché (s'il existe)
+      if (prResults && selectedExerciseId) {
         const exercise = exercises.find(ex => ex.id === selectedExerciseId);
         if (exercise) {
           const set = exerciseSets[prResults.setIndex];
-          const weight = parseInt(set.weight) || 0;
-          const reps = parseInt(set.reps) || 0;
-          
-          if (weight > 0 && reps > 0) {
-            // Enregistrer définitivement les records
-            await enhancedPersonalRecords.updateRecords(
-              exercise.name,
-              weight,
-              reps,
-              new Date().toISOString()
-            );
-            console.log("Personal records saved permanently");
+          if (set) {
+            const weight = parseInt(set.weight);
+            const reps = parseInt(set.reps);
+            
+            // Si c'est un PR de poids
+            if (prResults.isWeightPR) {
+              prSavePromises.push(
+                enhancedPersonalRecords.updateRecords(
+                  exercise.name,
+                  weight,
+                  reps,
+                  new Date().toISOString()
+                )
+              );
+            }
+            
+            // Si c'est un PR de répétitions
+            if (prResults.isRepsPR) {
+              prSavePromises.push(
+                enhancedPersonalRecords.updateRecords(
+                  exercise.name,
+                  weight,
+                  reps,
+                  new Date().toISOString()
+                )
+              );
+            }
           }
         }
       }
       
-      // Mettre à jour la streak dès que l'utilisateur clique sur "Log Workout"
-      const updatedStreakData = await updateStreakOnCompletion(workout);
-      console.log("Streak updated", updatedStreakData);
+      // 2. Ensuite sauvegarder tous les PRs stockés par exercice
+      Object.keys(exercisePRResults).forEach(key => {
+        const [exerciseId, setKey] = key.split('_set_');
+        const exercise = exercises.find(ex => ex.id === exerciseId);
+        const prResult = exercisePRResults[key];
+        
+        if (exercise && prResult) {
+          const trackingData = activeWorkout.trackingData[exerciseId];
+          if (trackingData && trackingData.sets) {
+            const setIndex = parseInt(setKey);
+            const set = trackingData.sets[setIndex];
+            
+            if (set) {
+              const weight = parseInt(set.weight);
+              const reps = parseInt(set.reps);
+              
+              // Si c'est un PR de poids
+              if (prResult.isWeightPR) {
+                prSavePromises.push(
+                  enhancedPersonalRecords.updateRecords(
+                    exercise.name,
+                    weight,
+                    reps,
+                    new Date().toISOString()
+                  )
+                );
+              }
+              
+              // Si c'est un PR de répétitions
+              if (prResult.isRepsPR) {
+                prSavePromises.push(
+                  enhancedPersonalRecords.updateRecords(
+                    exercise.name,
+                    weight,
+                    reps,
+                    new Date().toISOString()
+                  )
+                );
+              }
+            }
+          }
+        }
+      });
+      
+      // Attendre que toutes les mises à jour soient terminées
+      if (prSavePromises.length > 0) {
+        await Promise.all(prSavePromises);
+        console.log(`${prSavePromises.length} personal records saved permanently`);
+      }
+      
+      // Réinitialiser l'état PR après sauvegarde
+      safeSetPrResults(null);
+      
+      // Réinitialiser tous les PR stockés par exercice
+      setExercisePRResults({});
+      
+      // Réinitialiser les records de séance
+      setCurrentSessionMaxWeights({});
+      
+      // On supprime l'appel à updateStreakOnCompletion ici car il est déjà fait dans finishWorkout
+      // via ActiveWorkoutContext
       
       // Création de l'objet CompletedWorkout
       console.log("Creating CompletedWorkout");
@@ -337,11 +495,10 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
             duration: exercise.duration,
             personalRecord
           };
-        }),
-        notes: workout.notes,
-        // Ajouter la streak aux données de l'entrainement complété
-        streakData: updatedStreakData
-      };
+                  }),
+          notes: workout.notes
+          // La streak sera récupérée et affichée directement dans WorkoutSummaryScreen
+        };
       
       // Récupérer les séances existantes
       console.log("Getting stored workouts");
@@ -365,7 +522,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       onClose();
       
       // Terminer la séance active
-      await finishWorkout();
+      await finishWorkout(true); // Passer true pour mettre à jour la streak
       
       // Naviguer vers l'écran de récapitulatif indépendant
       console.log('WorkoutDetailModal - handleLogWorkout - Navigating with workout:', JSON.stringify(newCompletedWorkout));
@@ -423,6 +580,17 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   // Fonction pour naviguer vers le tracking d'un exercice
   const handleExerciseTracking = (exerciseId: string) => {
     if (isTrackingWorkout && activeWorkout?.workoutId === workout?.id) {
+      // Sauvegarder les PR actuels dans l'exercice actuel avant de changer
+      if (selectedExerciseId && prResults) {
+        setExercisePRResults(prev => ({
+          ...prev,
+          [`${selectedExerciseId}_set_${prResults.setIndex}`]: prResults
+        }));
+      }
+      
+      // Réinitialiser le PR affiché (sera mis à jour par SetRow si nécessaire)
+      setPrResults(null);
+      
       setSelectedExerciseId(exerciseId);
       
       // Utiliser les données de tracking existantes ou en créer de nouvelles
@@ -447,6 +615,14 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
 
   // Fonction pour revenir au mode workout
   const handleBackToWorkout = () => {
+    // Sauvegarder les PR de l'exercice actuel avant de retourner à la liste
+    if (selectedExerciseId && prResults) {
+      safeSetExercisePRResults(selectedExerciseId, prResults.setIndex, prResults);
+    }
+    
+    // Réinitialiser les PR actuels (car on n'est plus sur un exercice spécifique)
+    safeSetPrResults(null);
+    
     // Sauvegarder les modifications de tracking actuelles avant de revenir
     if (selectedExerciseId) {
       const newSets = [...exerciseSets];
@@ -628,31 +804,59 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
           const reps = parseInt(newSets[index].reps) || 0;
           
           if (weight > 0 && reps > 0) {
-            // Vérifier les deux types de PR
-            const weightPR = enhancedPersonalRecords.checkWeightPR(exercise.name, weight);
-            const repsPR = enhancedPersonalRecords.checkRepsPR(exercise.name, weight, reps);
+            // Utiliser checkSessionWeightPR qui prend en compte le record de la session en cours
+            const weightPR = checkSessionWeightPR(exercise.name, weight);
             
+            // Vérifier les repetitions PR par rapport aux records originaux
+            const repsPR = checkOriginalRepsPR(exercise.name, weight, reps);
+            
+            // Si nous avons un nouveau PR de poids pour la session, mettre à jour et supprimer les anciens PR
+            if (weightPR) {
+              // 1. Mettre à jour le record maximum de poids de la séance
+              safeUpdateSessionWeight(exercise.name, weight);
+              
+              // 2. Supprimer tous les stickers "NEW PR" précédents pour cet exercice
+              // Parcourir tous les PR enregistrés et garder uniquement ceux qui n'ont pas de weightPR
+              if (selectedExerciseId) {
+                const updatedPRResults = { ...exercisePRResults };
+                
+                // Pour chaque clé de PR existante pour cet exercice
+                Object.keys(updatedPRResults).forEach(key => {
+                  if (key.startsWith(selectedExerciseId) && updatedPRResults[key]?.weightPR) {
+                    // Créer une nouvelle entrée sans le weightPR (garder seulement repsPR s'il existe)
+                    if (updatedPRResults[key]?.repsPR) {
+                      updatedPRResults[key] = {
+                        ...updatedPRResults[key],
+                        weightPR: null
+                      };
+                    } else {
+                      // S'il n'y a pas de repsPR, supprimer complètement l'entrée
+                      delete updatedPRResults[key];
+                    }
+                  }
+                });
+                
+                // Mettre à jour l'état avec les PR mis à jour
+                setExercisePRResults(updatedPRResults);
+              }
+            }
+            
+            // Préparer les données PR pour ce set
+            const prData = {
+              setIndex: index,
+              weightPR: weightPR,
+              repsPR: repsPR
+            };
+            
+            // Afficher le badge PR pour le set actuel si nécessaire
             if (weightPR || repsPR) {
-              // Vérifier et mettre à jour temporairement les records
-              // Note: Les records ne seront enregistrés définitivement que lors de l'enregistrement
-              // Utiliser updateRecords car checkUpdateRecords n'existe pas dans certains environnements
-              const result = enhancedPersonalRecords.checkUpdateRecords ? 
-                enhancedPersonalRecords.checkUpdateRecords(
-                  exercise.name,
-                  weight,
-                  reps,
-                  new Date().toISOString()
-                ) : 
-                { weightPR, repsPR };
+              // Pour le set courant, activer l'affichage du badge
+              safeSetPrResults(prData);
               
-              // Mettre à jour l'état des PR pour cette série (UI seulement, pas encore enregistré)
-              setPrResults({
-                setIndex: index,
-                weightPR: weightPR,
-                repsPR: repsPR
-              });
-              
-              // Pas de vibration pour les records (comme demandé)
+              // Enregistrer le badge dans les résultats PR de l'exercice
+              if (selectedExerciseId) {
+                safeSetExercisePRResults(selectedExerciseId, index, prData);
+              }
             }
           }
         }
@@ -741,15 +945,21 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   }, [filteredExercises]);
 
   const toggleExerciseSelection = (exercise: Exercise) => {
-    setSelectedExercises(prev => {
-      const alreadySelected = prev.some(ex => ex.id === exercise.id);
-      
-      if (alreadySelected) {
-        return prev.filter(ex => ex.id !== exercise.id);
-      } else {
-        return [...prev, exercise];
-      }
-    });
+    if (modalMode === 'exercise-replacement') {
+      // En mode remplacement, on ne peut sélectionner qu'un seul exercice
+      setSelectedExercises([exercise]);
+    } else {
+      // En mode ajout, on peut sélectionner plusieurs exercices
+      setSelectedExercises(prev => {
+        const alreadySelected = prev.some(ex => ex.id === exercise.id);
+        
+        if (alreadySelected) {
+          return prev.filter(ex => ex.id !== exercise.id);
+        } else {
+          return [...prev, exercise];
+        }
+      });
+    }
   };
 
   const renderSectionHeader = ({ letter }: { letter: string }) => (
@@ -842,16 +1052,35 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     if (exerciseSets.length <= 1) return;
     
     // Vérifier si la série à supprimer avait un PR
-    const setToRemove = exerciseSets[index];
     const hasPR = prResults && prResults.setIndex === index;
     
     // Mettre à jour l'état local des sets
     const newSets = exerciseSets.filter((_, i) => i !== index);
     setExerciseSets(newSets);
     
-    // Si cette série avait un PR, l'annuler
-    if (hasPR) {
-      setPrResults(null);
+    // Si cette série avait un PR actif (affiché), le supprimer
+    if (hasPR && isMounted.current) {
+      safeSetPrResults(null);
+    }
+    
+    // Supprimer tous les PR associés à cette série de exercisePRResults
+    if (selectedExerciseId && isMounted.current) {
+      setExercisePRResults(prev => {
+        const newResults = { ...prev };
+        // Supprimer l'entrée spécifique à cette série
+        delete newResults[`${selectedExerciseId}_set_${index}`];
+        
+        // Décaler les indices des séries suivantes pour éviter le problème de persistance
+        for (let i = index + 1; i < exerciseSets.length; i++) {
+          if (newResults[`${selectedExerciseId}_set_${i}`]) {
+            // Déplacer les PR vers l'index précédent
+            newResults[`${selectedExerciseId}_set_${i-1}`] = newResults[`${selectedExerciseId}_set_${i}`];
+            // Et supprimer l'ancien index
+            delete newResults[`${selectedExerciseId}_set_${i}`];
+          }
+        }
+        return newResults;
+      });
     }
     
     // Mettre à jour le nombre total de séries pour l'exercice
@@ -1089,9 +1318,10 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
 
   // Gestion de la fermeture avec sauvegarde automatique
   const handleClose = () => {
-    // Si on est en mode sélection, retourner au mode workout
-    if (modalMode === 'exercise-selection') {
+    // Si on est en mode sélection ou remplacement, retourner au mode workout
+    if (modalMode === 'exercise-selection' || modalMode === 'exercise-replacement') {
       setModalMode('workout');
+      setExerciseToReplaceId(null); // Réinitialiser l'ID de l'exercice à remplacer
       return;
     }
     
@@ -1118,6 +1348,136 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     onClose();
   };
 
+  // État pour la modal d'édition du workout
+  const [isWorkoutEditModalVisible, setIsWorkoutEditModalVisible] = useState(false);
+
+  // Fonction pour gérer la fermeture du modal d'édition du workout
+  const handleWorkoutEditClose = () => {
+    console.log('Closing workout edit modal');
+    setIsWorkoutEditModalVisible(false);
+  };
+
+  // Fonction pour gérer la sauvegarde après l'édition du workout
+  const handleWorkoutEditSave = () => {
+    console.log('Saving workout edit changes');
+    setIsWorkoutEditModalVisible(false);
+    
+    // Recharger le workout après les modifications
+    if (workout) {
+      // Rafraîchir les exercices
+      setExercises(workout.exercises || []);
+    }
+  };
+
+  // Fonctions pour vérifier les PR par rapport aux records ORIGINAUX (début de séance)
+  const checkOriginalWeightPR = useCallback(
+    (exerciseName: string, weight: number) => {
+      return EnhancedPersonalRecordService.checkWeightPR(exerciseName, weight, originalRecords);
+    },
+    [originalRecords]
+  );
+
+  const checkOriginalRepsPR = useCallback(
+    (exerciseName: string, weight: number, reps: number) => {
+      return EnhancedPersonalRecordService.checkRepsPR(exerciseName, weight, reps, originalRecords);
+    },
+    [originalRecords]
+  );
+
+  // Fonction pour vérifier les PR de poids en tenant compte du poids maximum de la séance actuelle
+  const checkSessionWeightPR = useCallback(
+    (exerciseName: string, weight: number) => {
+      // Récupérer le record original et le record de séance
+      const originalRecord = originalRecords[exerciseName]?.maxWeight || 0;
+      const sessionRecord = currentSessionMaxWeights[exerciseName] || originalRecord;
+      
+      // Un PR de poids est détecté si:
+      // 1. Le poids est supérieur au record original ET
+      // 2. Le poids est supérieur au record de séance actuel
+      if (weight > originalRecord && weight > sessionRecord) {
+        return {
+          isNew: true,
+          weight
+        };
+      }
+      
+      return null;
+    },
+    [originalRecords, currentSessionMaxWeights]
+  );
+
+  // Référence pour indiquer si le composant est monté
+  const isMounted = useRef(true);
+  
+  // Effet pour gérer le montage/démontage du composant
+  useEffect(() => {
+    // Marquer le composant comme monté au chargement
+    isMounted.current = true;
+    
+    // Fonction de nettoyage pour marquer le composant comme démonté
+    return () => {
+      isMounted.current = false;
+      
+      // Arrêter toutes les animations en cours pour éviter les mises à jour après démontage
+      if (prBadgeAnim) {
+        prBadgeAnim.stopAnimation();
+      }
+      
+      for (const key in exerciseProgressAnimations) {
+        if (exerciseProgressAnimations[key]) {
+          exerciseProgressAnimations[key].stopAnimation();
+        }
+      }
+      
+      for (const key in exerciseBounceAnimations) {
+        if (exerciseBounceAnimations[key]) {
+          exerciseBounceAnimations[key].stopAnimation();
+        }
+      }
+      
+      for (const key in setAnimations) {
+        if (setAnimations[key]) {
+          setAnimations[key].stopAnimation();
+        }
+      }
+    };
+  }, []);
+  
+  // Fonction sécurisée pour mettre à jour les records de séance
+  const safeUpdateSessionWeight = useCallback((exerciseName: string, weight: number) => {
+    if (isMounted.current) {
+      setCurrentSessionMaxWeights(prev => ({
+        ...prev,
+        [exerciseName]: weight
+      }));
+    }
+  }, []);
+
+  // Fonction sécurisée pour mettre à jour les PR results
+  const safeSetPrResults = useCallback((data: {
+    setIndex: number;
+    weightPR?: { isNew: boolean; weight: number } | null;
+    repsPR?: { isNew: boolean; weight: number; reps: number; previousReps: number } | null;
+  } | null) => {
+    if (isMounted.current) {
+      setPrResults(data);
+    }
+  }, []);
+
+  // Fonction sécurisée pour mettre à jour les PR results par exercice
+  const safeSetExercisePRResults = useCallback((exerciseId: string, setIndex: number, data: {
+    setIndex: number;
+    weightPR?: { isNew: boolean; weight: number } | null;
+    repsPR?: { isNew: boolean; weight: number; reps: number; previousReps: number } | null;
+  } | null) => {
+    if (isMounted.current) {
+      setExercisePRResults(prev => ({
+        ...prev,
+        [`${exerciseId}_set_${setIndex}`]: data
+      }));
+    }
+  }, []);
+
   if (!workout) return null;
 
   return (
@@ -1130,7 +1490,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
         style={styles.keyboardAvoidingView}
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={styles.container}>
+          <View style={[styles.container, { overflow: 'visible' }]}>
             {modalMode === 'workout' ? (
               // Mode affichage du workout
               <>
@@ -1141,7 +1501,10 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                   
                   <View style={styles.rightButtons}>
                     {!isTrackingWorkout && (
-                      <TouchableOpacity style={styles.settingsButton}>
+                      <TouchableOpacity 
+                        style={styles.settingsButton}
+                        onPress={() => setIsWorkoutEditModalVisible(true)}
+                      >
                         <Ionicons name="settings-outline" size={24} color="#FFFFFF" />
                       </TouchableOpacity>
                     )}
@@ -1176,112 +1539,109 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                   >
                     {workout.name}
                   </Text>
-                  
-                  {!isTrackingWorkout && (
-                    <StreakDisplay 
-                      workout={workout} 
-                      showDaysRemaining={false} 
-                    />
-                  )}
                 </View>
                 
-                <ScrollView 
-                  style={styles.content}
-                  showsVerticalScrollIndicator={false}
-                >
-                  {exercises.length === 0 ? (
-                    renderEmptyState()
-                  ) : (
-                    <View style={styles.exercisesList}>
-                      {exercises.map((exercise) => (
-                        <Pressable
-                          key={exercise.id}
-                          style={({ pressed }) => [
-                            styles.exerciseItem,
-                            isTrackingWorkout && styles.exerciseItemTracking,
-                            pressed && styles.exerciseItemPressed
-                          ]}
-                          onPress={() => isTrackingWorkout ? handleExerciseTracking(exercise.id) : {}}
-                        >
-                          <View style={styles.exerciseContent}>
-                            {isTrackingWorkout && (
-                              <View style={{position: 'relative'}}>
-                                <TouchableOpacity
-                                  onPress={() => handleExerciseTracking(exercise.id)}
-                                  style={[
-                                    styles.trackingCheckbox,
-                                    // Toujours ajouter la bordure en mode tracking
-                                    { 
-                                      borderWidth: 1,
-                                      borderColor: 'rgba(255, 255, 255, 0.2)' // 20% d'opacité en mode tracking
-                                    },
-                                    (activeWorkout?.trackingData[exercise.id]?.completedSets || 0) === exercise.sets && completedCheckmarks[exercise.id] && styles.trackingCheckboxCompleted,
-                                    { transform: [{ scale: exerciseBounceAnimations[exercise.id] || 1 }] }
-                                  ]}
-                                >
-                                  {(activeWorkout?.trackingData[exercise.id]?.completedSets || 0) === exercise.sets && completedCheckmarks[exercise.id] ? (
-                                    <Ionicons name="checkmark" size={24} color="#000000" />
-                                  ) : (
-                                    <Animated.View style={[
-                                      styles.progressFill, 
+                <View style={styles.scrollableContainer}>
+                  <ScrollView 
+                    style={styles.content}
+                    showsVerticalScrollIndicator={false}
+                  >
+                    {exercises.length === 0 ? (
+                      renderEmptyState()
+                    ) : (
+                      <View style={styles.exercisesList}>
+                        {exercises.map((exercise) => (
+                          <Pressable
+                            key={exercise.id}
+                            style={({ pressed }) => [
+                              styles.exerciseItem,
+                              isTrackingWorkout && styles.exerciseItemTracking,
+                              pressed && styles.exerciseItemPressed
+                            ]}
+                            onPress={() => isTrackingWorkout ? handleExerciseTracking(exercise.id) : {}}
+                          >
+                            <View style={styles.exerciseContent}>
+                              {isTrackingWorkout && (
+                                <View style={{position: 'relative'}}>
+                                  <TouchableOpacity
+                                    onPress={() => handleExerciseTracking(exercise.id)}
+                                    style={[
+                                      styles.trackingCheckbox,
+                                      // Toujours ajouter la bordure en mode tracking
                                       { 
-                                        height: exerciseProgressAnimations[exercise.id] 
-                                          ? exerciseProgressAnimations[exercise.id].interpolate({
-                                              inputRange: [0, 1],
-                                              outputRange: ['0%', '100%']
-                                            })
-                                          : `${(activeWorkout?.trackingData[exercise.id]?.completedSets || 0) / exercise.sets * 100}%` 
-                                      }
-                                    ]} />
-                                  )}
+                                        borderWidth: 1,
+                                        borderColor: 'rgba(255, 255, 255, 0.2)' // 20% d'opacité en mode tracking
+                                      },
+                                      (activeWorkout?.trackingData[exercise.id]?.completedSets || 0) === exercise.sets && completedCheckmarks[exercise.id] && styles.trackingCheckboxCompleted,
+                                      { transform: [{ scale: exerciseBounceAnimations[exercise.id] || 1 }] }
+                                    ]}
+                                  >
+                                    {(activeWorkout?.trackingData[exercise.id]?.completedSets || 0) === exercise.sets && completedCheckmarks[exercise.id] ? (
+                                      <Ionicons name="checkmark" size={24} color="#000000" />
+                                    ) : (
+                                      <Animated.View style={[
+                                        styles.progressFill, 
+                                        { 
+                                          height: exerciseProgressAnimations[exercise.id] 
+                                            ? exerciseProgressAnimations[exercise.id].interpolate({
+                                                inputRange: [0, 1],
+                                                outputRange: ['0%', '100%']
+                                              })
+                                            : `${(activeWorkout?.trackingData[exercise.id]?.completedSets || 0) / exercise.sets * 100}%` 
+                                        }
+                                      ]} />
+                                    )}
+                                  </TouchableOpacity>
+                                  <View style={styles.dashedBorder} />
+                                </View>
+                              )}
+                              
+                              <View style={[
+                                styles.exerciseInfo,
+                                !isTrackingWorkout && { marginLeft: 0 }
+                              ]}>
+                                <Text style={styles.exerciseName}>{exercise.name}</Text>
+                                <Text style={styles.exerciseTrackingType}>
+                                  {getExerciseProgressText(exercise)}
+                                </Text>
+                              </View>
+                              
+                              {!isTrackingWorkout ? (
+                                <TouchableOpacity 
+                                  onPress={() => handleExerciseSettings(exercise.id)}
+                                  style={styles.exerciseSettingsButton}
+                                >
+                                  <Ionicons name="ellipsis-vertical" size={24} color="#5B5B5C" />
                                 </TouchableOpacity>
-                                <View style={styles.dashedBorder} />
-                              </View>
-                            )}
-                            
-                            <View style={[
-                              styles.exerciseInfo,
-                              !isTrackingWorkout && { marginLeft: 0 }
-                            ]}>
-                              <Text style={styles.exerciseName}>{exercise.name}</Text>
-                              <Text style={styles.exerciseTrackingType}>
-                                {getExerciseProgressText(exercise)}
-                              </Text>
+                              ) : (
+                                <View style={styles.exerciseChevronContainer}>
+                                  <Ionicons name="chevron-forward" size={24} color="#5B5B5C" />
+                                </View>
+                              )}
                             </View>
-                            
-                            {!isTrackingWorkout ? (
-                              <TouchableOpacity 
-                                onPress={() => handleExerciseSettings(exercise.id)}
-                                style={styles.exerciseSettingsButton}
-                              >
-                                <Ionicons name="ellipsis-vertical" size={24} color="#5B5B5C" />
-                              </TouchableOpacity>
-                            ) : (
-                              <View style={styles.exerciseChevronContainer}>
-                                <Ionicons name="chevron-forward" size={24} color="#5B5B5C" />
-                              </View>
-                            )}
-                          </View>
-                        </Pressable>
-                      ))}
-                      
-                      {!isTrackingWorkout && (
-                        <View style={styles.addButtonContainer}>
+                          </Pressable>
+                        ))}
+                        
+                        {!isTrackingWorkout && (
                           <TouchableOpacity 
-                            style={styles.addRoundButton}
+                            style={styles.addButtonContainer}
                             onPress={handleAddExercise}
                           >
-                            <Ionicons name="add" size={24} color="#FFFFFF" />
+                            <View 
+                              style={styles.addRoundButton}
+                            >
+                              <Ionicons name="add" size={24} color="#FFFFFF" />
+                            </View>
+                            <Text style={styles.addButtonText}>Add exercise</Text>
                           </TouchableOpacity>
-                          <Text style={styles.addButtonText}>Add exercise</Text>
-                        </View>
-                      )}
-                    </View>
-                  )}
-                  
-                  {/* Padding de bas pour assurer le défilement complet */}
-                  <View style={styles.bottomPadding} />
-                </ScrollView>
+                        )}
+                      </View>
+                    )}
+                    
+                    {/* Padding de bas pour assurer le défilement complet */}
+                    <View style={styles.bottomPadding} />
+                  </ScrollView>
+                </View>
               </>
             ) : modalMode === 'exercise-selection' ? (
               // Mode sélection d'exercices
@@ -1377,7 +1737,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                   </TouchableOpacity>
                 </View>
               </>
-            ) : (
+            ) : modalMode === 'exercise-tracking' ? (
               // Mode tracking d'un exercice spécifique
               <>
                 <View style={styles.header}>
@@ -1411,43 +1771,157 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                   Tick checkboxes as you complete the sets
                 </Text>
                 
-                <ScrollView 
-                  style={styles.content}
-                  showsVerticalScrollIndicator={false}
-                >
-                  <View style={styles.setsContainer}>
-                    {exerciseSets.map((set, index) => (
-                      <SetRow
-                        key={index}
-                        set={set}
-                        index={index}
-                        animation={setAnimations[index] || new Animated.Value(1)}
-                        onToggle={handleSetToggle}
-                        onWeightChange={handleWeightChange}
-                        onRepsChange={handleRepsChange}
-                        onRemove={handleRemoveSet}
-                        prData={prResults && prResults.setIndex === index ? {
-                          weightPR: prResults.weightPR,
-                          repsPR: prResults.repsPR,
-                          prBadgeAnim: prBadgeAnim
-                        } : undefined}
-                      />
-                    ))}
-                  </View>
-                  
-                  <View style={styles.addSetContainer}>
+                <View style={styles.scrollableContainer}>
+                  <ScrollView 
+                    style={[styles.content, { overflow: 'visible' }]}
+                    contentContainerStyle={{ overflow: 'visible' }}
+                    showsVerticalScrollIndicator={false}
+                  >
+                    <View style={[styles.setsContainer, { overflow: 'visible' }]}>
+                      {exerciseSets.map((set, index) => (
+                        <SetRow
+                          key={index}
+                          set={set}
+                          index={index}
+                          animation={setAnimations[index] || new Animated.Value(1)}
+                          onToggle={handleSetToggle}
+                          onWeightChange={handleWeightChange}
+                          onRepsChange={handleRepsChange}
+                          onRemove={handleRemoveSet}
+                          prData={
+                            // Si la série affichée est celle actuellement mise en évidence, utiliser prResults
+                            prResults && prResults.setIndex === index ? {
+                              weightPR: prResults.weightPR,
+                              repsPR: prResults.repsPR,
+                              prBadgeAnim: prBadgeAnim
+                            } : 
+                            // Sinon, chercher dans exercisePRResults s'il y a un enregistrement pour cette série
+                            selectedExerciseId && 
+                            exercisePRResults[`${selectedExerciseId}_set_${index}`] ? {
+                              weightPR: exercisePRResults[`${selectedExerciseId}_set_${index}`]?.weightPR,
+                              repsPR: exercisePRResults[`${selectedExerciseId}_set_${index}`]?.repsPR,
+                              prBadgeAnim: prBadgeAnim
+                            } : undefined
+                          }
+                        />
+                      ))}
+                    </View>
+                    
                     <TouchableOpacity 
-                      style={styles.addSetButton}
+                      style={styles.addSetContainer}
                       onPress={handleAddSet}
                     >
-                      <Ionicons name="add" size={24} color="#FFFFFF" />
+                      <View 
+                        style={styles.addSetButton}
+                      >
+                        <Ionicons name="add" size={24} color="#FFFFFF" />
+                      </View>
+                      <Text style={styles.addSetText}>Add a set</Text>
                     </TouchableOpacity>
-                    <Text style={styles.addSetText}>Add a set</Text>
+                    
+                    {/* Padding de bas pour assurer le défilement complet */}
+                    <View style={styles.bottomPadding} />
+                  </ScrollView>
+                </View>
+              </>
+            ) : (
+              // Mode sélection d'exercices ou remplacement d'exercice
+              <>
+                {/* Header */}
+                <View style={styles.header}>
+                  <TouchableOpacity 
+                    style={styles.arrowBackButton} 
+                    onPress={handleClose}
+                  >
+                    <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+                  </TouchableOpacity>
+                  
+                  <View style={styles.searchContainer}>
+                    <Ionicons name="search" size={20} color="rgba(255, 255, 255, 0.5)" style={styles.searchIcon} />
+                    <TextInput
+                      style={styles.searchInput}
+                      placeholder="Search exercises..."
+                      placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                      value={searchQuery}
+                      onChangeText={setSearchQuery}
+                    />
                   </View>
                   
-                  {/* Padding de bas pour assurer le défilement complet */}
-                  <View style={styles.bottomPadding} />
-                </ScrollView>
+                  <TouchableOpacity style={styles.addButton}>
+                    <Ionicons name="add" size={24} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
+                
+                {/* Filter Button */}
+                <TouchableOpacity 
+                  style={[
+                    styles.filterButton, 
+                    selectedTags.length > 0 && styles.filterButtonActive
+                  ]} 
+                  onPress={handleOpenFilterModal}
+                >
+                  <Text 
+                    style={[
+                      styles.filterButtonText,
+                      selectedTags.length > 0 && styles.filterButtonTextActive
+                    ]}
+                  >
+                    {getFilterButtonText()}
+                  </Text>
+                  {selectedTags.length === 0 ? (
+                    <Ionicons name="chevron-down" size={20} color="#FFFFFF" />
+                  ) : (
+                    <TouchableOpacity onPress={handleResetFilters}>
+                      <Ionicons name="close" size={20} color="#000000" />
+                    </TouchableOpacity>
+                  )}
+                </TouchableOpacity>
+                
+                {/* Exercise List */}
+                <View style={styles.exerciseListContainer}>
+                  <ScrollView style={styles.scrollView}>
+                    {groupedExercises.map((section) => (
+                      <View key={section.letter}>
+                        {renderSectionHeader({ letter: section.letter })}
+                        {section.data.map((exercise) => (
+                          <View key={exercise.id}>
+                            {renderExerciseItem(exercise)}
+                          </View>
+                        ))}
+                      </View>
+                    ))}
+                    <View style={styles.bottomPadding} />
+                  </ScrollView>
+                  
+                  {/* Fade Out Gradient */}
+                  <LinearGradient
+                    colors={['rgba(13, 13, 15, 0)', 'rgba(13, 13, 15, 0.8)', 'rgba(13, 13, 15, 1)']}
+                    style={styles.fadeGradient}
+                  />
+                </View>
+                
+                {/* Bottom Add Button */}
+                <View style={styles.bottomButtonContainer}>
+                  <TouchableOpacity 
+                    style={[
+                      styles.addExercisesButton,
+                      selectedExercises.length === 0 && styles.addExercisesButtonDisabled
+                    ]}
+                    onPress={modalMode === 'exercise-replacement' ? handleExerciseReplaced : handleExercisesSelected}
+                    disabled={selectedExercises.length === 0}
+                  >
+                    <Text style={styles.addExercisesButtonText}>
+                      {modalMode === 'exercise-replacement' 
+                        ? (selectedExercises.length === 0 
+                          ? 'Select an exercise' 
+                          : 'Replace with selected exercise')
+                        : (selectedExercises.length === 0 
+                          ? 'Select exercises' 
+                          : `Add ${selectedExercises.length} exercise${selectedExercises.length > 1 ? 's' : ''}`)
+                      }
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </>
             )}
           </View>
@@ -1535,6 +2009,16 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
           </Animated.View>
         </View>
       </Modal>
+      
+      {/* Modal pour éditer le workout */}
+      {workout && (
+        <WorkoutEditModal
+          visible={isWorkoutEditModalVisible}
+          workout={workout}
+          onClose={handleWorkoutEditClose}
+          onSave={handleWorkoutEditSave}
+        />
+      )}
     </FullScreenModal>
   );
 };
@@ -1543,9 +2027,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0D0D0F',
+    overflow: 'visible', // Pour permettre aux badges PR de dépasser
   },
   keyboardAvoidingView: {
     flex: 1,
+    overflow: 'visible', // Pour permettre aux badges PR de dépasser
   },
   header: {
     flexDirection: 'row',
@@ -1601,6 +2087,12 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: 0,
+    overflow: 'visible',
+  },
+  scrollableContainer: {
+    // Container qui empêche le contenu scrollable de passer visuellement au-dessus du workoutHeaderContainer
+    flex: 1,
+    overflow: 'hidden', // Masque tout ce qui dépasse ce container
   },
   emptyStateContainer: {
     marginHorizontal: 16,
@@ -1635,6 +2127,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   exercisesList: {
+    paddingTop: 24, // Espace tampon pour les badges PR en haut (cohérent avec setsContainer)
     marginBottom: 24,
   },
   exerciseItem: {
@@ -1940,7 +2433,9 @@ const styles = StyleSheet.create({
   },
   setsContainer: {
     paddingHorizontal: 16,
+    paddingTop: 24, // Espace tampon pour les badges PR en haut
     gap: 8,
+    overflow: 'visible', // Pour permettre aux badges PR de dépasser
   },
   setRow: {
     flexDirection: 'row',
@@ -2102,7 +2597,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: -8, // Ajusté pour l'espace tampon de 24px
     paddingHorizontal: 16,
   },
   streakContainer: {
@@ -2119,5 +2614,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginLeft: 8,
     minWidth: 70,
+  },
+  prBadgeOverlay: {
+    position: 'absolute',
+    top: -10,
+    right: -5,
+    zIndex: 9999, // Valeur très élevée pour être au-dessus de tout
+    elevation: 20,
   },
 }); 

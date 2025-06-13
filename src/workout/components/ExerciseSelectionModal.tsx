@@ -165,8 +165,8 @@ export const ExerciseSelectionModal: React.FC<ExerciseSelectionModalProps> = ({
     // Filter by search query
     if (searchQuery.trim()) {
       filtered = filtered.filter(exercise => 
-        exercise.name.toLowerCase().includes(searchQuery.toLowerCase())
-      );
+      exercise.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
     }
     
     // Filter by selected tags
@@ -279,7 +279,13 @@ export const ExerciseSelectionModal: React.FC<ExerciseSelectionModalProps> = ({
                   />
                 </View>
                 
-                <TouchableOpacity style={styles.addButton}>
+                <TouchableOpacity 
+                  style={styles.addButton}
+                  onPress={() => {
+                    // This will be implemented later
+                    // For now, this makes the button fully clickable
+                  }}
+                >
                   <Ionicons name="add" size={24} color="#FFFFFF" />
                 </TouchableOpacity>
               </View>

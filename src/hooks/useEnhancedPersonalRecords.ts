@@ -11,24 +11,27 @@ export const useEnhancedPersonalRecords = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Fonction pour charger les records
+  const loadRecords = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await EnhancedPersonalRecordService.loadRecords();
+      setRecords(data);
+      setError(null);
+      return data;
+    } catch (err) {
+      setError('Erreur lors du chargement des records personnels');
+      console.error(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   // Charger les records au montage du composant
   useEffect(() => {
-    const loadRecords = async () => {
-      setLoading(true);
-      try {
-        const data = await EnhancedPersonalRecordService.loadRecords();
-        setRecords(data);
-        setError(null);
-      } catch (err) {
-        setError('Erreur lors du chargement des records personnels');
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadRecords();
-  }, []);
+  }, [loadRecords]);
 
   /**
    * Vérifie si une série termine représente un nouveau record de poids.
@@ -127,6 +130,7 @@ export const useEnhancedPersonalRecords = () => {
     records,
     loading,
     error,
+    loadRecords,
     checkWeightPR,
     checkRepsPR,
     updateRecords,

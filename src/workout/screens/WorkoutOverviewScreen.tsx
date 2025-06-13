@@ -24,7 +24,6 @@ import {
   CommonActions 
 } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import { RootStackParamList, SummaryStackParamList } from '../../types/navigation';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CompletedWorkout } from '../../types/workout';
@@ -254,7 +253,7 @@ export const WorkoutOverviewScreen: React.FC = () => {
               </Text>
             </View>
             
-            {/* Statistiques */}
+            {/* Stats container */}
             <View style={styles.statsContainer}>
               <View style={styles.statItem}>
                 <Text style={styles.statValue}>{Math.floor(currentWorkout.duration / 60)} min</Text>
@@ -264,7 +263,7 @@ export const WorkoutOverviewScreen: React.FC = () => {
               <View style={styles.statDivider} />
               
               <View style={styles.statItem}>
-                <Text style={styles.statValue}>{currentWorkout.exercises.length}</Text>
+                <Text style={styles.statValue}>{currentWorkout.exercises.filter(ex => ex.sets.some(set => set.completed)).length}</Text>
                 <Text style={styles.statLabel}>Exercises</Text>
               </View>
               
@@ -272,14 +271,16 @@ export const WorkoutOverviewScreen: React.FC = () => {
               
               <View style={styles.statItem}>
                 <Text style={styles.statValue}>
-                  {currentWorkout.exercises.reduce((total, ex) => total + ex.sets.length, 0)}
+                  {currentWorkout.exercises.reduce((total, ex) => total + ex.sets.filter(set => set.completed).length, 0)}
                 </Text>
                 <Text style={styles.statLabel}>Sets</Text>
               </View>
             </View>
             
             {/* Exercices */}
-            {currentWorkout.exercises.map((exercise, index) => (
+            {currentWorkout.exercises
+              .filter(exercise => exercise.sets.some(set => set.completed))
+              .map((exercise, index) => (
               <View key={exercise.id} style={styles.exerciseContainer}>
                 <View style={styles.exerciseHeader}>
                   <Text style={styles.exerciseName}>{exercise.name}</Text>
@@ -291,7 +292,7 @@ export const WorkoutOverviewScreen: React.FC = () => {
                       </View>
                     )}
                     <Text style={styles.exerciseSetsCount}>
-                      {exercise.sets.length} sets
+                      {exercise.sets.filter(set => set.completed).length} sets
                     </Text>
                   </View>
                 </View>
@@ -299,29 +300,31 @@ export const WorkoutOverviewScreen: React.FC = () => {
                 {/* Sets */}
                 <View style={styles.setsListContainer}>
                   {exercise.tracking === 'trackedOnSets' ? (
-                    exercise.sets.map((set, setIndex) => (
-                      <View 
-                        key={`${exercise.id}-set-${setIndex}`} 
-                        style={styles.setContainer}
-                      >
-                        {/* Weight container */}
-                        <View style={styles.dataContainer}>
-                          <Text style={styles.dataText}>{set.weight} kg</Text>
-                        </View>
-                        
-                        {/* Reps container */}
-                        <View style={styles.dataContainer}>
-                          <Text style={styles.dataText}>{set.reps} reps</Text>
-                        </View>
-                        
-                        {/* PR badge if needed */}
-                        {exercise.personalRecord && setIndex === 0 && (
-                          <View style={styles.setPrBadge}>
-                            <Text style={styles.setPrText}>NEW PR</Text>
+                    exercise.sets
+                      .filter(set => set.completed)
+                      .map((set, setIndex) => (
+                        <View 
+                          key={`${exercise.id}-set-${setIndex}`} 
+                          style={styles.setContainer}
+                        >
+                          {/* Weight container */}
+                          <View style={styles.dataContainer}>
+                            <Text style={styles.dataText}>{set.weight} kg</Text>
                           </View>
-                        )}
-                      </View>
-                    ))
+                          
+                          {/* Reps container */}
+                          <View style={styles.dataContainer}>
+                            <Text style={styles.dataText}>{set.reps} reps</Text>
+                          </View>
+                          
+                          {/* PR badge if needed */}
+                          {exercise.personalRecord && setIndex === 0 && (
+                            <View style={styles.setPrBadge}>
+                              <Text style={styles.setPrText}>NEW PR</Text>
+                            </View>
+                          )}
+                        </View>
+                      ))
                   ) : (
                     <View style={styles.dataContainer}>
                       <Text style={styles.dataText}>{formatDuration(exercise.duration || 0)}</Text>
@@ -463,7 +466,7 @@ export const WorkoutOverviewScreen: React.FC = () => {
             <View style={styles.statDivider} />
             
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{workout.exercises.length}</Text>
+              <Text style={styles.statValue}>{workout.exercises.filter(ex => ex.sets.some(set => set.completed)).length}</Text>
               <Text style={styles.statLabel}>Exercises</Text>
             </View>
             
@@ -479,7 +482,9 @@ export const WorkoutOverviewScreen: React.FC = () => {
           </View>
           
           {/* Exercises */}
-          {workout.exercises.map((exercise, index) => (
+          {workout.exercises
+            .filter(exercise => exercise.sets.some(set => set.completed))
+            .map((exercise, index) => (
             <View key={exercise.id} style={styles.exerciseContainer}>
               <View style={styles.exerciseHeader}>
                 <Text style={styles.exerciseName}>{exercise.name}</Text>
@@ -774,7 +779,7 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     position: 'absolute',
-    bottom: 64,
+    bottom: 48,
     left: 0,
     right: 0,
     paddingHorizontal: 16,

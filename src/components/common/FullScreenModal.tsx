@@ -34,60 +34,54 @@ export const FullScreenModal: React.FC<FullScreenModalProps> = ({
   children,
   title
 }) => {
-  // État local pour la visibilité de la modale (permet l'animation)
-  const [modalVisible, setModalVisible] = useState(visible);
+  // Refs pour suivre l'état du composant
+  const isMounted = useRef(true);
+  const animationInProgress = useRef(false);
   const slideAnim = useRef(new Animated.Value(height)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const hasAnimationStarted = useRef(false);
-  const isInitialRender = useRef(true);
-
-  // Fonction pour animer la fermeture de la modale
-  const animateClose = useCallback(() => {
-    if (hasAnimationStarted.current) return;
-    
-    hasAnimationStarted.current = true;
-    
-    Animated.parallel([
-      Animated.timing(slideAnim, {
-        toValue: height,
-        duration: ANIMATION_DURATION,
-        useNativeDriver: true
-      }),
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: ANIMATION_DURATION,
-        useNativeDriver: true
-      })
-    ]).start(() => {
-      setModalVisible(false);
-      hasAnimationStarted.current = false;
-    });
-  }, [slideAnim, fadeAnim]);
-
-  // Gérer l'ouverture et la fermeture de la modale
+  
+  // État interne de visibilité de la modale
+  // Nous allons utiliser un état local uniquement pour déterminer si la Modal doit être rendue
+  const [modalVisible, setModalVisible] = useState(false);
+  
+  // Effet pour initialiser/nettoyer le composant
   useEffect(() => {
-    if (visible && !modalVisible) {
-      // Ouverture de la modale
-      setModalVisible(true);
-      hasAnimationStarted.current = false;
-    } else if (!visible && modalVisible && !hasAnimationStarted.current) {
-      // Fermeture de la modale
-      animateClose();
+    isMounted.current = true;
+    
+    return () => {
+      isMounted.current = false;
+      if (slideAnim) slideAnim.stopAnimation();
+      if (fadeAnim) fadeAnim.stopAnimation();
+    };
+  }, []);
+  
+  // Sécuriser la mise à jour de l'état modalVisible
+  const updateModalVisibility = useCallback((isVisible: boolean) => {
+    if (isMounted.current) {
+      setModalVisible(isVisible);
     }
-  }, [visible, modalVisible, animateClose]);
-
-  // Animation d'ouverture lorsque modalVisible devient true
+  }, []);
+  
+  // Effet unifié pour gérer la visibilité et les animations
   useEffect(() => {
-    // Lorsque la modale devient visible, lancer l'animation d'entrée
-    if (modalVisible) {
-      // Réinitialiser l'animation d'entrée si ce n'est pas le rendu initial
-      if (!isInitialRender.current) {
-        slideAnim.setValue(height);
-        fadeAnim.setValue(0);
-      }
-      isInitialRender.current = false;
+    // Si une animation est déjà en cours, ne rien faire
+    if (animationInProgress.current) return;
+    
+    if (visible) {
+      // OUVERTURE de la modale
       
-      // Animation d'entrée
+      // 1. D'abord rendre la Modal visible dans le DOM
+      updateModalVisibility(true);
+      
+      // 2. Ensuite préparer et lancer l'animation d'entrée
+      // Préparer l'animation (réinitialiser aux valeurs initiales)
+      slideAnim.setValue(height);
+      fadeAnim.setValue(0);
+      
+      // Marquer que l'animation est en cours
+      animationInProgress.current = true;
+      
+      // Lancer l'animation d'entrée
       Animated.parallel([
         Animated.spring(slideAnim, {
           toValue: 0,
@@ -99,10 +93,40 @@ export const FullScreenModal: React.FC<FullScreenModalProps> = ({
           duration: ANIMATION_DURATION,
           useNativeDriver: true
         })
-      ]).start();
+      ]).start(() => {
+        // Uniquement mettre à jour les refs si le composant est toujours monté
+        if (isMounted.current) {
+          animationInProgress.current = false;
+        }
+      });
+    } else if (modalVisible) {
+      // FERMETURE de la modale
+      
+      // Marquer que l'animation est en cours
+      animationInProgress.current = true;
+      
+      // Lancer l'animation de sortie
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: height,
+          duration: ANIMATION_DURATION,
+          useNativeDriver: true
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: ANIMATION_DURATION,
+          useNativeDriver: true
+        })
+      ]).start(() => {
+        // Uniquement mettre à jour l'état si le composant est toujours monté
+        if (isMounted.current) {
+          updateModalVisibility(false);
+          animationInProgress.current = false;
+        }
+      });
     }
-  }, [modalVisible, slideAnim, fadeAnim]);
-
+  }, [visible, modalVisible, slideAnim, fadeAnim, updateModalVisibility]);
+  
   // Gérer le bouton retour sur Android
   useEffect(() => {
     const backAction = () => {
@@ -117,15 +141,15 @@ export const FullScreenModal: React.FC<FullScreenModalProps> = ({
     return () => backHandler.remove();
   }, [modalVisible, onClose]);
 
-  // Fermer le clavier
+  // Fonction utilitaire pour fermer le clavier
   const dismissKeyboard = () => {
     Keyboard.dismiss();
   };
 
-  // Gérer la fermeture
-  const handleClose = () => {
-    onClose();
-  };
+  // Si la modale n'est pas visible dans le DOM, retourner null
+  if (!modalVisible && !visible) {
+    return null;
+  }
 
   return (
     <Modal
@@ -133,7 +157,7 @@ export const FullScreenModal: React.FC<FullScreenModalProps> = ({
       visible={modalVisible}
       animationType="none"
       statusBarTranslucent
-      onRequestClose={handleClose}
+      onRequestClose={onClose}
     >
       <StatusBar barStyle="light-content" />
       <View style={styles.overlay}>
@@ -146,7 +170,7 @@ export const FullScreenModal: React.FC<FullScreenModalProps> = ({
           <TouchableOpacity 
             style={StyleSheet.absoluteFill} 
             activeOpacity={1} 
-            onPress={handleClose} 
+            onPress={onClose} 
           />
         </Animated.View>
         <Animated.View 
@@ -187,7 +211,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#0D0D0F',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    overflow: 'hidden',
+    overflow: 'visible', // Permet aux badges PR de dépasser
     elevation: 5,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -3 },
@@ -196,6 +220,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     flex: 1,
+    overflow: 'visible', // Permet aux éléments de dépasser
   },
   handle: {
     width: 40,
