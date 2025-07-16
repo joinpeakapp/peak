@@ -22,7 +22,7 @@ export const StreakDisplay: React.FC<StreakDisplayProps> = ({
     const loadStreakData = async () => {
       try {
         setLoading(true);
-        const data = await getWorkoutStreak(workout.id);
+        const data = await getWorkoutStreak(workout.id, workout);
         setStreakData(data);
         
         if (showDaysRemaining && data.lastCompletedDate) {
@@ -37,7 +37,7 @@ export const StreakDisplay: React.FC<StreakDisplayProps> = ({
     };
 
     loadStreakData();
-  }, [workout.id, getWorkoutStreak, getDaysUntilStreakLoss, showDaysRemaining]);
+  }, [workout.id, getWorkoutStreak, getDaysUntilStreakLoss, showDaysRemaining, workout]);
 
   if (loading) {
     return (
@@ -69,16 +69,15 @@ export const StreakDisplay: React.FC<StreakDisplayProps> = ({
           name="flame" 
           size={18} 
           color={isStreakActive ? "#FF8A24" : "#464646"} 
-          style={isStreakActive ? styles.iconOn : styles.iconOff} 
+          style={isStreakActive ? styles.iconOn : styles.iconOff}
         />
         <Text style={isStreakActive ? styles.textOn : styles.textOff}>
           {streakData.current}
         </Text>
       </View>
-
       {showDaysRemaining && isStreakActive && daysRemaining !== null && daysRemaining > 0 && (
         <Text style={styles.daysRemaining}>
-          {daysRemaining} {daysRemaining > 1 ? 'jours restants' : 'jour restant'}
+          {daysRemaining} day{daysRemaining > 1 ? 's' : ''} remaining
         </Text>
       )}
     </View>

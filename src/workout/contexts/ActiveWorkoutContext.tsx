@@ -22,6 +22,7 @@ export interface TrackingData {
 export interface ActiveWorkout {
   workoutId: string;
   workoutName: string;
+  exercises: Exercise[];
   startTime: number;
   elapsedTime: number; // en secondes
   lastResumeTime?: number; // Timestamp pour calculer les périodes d'arrêt/reprise
@@ -265,6 +266,7 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
     const newActiveWorkout: ActiveWorkout = {
       workoutId,
       workoutName,
+      exercises,
       startTime: Date.now(),
       elapsedTime: 0,
       lastResumeTime: Date.now(),

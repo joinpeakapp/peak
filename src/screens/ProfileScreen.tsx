@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { useWorkout } from '../hooks/useWorkout';
 import { useWorkoutHistory } from '../workout/contexts/WorkoutHistoryContext';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { ProfileScreenProps } from '../types/navigation';
 import { useEnhancedPersonalRecords } from '../hooks/useEnhancedPersonalRecords';
@@ -17,8 +17,18 @@ import { useEnhancedPersonalRecords } from '../hooks/useEnhancedPersonalRecords'
 export const ProfileScreen: React.FC = () => {
   const { personalRecords } = useWorkout();
   const { completedWorkouts } = useWorkoutHistory();
-  const { records: enhancedRecords } = useEnhancedPersonalRecords();
+  const { records: enhancedRecords, loadRecords } = useEnhancedPersonalRecords();
   const navigation = useNavigation<ProfileScreenProps['navigation']>();
+
+  // Recharger les records lorsque l'écran Profile est focalisé
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('[ProfileScreen] Screen focused, reloading records...');
+      loadRecords().then(() => {
+        console.log('[ProfileScreen] Records reloaded on focus');
+      });
+    }, [loadRecords])
+  );
 
   // Calculate workout statistics
   const workoutStats = useMemo(() => {
@@ -58,31 +68,31 @@ export const ProfileScreen: React.FC = () => {
     // Extract all unique exercises with their records (max weight)
     const exercisesMap = new Map();
     
-    // Utiliser d'abord les records améliorés
+    // Utiliser d'abord les records améliorés comme source de vérité
+    console.log('[ProfileScreen] Enhanced records available:', Object.keys(enhancedRecords));
     Object.entries(enhancedRecords).forEach(([exerciseName, record]) => {
+      console.log(`[ProfileScreen] ${exerciseName}: maxWeight=${record.maxWeight}kg`);
       if (record.maxWeight > 0) {
         exercisesMap.set(exerciseName, {
           name: exerciseName,
-          weight: record.maxWeight,
-          // Chercher le reps pour ce poids maximum
-          reps: Object.entries(record.repsPerWeight)
-            .find(([weight]) => parseInt(weight) === record.maxWeight)?.[1]?.reps || 0,
+          weight: record.maxWeight, // Utiliser directement maxWeight des enhancedRecords
+          reps: 0, // On n'affiche plus les reps sur la card
           date: record.maxWeightDate
         });
       }
     });
     
-    // Ensuite compléter avec les anciens records si nécessaire
+    // Compléter avec les anciens records seulement si l'exercice n'existe pas dans enhancedRecords
     completedWorkouts.forEach(workout => {
       workout.exercises.forEach(exercise => {
-        // For each exercise, check if it has completed sets
-        const completedSets = exercise.sets.filter(set => set.completed);
-        if (completedSets.length > 0) {
-          // Find the set with the highest weight
-          const maxWeightSet = [...completedSets].sort((a, b) => b.weight - a.weight)[0];
-          
-          // If the exercise doesn't exist in the map yet or if this weight is higher, store it
-          if (!exercisesMap.has(exercise.name) || maxWeightSet.weight > exercisesMap.get(exercise.name).weight) {
+        // Ne traiter que si l'exercice n'existe pas déjà dans enhancedRecords
+        if (!exercisesMap.has(exercise.name)) {
+          // For each exercise, check if it has completed sets
+          const completedSets = exercise.sets.filter(set => set.completed);
+          if (completedSets.length > 0) {
+            // Find the set with the highest weight
+            const maxWeightSet = [...completedSets].sort((a, b) => b.weight - a.weight)[0];
+            
             exercisesMap.set(exercise.name, {
               name: exercise.name,
               weight: maxWeightSet.weight,

@@ -41,6 +41,7 @@ import { SetRow } from './SetRow';
 import { WorkoutEditModal } from './WorkoutEditModal';
 import { EnhancedPersonalRecordService } from '../../services/enhancedPersonalRecordService';
 import { RootStackParamList, WorkoutStackParamList } from '../../types/navigation';
+import { useWorkoutHistory } from '../contexts/WorkoutHistoryContext';
 
 // Définition d'un type pour ModalMode
 type ModalMode = 'workout' | 'exercise-selection' | 'exercise-tracking' | 'exercise-replacement';
@@ -111,6 +112,9 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
 
   // Récupération du contexte de streak
   const { updateStreakOnCompletion, getWorkoutStreak } = useStreak();
+  
+  // Récupération du contexte d'historique des workouts
+  const { getPersonalRecords: getHistoryPersonalRecords } = useWorkoutHistory();
   
   // État pour les records personnels améliorés
   const enhancedPersonalRecords = useEnhancedPersonalRecords();
@@ -232,8 +236,21 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     );
     
     if (newExercises.length > 0) {
-      setExercises(prev => [...prev, ...newExercises]);
-      setHasUnsavedChanges(true);
+      const updatedExercises = [...exercises, ...newExercises];
+      setExercises(updatedExercises);
+      
+      // Sauvegarder immédiatement le workout avec les nouveaux exercices
+      if (workout) {
+        const updatedWorkout = {
+          ...workout,
+          exercises: updatedExercises,
+          updatedAt: new Date().toISOString()
+        };
+        updateWorkout(updatedWorkout);
+        console.log(`[handleExercisesSelected] Workout saved with ${newExercises.length} new exercises`);
+      }
+      
+      setHasUnsavedChanges(false); // Les changements sont maintenant sauvegardés
     }
     
     // Retour au mode affichage de workout
@@ -242,8 +259,21 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
 
   // Fonction pour retirer un exercice
   const handleRemoveExercise = (exerciseId: string) => {
-    setExercises(exercises.filter(ex => ex.id !== exerciseId));
-    setHasUnsavedChanges(true);
+    const updatedExercises = exercises.filter(ex => ex.id !== exerciseId);
+    setExercises(updatedExercises);
+    
+    // Sauvegarder immédiatement le workout
+    if (workout) {
+      const updatedWorkout = {
+        ...workout,
+        exercises: updatedExercises,
+        updatedAt: new Date().toISOString()
+      };
+      updateWorkout(updatedWorkout);
+      console.log(`[handleRemoveExercise] Workout saved after removing exercise`);
+    }
+    
+    setHasUnsavedChanges(false); // Les changements sont maintenant sauvegardés
   };
 
   // Fonction pour remplacer un exercice
@@ -271,14 +301,25 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       const newExercise = selectedExercises[0];
       
       // Mettre à jour la liste des exercices en remplaçant l'ancien par le nouveau
-      setExercises(prev => prev.map(ex => 
+      const updatedExercises = exercises.map(ex => 
         ex.id === exerciseToReplaceId 
           ? { ...newExercise, id: exerciseToReplaceId } // Conserve l'ID original pour maintenir les références
           : ex
-      ));
+      );
+      setExercises(updatedExercises);
       
-      // Marquer qu'il y a des changements non sauvegardés
-      setHasUnsavedChanges(true);
+      // Sauvegarder immédiatement le workout
+      if (workout) {
+        const updatedWorkout = {
+          ...workout,
+          exercises: updatedExercises,
+          updatedAt: new Date().toISOString()
+        };
+        updateWorkout(updatedWorkout);
+        console.log(`[handleExerciseReplaced] Workout saved after replacing exercise`);
+      }
+      
+      setHasUnsavedChanges(false); // Les changements sont maintenant sauvegardés
     }
     
     // Réinitialiser et retourner au mode workout
@@ -287,18 +328,30 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   };
 
   // Fonction pour démarrer une séance
-  const handleStartWorkout = () => {
+  const handleStartWorkout = async () => {
     if (!workout) return;
+    
+    // S'assurer que les records sont bien chargés avant de commencer
+    await enhancedPersonalRecords.loadRecords();
     
     // Capturer les records actuels qui serviront de référence pour toute la séance
     // Utiliser une copie profonde pour éviter toute référence partagée
-    setOriginalRecords(JSON.parse(JSON.stringify(enhancedPersonalRecords.records)));
+    const capturedRecords = JSON.parse(JSON.stringify(enhancedPersonalRecords.records));
+    console.log('[handleStartWorkout] Capturing original records:', Object.keys(capturedRecords));
+    Object.entries(capturedRecords).forEach(([exerciseName, record]: [string, any]) => {
+      console.log(`[handleStartWorkout] ${exerciseName}: maxWeight=${record.maxWeight}kg`);
+    });
+    
+    setOriginalRecords(capturedRecords);
     
     // Réinitialiser les records de séance
     setCurrentSessionMaxWeights({});
     
     // Démarrer une nouvelle séance via le contexte
     // Le contexte gère maintenant le timer
+    // IMPORTANT: Utiliser l'état local 'exercises' et non 'workout.exercises'
+    // pour inclure les exercices ajoutés récemment
+    console.log('[handleStartWorkout] Starting workout with', exercises.length, 'exercises');
     startWorkout(workout.id, workout.name, exercises);
     updateElapsedTime(0);
   };
@@ -378,8 +431,9 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
             const weight = parseInt(set.weight);
             const reps = parseInt(set.reps);
             
-            // Si c'est un PR de poids
-            if (prResults.isWeightPR) {
+            // Vérifier que c'est vraiment un PR avant de sauvegarder
+            if (prResults.weightPR?.isNew && weight > 0 && reps > 0) {
+              console.log(`[WorkoutDetailModal] Saving current display PR: ${exercise.name} ${weight}kg x ${reps}`);
               prSavePromises.push(
                 enhancedPersonalRecords.updateRecords(
                   exercise.name,
@@ -390,8 +444,9 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
               );
             }
             
-            // Si c'est un PR de répétitions
-            if (prResults.isRepsPR) {
+            // Pour les PR de reps, vérifier aussi qu'ils sont valides
+            if (prResults.repsPR?.isNew && weight > 0 && reps > 0) {
+              console.log(`[WorkoutDetailModal] Saving current display reps PR: ${exercise.name} ${weight}kg x ${reps}`);
               prSavePromises.push(
                 enhancedPersonalRecords.updateRecords(
                   exercise.name,
@@ -417,24 +472,13 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
             const setIndex = parseInt(setKey);
             const set = trackingData.sets[setIndex];
             
-            if (set) {
+            if (set && set.completed) { // S'assurer que le set est complété
               const weight = parseInt(set.weight);
               const reps = parseInt(set.reps);
               
-              // Si c'est un PR de poids
-              if (prResult.isWeightPR) {
-                prSavePromises.push(
-                  enhancedPersonalRecords.updateRecords(
-                    exercise.name,
-                    weight,
-                    reps,
-                    new Date().toISOString()
-                  )
-                );
-              }
-              
-              // Si c'est un PR de répétitions
-              if (prResult.isRepsPR) {
+              // Vérifier que c'est vraiment un PR avant de sauvegarder
+              if ((prResult.weightPR?.isNew || prResult.repsPR?.isNew) && weight > 0 && reps > 0) {
+                console.log(`[WorkoutDetailModal] Saving stored PR: ${exercise.name} ${weight}kg x ${reps} (weightPR: ${!!prResult.weightPR?.isNew}, repsPR: ${!!prResult.repsPR?.isNew})`);
                 prSavePromises.push(
                   enhancedPersonalRecords.updateRecords(
                     exercise.name,
@@ -451,8 +495,16 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       
       // Attendre que toutes les mises à jour soient terminées
       if (prSavePromises.length > 0) {
+        console.log(`[WorkoutDetailModal] Saving ${prSavePromises.length} personal records...`);
         await Promise.all(prSavePromises);
-        console.log(`${prSavePromises.length} personal records saved permanently`);
+        console.log(`[WorkoutDetailModal] ${prSavePromises.length} personal records saved permanently`);
+        
+        // Recharger les records pour assurer la cohérence dans toute l'application
+        console.log(`[WorkoutDetailModal] Reloading enhanced records...`);
+        await enhancedPersonalRecords.loadRecords();
+        console.log(`[WorkoutDetailModal] Enhanced records reloaded successfully`);
+      } else {
+        console.log(`[WorkoutDetailModal] No personal records to save`);
       }
       
       // Réinitialiser l'état PR après sauvegarde
@@ -567,13 +619,42 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       }
     });
     
-    // Vérifier si c'est un nouveau record par rapport à l'ancien
-    const isNewRecord = exercise.personalRecord 
-      ? maxWeight > (exercise.personalRecord.weight || 0) || 
-        (maxWeight === exercise.personalRecord.weight && maxReps > exercise.personalRecord.reps)
-      : maxWeight > 0;
+    // Si aucun set complété ou aucun poids, pas de PR
+    if (maxWeight <= 0) return undefined;
     
-    // Si c'est un nouveau record, le retourner
+    // Utiliser les mêmes données que pendant la séance (originalRecords)
+    // pour assurer la cohérence
+    const originalRecord = originalRecords[exercise.name];
+    
+    // Si pas de record original, c'est le premier workout pour cet exercice
+    if (!originalRecord) {
+      // Vérifier si c'est vraiment le premier workout en consultant l'historique
+      try {
+        const historyRecords = getHistoryPersonalRecords(exercise.name);
+        
+        // S'il y a des records dans l'historique mais pas dans originalRecords,
+        // cela indique un problème de synchronisation - ne pas afficher de PR
+        if (historyRecords.maxWeight > 0) {
+          // Il y a des records historiques, comparer avec eux
+          const isNewRecord = maxWeight > historyRecords.maxWeight || 
+            (maxWeight === historyRecords.maxWeight && maxReps > historyRecords.maxReps);
+          
+          return isNewRecord ? { maxWeight, maxReps } : undefined;
+        }
+        
+        // Vraiment premier workout pour cet exercice - pas de PR affiché
+        // (on évite de spammer l'utilisateur avec des PR pour chaque nouvel exercice)
+        return undefined;
+      } catch {
+        // En cas d'erreur, être conservateur et ne pas afficher de PR
+        return undefined;
+      }
+    }
+    
+    // Comparer avec les records originaux (début de séance)
+    const isNewRecord = maxWeight > originalRecord.maxWeight;
+    
+    // Retourner le PR seulement si c'est vraiment un nouveau record
     return isNewRecord ? { maxWeight, maxReps } : undefined;
   };
 
@@ -594,7 +675,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       setSelectedExerciseId(exerciseId);
       
       // Utiliser les données de tracking existantes ou en créer de nouvelles
-      const exercise = exercises.find(ex => ex.id === exerciseId);
+      const exercise = currentExercises.find(ex => ex.id === exerciseId);
       
       if (activeWorkout && !activeWorkout.trackingData[exerciseId] && exercise) {
         const initialSets = Array(exercise.sets || 1).fill(0).map(() => ({
@@ -631,7 +712,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       updateTrackingData(selectedExerciseId, newSets, completedCount);
       
       // Préparer l'animation pour l'exercice
-      const exercise = exercises.find(ex => ex.id === selectedExerciseId);
+      const exercise = currentExercises.find(ex => ex.id === selectedExerciseId);
       if (exercise) {
         const isCompleted = completedCount === exercise.sets;
         
@@ -793,7 +874,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       // On vérifie si c'est un PR seulement quand la série est complétée (pas quand on décoche)
       if (newCompleted) {
         // Trouver l'exercice correspondant
-        const exercise = exercises.find(ex => ex.id === selectedExerciseId);
+        const exercise = currentExercises.find(ex => ex.id === selectedExerciseId);
         
         if (exercise) {
           // Démarrer ou réinitialiser le timer de repos
@@ -875,12 +956,21 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     };
     
     // Mettre à jour la liste des exercices
-    setExercises(prev => 
-      prev.map(ex => ex.id === updatedExercise.id ? updatedExercise : ex)
-    );
+    const updatedExercises = exercises.map(ex => ex.id === updatedExercise.id ? updatedExercise : ex);
+    setExercises(updatedExercises);
     
-    // Marquer qu'il y a des changements non sauvegardés
-    setHasUnsavedChanges(true);
+    // Sauvegarder immédiatement le workout
+    if (workout) {
+      const updatedWorkout = {
+        ...workout,
+        exercises: updatedExercises,
+        updatedAt: new Date().toISOString()
+      };
+      updateWorkout(updatedWorkout);
+      console.log(`[handleRestTimeUpdate] Workout saved after updating rest time`);
+    }
+    
+    setHasUnsavedChanges(false); // Les changements sont maintenant sauvegardés
     
     // Si on est en tracking, mettre à jour le reset timer dans le contexte
     if (isTrackingWorkout) {
@@ -1091,7 +1181,19 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
           ...selectedExercise,
           sets: Math.max(1, (selectedExercise.sets || 0) - 1)
         };
-        setExercises(prev => prev.map(ex => ex.id === selectedExerciseId ? updatedExercise : ex));
+        const updatedExercises = exercises.map(ex => ex.id === selectedExerciseId ? updatedExercise : ex);
+        setExercises(updatedExercises);
+        
+        // Sauvegarder immédiatement le workout
+        if (workout) {
+          const updatedWorkout = {
+            ...workout,
+            exercises: updatedExercises,
+            updatedAt: new Date().toISOString()
+          };
+          updateWorkout(updatedWorkout);
+          console.log(`[handleRemoveSet] Workout saved after removing set`);
+        }
         
         // Mettre à jour les données de tracking avec les sets restants
         const completedCount = newSets.filter(set => set.completed).length;
@@ -1232,9 +1334,14 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   const [currentExercise, setCurrentExercise] = useState<Exercise | undefined>(undefined);
   const [openTimerDirectly, setOpenTimerDirectly] = useState(false);
 
+  // Utiliser les exercices de activeWorkout quand on est en mode tracking, sinon utiliser l'état local
+  const currentExercises = isTrackingWorkout && activeWorkout?.exercises 
+    ? activeWorkout.exercises 
+    : exercises;
+
   // Obtenir l'exercice sélectionné
   const selectedExercise = selectedExerciseId 
-    ? exercises.find(ex => ex.id === selectedExerciseId) 
+    ? currentExercises.find(ex => ex.id === selectedExerciseId) 
     : null;
 
   // Fonction pour ouvrir la modal de paramètres d'exercice
@@ -1308,7 +1415,19 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
           ...selectedExercise,
           sets: (selectedExercise.sets || 0) + 1
         };
-        setExercises(prev => prev.map(ex => ex.id === selectedExerciseId ? updatedExercise : ex));
+        const updatedExercises = exercises.map(ex => ex.id === selectedExerciseId ? updatedExercise : ex);
+        setExercises(updatedExercises);
+        
+        // Sauvegarder immédiatement le workout
+        if (workout) {
+          const updatedWorkout = {
+            ...workout,
+            exercises: updatedExercises,
+            updatedAt: new Date().toISOString()
+          };
+          updateWorkout(updatedWorkout);
+          console.log(`[handleAddSet] Workout saved after adding set`);
+        }
         
         // Mettre à jour les données de tracking
         updateTrackingData(selectedExerciseId, newSets, 0);
@@ -1391,16 +1510,20 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       const originalRecord = originalRecords[exerciseName]?.maxWeight || 0;
       const sessionRecord = currentSessionMaxWeights[exerciseName] || originalRecord;
       
+      console.log(`[checkSessionWeightPR] ${exerciseName}: current=${weight}kg, original=${originalRecord}kg, session=${sessionRecord}kg`);
+      
       // Un PR de poids est détecté si:
       // 1. Le poids est supérieur au record original ET
       // 2. Le poids est supérieur au record de séance actuel
       if (weight > originalRecord && weight > sessionRecord) {
+        console.log(`[checkSessionWeightPR] ✅ NEW PR detected for ${exerciseName}: ${weight}kg > ${Math.max(originalRecord, sessionRecord)}kg`);
         return {
           isNew: true,
           weight
         };
       }
       
+      console.log(`[checkSessionWeightPR] ❌ No PR for ${exerciseName}: ${weight}kg not > ${Math.max(originalRecord, sessionRecord)}kg`);
       return null;
     },
     [originalRecords, currentSessionMaxWeights]
@@ -1546,11 +1669,11 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                     style={styles.content}
                     showsVerticalScrollIndicator={false}
                   >
-                    {exercises.length === 0 ? (
+                    {currentExercises.length === 0 ? (
                       renderEmptyState()
                     ) : (
                       <View style={styles.exercisesList}>
-                        {exercises.map((exercise) => (
+                        {currentExercises.map((exercise) => (
                           <Pressable
                             key={exercise.id}
                             style={({ pressed }) => [

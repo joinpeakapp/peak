@@ -23,7 +23,7 @@ export const StreakHistory: React.FC<StreakHistoryProps> = ({
     const loadStreakData = async () => {
       try {
         setLoading(true);
-        const data = await getWorkoutStreak(workout.id);
+        const data = await getWorkoutStreak(workout.id, workout);
         setStreakData(data);
       } catch (error) {
         console.error("[StreakHistory] Error loading streak data:", error);
@@ -33,7 +33,7 @@ export const StreakHistory: React.FC<StreakHistoryProps> = ({
     };
 
     loadStreakData();
-  }, [workout.id, getWorkoutStreak]);
+  }, [workout.id, getWorkoutStreak, workout]);
 
   if (loading) {
     return (
@@ -67,44 +67,48 @@ export const StreakHistory: React.FC<StreakHistoryProps> = ({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Historique des streaks</Text>
+      <Text style={styles.title}>Historique des Streaks</Text>
       
       <View style={styles.bestStreakContainer}>
-        <Text style={styles.bestStreakTitle}>Meilleure streak:</Text>
+        <Text style={styles.bestStreakTitle}>🔥</Text>
         <Text style={styles.bestStreakValue}>
-          {streakData.longest} {streakData.longest > 1 ? 'fois consécutives' : 'fois'}
+          {formatBestStreakText(streakData)}
         </Text>
       </View>
       
-      <View style={styles.historyList}>
-        {sortedHistory.map((entry, index) => (
-          <View key={index} style={styles.historyItem}>
-            <View style={styles.historyItemHeader}>
-              <Text style={styles.historyItemCount}>
-                {entry.count} {entry.count > 1 ? 'fois' : 'fois'}
-              </Text>
-              <View style={styles.historyItemDates}>
-                <Text style={styles.historyItemDateText}>
-                  Du {formatDate(entry.startDate)} au {formatDate(entry.endDate)}
+      <ScrollView style={styles.historyList} showsVerticalScrollIndicator={false}>
+        {sortedHistory.map((entry, index) => {
+          const progress = entry.count / (streakData?.longest || 1);
+          return (
+            <View key={index} style={styles.historyItem}>
+              <View style={styles.historyItemHeader}>
+                <Text style={styles.historyItemCount}>
+                  {entry.count} session{entry.count > 1 ? 's' : ''}
                 </Text>
+                <View style={styles.historyItemDates}>
+                  <Text style={styles.historyItemDateText}>
+                    {entry.startDate === entry.endDate
+                      ? formatDate(entry.startDate)
+                      : `${formatDate(entry.startDate)} - ${formatDate(entry.endDate)}`
+                    }
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.historyItemBar}>
+                <View 
+                  style={[
+                    styles.historyItemProgress, 
+                    { 
+                      width: `${progress * 100}%`,
+                      backgroundColor: theme.colors.primary 
+                    }
+                  ]} 
+                />
               </View>
             </View>
-            <View style={styles.historyItemBar}>
-              <View 
-                style={[
-                  styles.historyItemProgress, 
-                  { 
-                    width: `${Math.min(100, (entry.count / streakData.longest) * 100)}%`,
-                    backgroundColor: entry.count === streakData.longest 
-                      ? theme.colors.primary 
-                      : theme.colors.secondary
-                  }
-                ]} 
-              />
-            </View>
-          </View>
-        ))}
-      </View>
+          );
+        })}
+      </ScrollView>
     </View>
   );
 };

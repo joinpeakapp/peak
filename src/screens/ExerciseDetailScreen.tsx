@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { useEnhancedPersonalRecords } from '../hooks/useEnhancedPersonalRecords';
 import { EnhancedPersonalRecord } from '../types/workout';
 import { ProfileStackParamList } from '../types/navigation';
@@ -12,7 +12,7 @@ export const ExerciseDetailScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute<ExerciseDetailRouteProp>();
   const { exerciseName } = route.params;
-  const { records } = useEnhancedPersonalRecords();
+  const { records, loadRecords } = useEnhancedPersonalRecords();
   const [exerciseRecord, setExerciseRecord] = useState<EnhancedPersonalRecord | null>(null);
 
   useEffect(() => {
@@ -20,6 +20,13 @@ export const ExerciseDetailScreen: React.FC = () => {
       setExerciseRecord(records[exerciseName] || null);
     }
   }, [records, exerciseName]);
+
+  // Recharger les records lorsque l'écran est focalisé
+  useFocusEffect(
+    React.useCallback(() => {
+      loadRecords();
+    }, [loadRecords])
+  );
 
   return (
     <View style={styles.container}>

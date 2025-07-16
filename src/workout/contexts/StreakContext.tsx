@@ -3,20 +3,21 @@ import { StreakData, Workout } from '../../types/workout';
 import { StreakService } from '../../services/streakService';
 
 interface StreakContextType {
-  getWorkoutStreak: (workoutId: string) => Promise<StreakData>;
+  getWorkoutStreak: (workoutId: string, workout?: Workout) => Promise<StreakData>;
   updateStreakOnCompletion: (workout: Workout) => Promise<StreakData>;
   getDaysUntilStreakLoss: (workoutId: string, workout: Workout) => Promise<number>;
   formatStreakText: (streakData: StreakData | null) => string;
   formatBestStreakText: (streakData: StreakData | null) => string;
+  validateAllStreaks: (workouts: Workout[]) => Promise<void>;
 }
 
 const StreakContext = createContext<StreakContextType | undefined>(undefined);
 
 export const StreakProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  // Récupérer les streaks pour un workout
-  const getWorkoutStreak = useCallback(async (workoutId: string): Promise<StreakData> => {
+  // Récupérer les streaks pour un workout avec validation automatique
+  const getWorkoutStreak = useCallback(async (workoutId: string, workout?: Workout): Promise<StreakData> => {
     try {
-      return await StreakService.getWorkoutStreak(workoutId);
+      return await StreakService.getWorkoutStreak(workoutId, workout);
     } catch (error) {
       console.error('[StreakContext] Error getting workout streak:', error);
       // Retourner une streak vide en cas d'erreur
@@ -50,7 +51,7 @@ export const StreakProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   // Calculer le nombre de jours restants avant de perdre la streak
   const getDaysUntilStreakLoss = useCallback(async (workoutId: string, workout: Workout): Promise<number> => {
     try {
-      const streakData = await getWorkoutStreak(workoutId);
+      const streakData = await getWorkoutStreak(workoutId, workout);
       if (!streakData || !streakData.lastCompletedDate) {
         return 0;
       }
@@ -60,6 +61,15 @@ export const StreakProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       return 0;
     }
   }, [getWorkoutStreak]);
+
+  // Valider toutes les streaks pour un ensemble de workouts
+  const validateAllStreaks = useCallback(async (workouts: Workout[]): Promise<void> => {
+    try {
+      await StreakService.validateAndCleanAllStreaks(workouts);
+    } catch (error) {
+      console.error('[StreakContext] Error validating all streaks:', error);
+    }
+  }, []);
 
   // Formater le texte pour l'affichage de la streak
   const formatStreakText = useCallback((streakData: StreakData | null): string => {
@@ -72,15 +82,14 @@ export const StreakProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, []);
 
   return (
-    <StreakContext.Provider
-      value={{
-        getWorkoutStreak,
-        updateStreakOnCompletion,
-        getDaysUntilStreakLoss,
-        formatStreakText,
-        formatBestStreakText
-      }}
-    >
+    <StreakContext.Provider value={{
+      getWorkoutStreak,
+      updateStreakOnCompletion,
+      getDaysUntilStreakLoss,
+      formatStreakText,
+      formatBestStreakText,
+      validateAllStreaks
+    }}>
       {children}
     </StreakContext.Provider>
   );

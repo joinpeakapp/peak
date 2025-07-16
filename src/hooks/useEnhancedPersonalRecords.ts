@@ -1,6 +1,23 @@
 import { useState, useEffect, useCallback } from 'react';
+import { AppState } from 'react-native';
 import { EnhancedPersonalRecords } from '../types/workout';
 import { EnhancedPersonalRecordService } from '../services/enhancedPersonalRecordService';
+
+// Gestionnaire d'événements global pour synchroniser toutes les instances
+class RecordsEventManager {
+  private listeners: Set<() => void> = new Set();
+
+  subscribe(callback: () => void) {
+    this.listeners.add(callback);
+    return () => this.listeners.delete(callback);
+  }
+
+  notify() {
+    this.listeners.forEach(callback => callback());
+  }
+}
+
+const recordsEventManager = new RecordsEventManager();
 
 /**
  * Hook personnalisé pour gérer les records personnels améliorés.
@@ -10,28 +27,57 @@ export const useEnhancedPersonalRecords = () => {
   const [records, setRecords] = useState<EnhancedPersonalRecords>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Identifiant unique pour cette instance
+  const instanceId = useState(() => Math.random().toString(36).substring(2, 15))[0];
 
   // Fonction pour charger les records
   const loadRecords = useCallback(async () => {
     setLoading(true);
     try {
+      console.log(`[useEnhancedPersonalRecords:${instanceId}] Loading records from storage...`);
       const data = await EnhancedPersonalRecordService.loadRecords();
+      console.log(`[useEnhancedPersonalRecords:${instanceId}] Records loaded:`, Object.keys(data));
       setRecords(data);
       setError(null);
       return data;
     } catch (err) {
+      console.error(`[useEnhancedPersonalRecords:${instanceId}] Error loading records:`, err);
       setError('Erreur lors du chargement des records personnels');
-      console.error(err);
       throw err;
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [instanceId]);
 
   // Charger les records au montage du composant
   useEffect(() => {
     loadRecords();
   }, [loadRecords]);
+
+  // S'abonner aux événements de mise à jour des records
+  useEffect(() => {
+    const unsubscribe = recordsEventManager.subscribe(() => {
+      console.log(`[useEnhancedPersonalRecords:${instanceId}] Records updated globally, reloading...`);
+      loadRecords();
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [loadRecords, instanceId]);
+
+  // Recharger les records lorsque l'application revient au premier plan
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        console.log(`[useEnhancedPersonalRecords:${instanceId}] App became active, reloading records...`);
+        loadRecords();
+      }
+    });
+
+    return () => subscription?.remove();
+  }, [loadRecords, instanceId]);
 
   /**
    * Vérifie si une série termine représente un nouveau record de poids.
@@ -67,6 +113,8 @@ export const useEnhancedPersonalRecords = () => {
    */
   const updateRecords = useCallback(
     async (exerciseName: string, weight: number, reps: number, date: string) => {
+      console.log(`[useEnhancedPersonalRecords:${instanceId}] Updating records for ${exerciseName}: ${weight}kg x ${reps}`);
+      
       const result = EnhancedPersonalRecordService.updateRecords(
         exerciseName,
         weight,
@@ -77,13 +125,23 @@ export const useEnhancedPersonalRecords = () => {
 
       setRecords(result.updatedRecords);
       await EnhancedPersonalRecordService.saveRecords(result.updatedRecords);
+      
+      console.log(`[useEnhancedPersonalRecords:${instanceId}] Records saved, notifying all listeners...`);
+      // Notifier immédiatement tous les autres hooks qu'il y a eu une mise à jour
+      recordsEventManager.notify();
+      
+      // Et aussi après un petit délai pour s'assurer que tous les composants sont prêts
+      setTimeout(() => {
+        console.log(`[useEnhancedPersonalRecords:${instanceId}] Secondary notification...`);
+        recordsEventManager.notify();
+      }, 100);
 
       return {
         weightPR: result.weightPR,
         repsPR: result.repsPR
       };
     },
-    [records]
+    [records, instanceId]
   );
 
   /**
