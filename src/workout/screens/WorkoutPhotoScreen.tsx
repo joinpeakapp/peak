@@ -16,6 +16,7 @@ import { CameraView, CameraType, FlashMode, Camera } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { NavigationProp, RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { RootStackParamList, SummaryStackParamList } from '../../types/navigation';
+import ImageOptimizationService from '../../services/imageOptimizationService';
 
 type WorkoutPhotoRouteProp = RouteProp<SummaryStackParamList, 'WorkoutPhoto'>;
 
@@ -34,6 +35,7 @@ export const WorkoutPhotoScreen: React.FC = () => {
   const [zoom, setZoom] = useState(0);
   const [isCapturing, setIsCapturing] = useState(false);
   const [showZoomSlider, setShowZoomSlider] = useState(false);
+  const [isOptimizing, setIsOptimizing] = useState(false);
   
   // Demander les permissions de caméra au chargement
   useEffect(() => {
@@ -98,33 +100,46 @@ export const WorkoutPhotoScreen: React.FC = () => {
     }
   };
   
-  // Prendre une photo
+  // 🖼️ Prendre une photo avec optimisation automatique
   const takePicture = async () => {
     if (cameraRef.current && !isCapturing) {
       setIsCapturing(true);
       
       try {
+        console.log('🖼️ [WorkoutPhoto] Taking picture...');
+        
+        // 1. Prendre la photo avec qualité maximale
         const options = {
-          quality: 1,
+          quality: 1, // Qualité maximale pour la photo originale
           base64: false,
           skipProcessing: Platform.OS === 'android', // Pour éviter un crash sur Android
         };
         const photo = await cameraRef.current.takePictureAsync(options);
         
-        // Récupérer le paramètre fromSummary pour le transmettre
-        const fromSummary = route.params.fromSummary;
+        console.log('🖼️ [WorkoutPhoto] Photo taken, starting optimization...');
+        setIsOptimizing(true);
         
-        // Naviguer vers l'écran de prévisualisation avec l'URI de la photo
+        // 2. Optimiser la photo avec le service d'optimisation
+        const optimizedPhotoUri = await ImageOptimizationService.optimizeWorkoutPhoto(
+          photo.uri,
+          cameraType // Passer le type de caméra pour correction automatique du miroir
+        );
+        
+        console.log('🖼️ [WorkoutPhoto] Photo optimization completed');
+        setIsOptimizing(false);
+        
+        // 3. Naviguer vers l'écran de prévisualisation avec l'URI optimisée
         navigation.navigate('SummaryFlow', {
           screen: 'WorkoutOverview',
           params: {
-            workout: { ...workout, photo: photo.uri },
-            photoUri: photo.uri,
+            workout: { ...workout, photo: optimizedPhotoUri },
+            photoUri: optimizedPhotoUri,
             sourceType: 'tracking'
           }
         });
       } catch (error) {
-        console.error('Error taking picture:', error);
+        console.error('🖼️ [WorkoutPhoto] Error taking or optimizing picture:', error);
+        setIsOptimizing(false);
         Alert.alert("Erreur", "Impossible de prendre une photo. Veuillez réessayer.");
       } finally {
         setIsCapturing(false);
@@ -191,12 +206,12 @@ export const WorkoutPhotoScreen: React.FC = () => {
         
         {/* Conteneur de l'appareil photo redimensionné */}
         <View style={styles.cameraContainer}>
-      <CameraView
-        ref={cameraRef}
-        style={styles.camera}
-        facing={cameraType}
-        flash={flashMode}
-        zoom={zoom}
+          <CameraView
+            ref={cameraRef}
+            style={styles.camera}
+            facing={cameraType}
+            flash={flashMode}
+            zoom={zoom}
             ratio="4:3"
           />
           
@@ -233,40 +248,48 @@ export const WorkoutPhotoScreen: React.FC = () => {
               <Text style={styles.zoomText}>{Math.round(zoom * 10)}x</Text>
             </View>
           )}
+          
+          {/* Indicateur d'optimisation */}
+          {isOptimizing && (
+            <View style={styles.optimizingOverlay}>
+              <ActivityIndicator size="large" color="#FFFFFF" />
+              <Text style={styles.optimizingText}>Optimizing photo...</Text>
+            </View>
+          )}
         </View>
           
-          {/* Contrôles inférieurs (annuler, capture, basculer) */}
-          <View style={styles.controls}>
-            <TouchableOpacity 
-              style={styles.controlButton}
-              onPress={handleCancel}
-            >
-              <Ionicons name="close" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[
-                styles.captureButton,
-                isCapturing && styles.capturingButton
-              ]}
-              onPress={takePicture}
-              disabled={isCapturing}
-            >
-              {isCapturing ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <View style={styles.captureButtonInner} />
-              )}
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.controlButton}
-              onPress={toggleCameraType}
-            >
-              <Ionicons name="camera-reverse" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
+        {/* Contrôles inférieurs (annuler, capture, basculer) */}
+        <View style={styles.controls}>
+          <TouchableOpacity 
+            style={styles.controlButton}
+            onPress={handleCancel}
+          >
+            <Ionicons name="close" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[
+              styles.captureButton,
+              (isCapturing || isOptimizing) && styles.capturingButton
+            ]}
+            onPress={takePicture}
+            disabled={isCapturing || isOptimizing}
+          >
+            {(isCapturing || isOptimizing) ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <View style={styles.captureButtonInner} />
+            )}
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.controlButton}
+            onPress={toggleCameraType}
+          >
+            <Ionicons name="camera-reverse" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
     </View>
   );
 };
@@ -380,6 +403,23 @@ const styles = StyleSheet.create({
     width: 40,
     textAlign: 'center',
     fontSize: 14,
+  },
+  optimizingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 20,
+  },
+  optimizingText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    marginTop: 10,
+    textAlign: 'center',
   },
   controls: {
     flexDirection: 'row',

@@ -19,7 +19,9 @@ import {
   SummaryStackParamList,
   MainTabParamList
 } from '../types/navigation';
-import { View, Text } from 'react-native';
+
+// Export RootStackParamList for use in other files
+export type { RootStackParamList };
 
 // ProfileScreen est importé depuis '../screens/ProfileScreen'
 

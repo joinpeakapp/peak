@@ -51,6 +51,16 @@ const generateId = (): string => {
   return Date.now().toString() + Math.random().toString(36).substring(2, 15);
 };
 
+// Types pour la séance active
+interface ActiveSessionData {
+  activeWorkout?: any;
+  restTimer?: any;
+  lastUpdated: string;
+}
+
+// Constante pour activer/désactiver les logs de diagnostic
+const ENABLE_DIAGNOSTIC_LOGS = true; // 🔧 Mettre à false pour désactiver les logs
+
 interface WorkoutDetailModalProps {
   visible: boolean;
   onClose: () => void;
@@ -114,7 +124,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   const { updateStreakOnCompletion, getWorkoutStreak } = useStreak();
   
   // Récupération du contexte d'historique des workouts
-  const { getPersonalRecords: getHistoryPersonalRecords } = useWorkoutHistory();
+  const { getPersonalRecords: getHistoryPersonalRecords, addCompletedWorkout } = useWorkoutHistory();
   
   // État pour les records personnels améliorés
   const enhancedPersonalRecords = useEnhancedPersonalRecords();
@@ -419,6 +429,27 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     }
     
     try {
+      // 🔧 FIX: S'assurer que toutes les données de tracking sont sauvegardées avant de terminer
+      // Sauvegarder une dernière fois les données de l'exercice actuellement sélectionné
+      if (selectedExerciseId && exerciseSets.length > 0) {
+        const completedCount = exerciseSets.filter(set => set.completed).length;
+        if (ENABLE_DIAGNOSTIC_LOGS) console.log(`🔧 [FIX] Final save of tracking data for current exercise ${selectedExerciseId}: ${completedCount} completed sets`);
+        updateTrackingData(selectedExerciseId, exerciseSets, completedCount);
+      }
+      
+      // 🔧 FIX: Vérifier et initialiser trackingData pour tous les exercices du workout
+      exercises.forEach(exercise => {
+        if (!activeWorkout.trackingData[exercise.id]) {
+          if (ENABLE_DIAGNOSTIC_LOGS) console.log(`🔧 [FIX] Initializing missing trackingData for exercise ${exercise.name} (${exercise.id})`);
+          const initialSets = Array(exercise.sets || 1).fill(0).map(() => ({
+            completed: false,
+            weight: '',
+            reps: '',
+          }));
+          updateTrackingData(exercise.id, initialSets, 0);
+        }
+      });
+      
       // Sauvegarder définitivement TOUS les records personnels détectés pendant la séance
       const prSavePromises = [];
       
@@ -461,13 +492,15 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       }
       
       // 2. Ensuite sauvegarder tous les PRs stockés par exercice
-      Object.keys(exercisePRResults).forEach(key => {
+      console.log(`[WorkoutDetailModal] Processing ${Object.keys(exercisePRResults).length} stored PRs...`);
+      Object.keys(exercisePRResults).forEach((key) => {
         const [exerciseId, setKey] = key.split('_set_');
         const exercise = exercises.find(ex => ex.id === exerciseId);
         const prResult = exercisePRResults[key];
         
         if (exercise && prResult) {
           const trackingData = activeWorkout.trackingData[exerciseId];
+          
           if (trackingData && trackingData.sets) {
             const setIndex = parseInt(setKey);
             const set = trackingData.sets[setIndex];
@@ -500,9 +533,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
         console.log(`[WorkoutDetailModal] ${prSavePromises.length} personal records saved permanently`);
         
         // Recharger les records pour assurer la cohérence dans toute l'application
-        console.log(`[WorkoutDetailModal] Reloading enhanced records...`);
         await enhancedPersonalRecords.loadRecords();
-        console.log(`[WorkoutDetailModal] Enhanced records reloaded successfully`);
       } else {
         console.log(`[WorkoutDetailModal] No personal records to save`);
       }
@@ -521,6 +552,13 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       
       // Création de l'objet CompletedWorkout
       console.log("Creating CompletedWorkout");
+      
+      // 🔧 DIAGNOSTIC: Vérifier l'état de trackingData avant création
+      if (ENABLE_DIAGNOSTIC_LOGS) {
+        console.log('🔍 [DIAGNOSTIC] activeWorkout.trackingData:', activeWorkout.trackingData);
+        console.log('🔍 [DIAGNOSTIC] exercises to process:', exercises.map(ex => ({ id: ex.id, name: ex.name })));
+      }
+      
       const newCompletedWorkout: CompletedWorkout = {
         id: generateId(),
         workoutId: workout.id,
@@ -532,13 +570,29 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
           const trackingData = activeWorkout.trackingData[exercise.id];
           const sets = trackingData?.sets || [];
           
-          // Déterminer si un nouveau record a été établi
-          const personalRecord = calculatePersonalRecord(exercise, sets);
+          // 🔧 DIAGNOSTIC: Logger les données de chaque exercice
+          if (ENABLE_DIAGNOSTIC_LOGS) {
+            console.log(`🔍 [DIAGNOSTIC] Processing exercise "${exercise.name}" (${exercise.id}):`);
+            console.log(`🔍 [DIAGNOSTIC] - trackingData exists: ${!!trackingData}`);
+            console.log(`🔍 [DIAGNOSTIC] - sets count: ${sets.length}`);
+            console.log(`🔍 [DIAGNOSTIC] - completed sets: ${sets.filter(s => s.completed).length}`);
+            console.log(`🔍 [DIAGNOSTIC] - sets data:`, sets);
+          }
           
-          return {
+          // 🔧 FIX: S'assurer qu'il y a au moins des sets par défaut même si trackingData manque
+          const finalSets = sets.length > 0 ? sets : Array(exercise.sets || 1).fill(0).map(() => ({
+            completed: false,
+            weight: '',
+            reps: '',
+          }));
+          
+          // Déterminer si un nouveau record a été établi
+          const personalRecord = calculatePersonalRecord(exercise, finalSets);
+          
+          const exerciseResult = {
             id: exercise.id,
             name: exercise.name,
-            sets: sets.map(set => ({
+            sets: finalSets.map(set => ({
               weight: parseInt(set.weight) || 0,
               reps: parseInt(set.reps) || 0,
               completed: set.completed
@@ -547,25 +601,39 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
             duration: exercise.duration,
             personalRecord
           };
-                  }),
-          notes: workout.notes
-          // La streak sera récupérée et affichée directement dans WorkoutSummaryScreen
-        };
+          
+          if (ENABLE_DIAGNOSTIC_LOGS) {
+            console.log(`🔍 [DIAGNOSTIC] - Final exercise result for "${exercise.name}":`, {
+              setsCount: exerciseResult.sets.length,
+              completedSetsCount: exerciseResult.sets.filter(s => s.completed).length,
+              hasPersonalRecord: !!personalRecord
+            });
+          }
+          
+          return exerciseResult;
+        }),
+        notes: workout.notes
+        // La streak sera récupérée et affichée directement dans WorkoutSummaryScreen
+      };
       
-      // Récupérer les séances existantes
-      console.log("Getting stored workouts");
-      const storedWorkouts = await AsyncStorage.getItem('completedWorkouts');
-      const completedWorkouts: CompletedWorkout[] = storedWorkouts 
-        ? JSON.parse(storedWorkouts) 
-        : [];
+      // 🔧 DIAGNOSTIC: Vérifier le workout final avant sauvegarde
+      if (ENABLE_DIAGNOSTIC_LOGS) {
+        console.log('🔍 [DIAGNOSTIC] Final CompletedWorkout before save:');
+        console.log('🔍 [DIAGNOSTIC] - Total exercises:', newCompletedWorkout.exercises.length);
+        console.log('🔍 [DIAGNOSTIC] - Exercises with completed sets:', 
+          newCompletedWorkout.exercises.filter(ex => ex.sets.some(s => s.completed)).length);
+        console.log('🔍 [DIAGNOSTIC] - Exercises details:', 
+          newCompletedWorkout.exercises.map(ex => ({ 
+            name: ex.name, 
+            totalSets: ex.sets.length, 
+            completedSets: ex.sets.filter(s => s.completed).length 
+          })));
+      }
       
-      // Ajouter la nouvelle séance
-      completedWorkouts.push(newCompletedWorkout);
-      console.log("Saving completed workouts", { count: completedWorkouts.length });
-      
-      // Sauvegarder la liste mise à jour
-      await AsyncStorage.setItem('completedWorkouts', JSON.stringify(completedWorkouts));
-      console.log("Completed workouts saved successfully");
+      // Utiliser le contexte pour sauvegarder le workout terminé (cela gère automatiquement les streaks)
+      console.log("Saving completed workout via WorkoutHistoryContext");
+      await addCompletedWorkout(newCompletedWorkout, workout);
+      console.log("Completed workout saved successfully via context");
       
       // Fermer la modale de confirmation
       setIsFinishModalVisible(false);
@@ -573,8 +641,8 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       // Fermer la modale principale
       onClose();
       
-      // Terminer la séance active
-      await finishWorkout(true); // Passer true pour mettre à jour la streak
+      // Terminer la séance active (sans mettre à jour la streak car c'est déjà fait dans addCompletedWorkout)
+      await finishWorkout(false); // Passer false car la streak est déjà mise à jour par addCompletedWorkout
       
       // Naviguer vers l'écran de récapitulatif indépendant
       console.log('WorkoutDetailModal - handleLogWorkout - Navigating with workout:', JSON.stringify(newCompletedWorkout));
@@ -715,23 +783,17 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       const exercise = currentExercises.find(ex => ex.id === selectedExerciseId);
       if (exercise) {
         const isCompleted = completedCount === exercise.sets;
+        const progress = completedCount / exercise.sets;
         
-        // Pour un exercice complété, masquer d'abord le checkmark
-        if (isCompleted) {
-          setCompletedCheckmarks(prev => ({
-            ...prev,
-            [selectedExerciseId]: false
-          }));
-        }
-        
-        // Créer ou réinitialiser l'animation de progression
+        // 🔧 FIX: Mise à jour immédiate de l'état visuel sans délai
+        // Créer ou mettre à jour l'animation de progression avec la valeur correcte immédiatement
         if (!exerciseProgressAnimations[selectedExerciseId]) {
           setExerciseProgressAnimations(prev => ({
             ...prev,
-            [selectedExerciseId]: new Animated.Value(0)
+            [selectedExerciseId]: new Animated.Value(progress) // Valeur correcte immédiatement
           }));
         } else {
-          exerciseProgressAnimations[selectedExerciseId].setValue(0);
+          exerciseProgressAnimations[selectedExerciseId].setValue(progress); // Valeur correcte immédiatement
         }
         
         // Créer ou réinitialiser l'animation de rebond
@@ -744,58 +806,45 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
           exerciseBounceAnimations[selectedExerciseId].setValue(1);
         }
         
-        // Déclencher les animations après le retour à la liste principale
-        setTimeout(() => {
-          // Vérifier que les animations existent avant de les utiliser
-          if (exerciseProgressAnimations[selectedExerciseId]) {
-            if (isCompleted) {
-              // 1. Animer la jauge jusqu'à 100%
-              Animated.timing(exerciseProgressAnimations[selectedExerciseId], {
-                toValue: 1,
-                duration: 600,
-                useNativeDriver: false,
-              }).start(() => {
-                // 2. Afficher le checkmark après remplissage de la jauge
-                setTimeout(() => {
-                  setCompletedCheckmarks(prev => ({
-                    ...prev,
-                    [selectedExerciseId]: true
-                  }));
-                  
-                  // 3. Déclencher l'animation de rebond après l'apparition du checkmark
-                  setTimeout(() => {
-                    if (exerciseBounceAnimations[selectedExerciseId]) {
-                      Animated.sequence([
-                        Animated.timing(exerciseBounceAnimations[selectedExerciseId], {
-                          toValue: 1.1,
-                          duration: 100,
-                          useNativeDriver: true,
-                        }),
-                        Animated.timing(exerciseBounceAnimations[selectedExerciseId], {
-                          toValue: 0.95,
-                          duration: 100,
-                          useNativeDriver: true,
-                        }),
-                        Animated.timing(exerciseBounceAnimations[selectedExerciseId], {
-                          toValue: 1,
-                          duration: 100,
-                          useNativeDriver: true,
-                        }),
-                      ]).start();
-                    }
-                  }, 150);
-                }, 200);
-              });
-            } else {
-              // Pour un exercice partiellement complété, juste animer la jauge
-              Animated.timing(exerciseProgressAnimations[selectedExerciseId], {
-                toValue: completedCount / exercise.sets,
-                duration: 600,
-                useNativeDriver: false,
-              }).start();
-            }
+        // 🔧 FIX: Mise à jour immédiate du checkmark pour les exercices complétés
+        if (isCompleted) {
+          setCompletedCheckmarks(prev => ({
+            ...prev,
+            [selectedExerciseId]: true
+          }));
+          
+          // Animation de rebond seulement si pas déjà complété avant
+          const wasAlreadyCompleted = completedCheckmarks[selectedExerciseId];
+          if (!wasAlreadyCompleted) {
+            setTimeout(() => {
+              if (exerciseBounceAnimations[selectedExerciseId]) {
+                Animated.sequence([
+                  Animated.timing(exerciseBounceAnimations[selectedExerciseId], {
+                    toValue: 1.1,
+                    duration: 100,
+                    useNativeDriver: true,
+                  }),
+                  Animated.timing(exerciseBounceAnimations[selectedExerciseId], {
+                    toValue: 0.95,
+                    duration: 100,
+                    useNativeDriver: true,
+                  }),
+                  Animated.timing(exerciseBounceAnimations[selectedExerciseId], {
+                    toValue: 1,
+                    duration: 100,
+                    useNativeDriver: true,
+                  }),
+                ]).start();
+              }
+            }, 50); // Délai réduit pour la célébration
           }
-        }, 100);
+        } else {
+          // Exercice non complété, s'assurer que le checkmark est caché
+          setCompletedCheckmarks(prev => ({
+            ...prev,
+            [selectedExerciseId]: false
+          }));
+        }
       }
     }
     
@@ -884,12 +933,16 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
           const weight = parseInt(newSets[index].weight) || 0;
           const reps = parseInt(newSets[index].reps) || 0;
           
+          console.log(`🔍 [PR_DETECTION] ${exercise.name} set ${index}: weight=${weight}kg, reps=${reps}`);
+          
           if (weight > 0 && reps > 0) {
             // Utiliser checkSessionWeightPR qui prend en compte le record de la session en cours
             const weightPR = checkSessionWeightPR(exercise.name, weight);
             
             // Vérifier les repetitions PR par rapport aux records originaux
             const repsPR = checkOriginalRepsPR(exercise.name, weight, reps);
+            
+            console.log(`🔍 [PR_DETECTION] ${exercise.name}: weightPR=${!!weightPR}, repsPR=${!!repsPR}`);
             
             // Si nous avons un nouveau PR de poids pour la session, mettre à jour et supprimer les anciens PR
             if (weightPR) {
@@ -1510,8 +1563,6 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       const originalRecord = originalRecords[exerciseName]?.maxWeight || 0;
       const sessionRecord = currentSessionMaxWeights[exerciseName] || originalRecord;
       
-      console.log(`[checkSessionWeightPR] ${exerciseName}: current=${weight}kg, original=${originalRecord}kg, session=${sessionRecord}kg`);
-      
       // Un PR de poids est détecté si:
       // 1. Le poids est supérieur au record original ET
       // 2. Le poids est supérieur au record de séance actuel
@@ -1523,7 +1574,6 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
         };
       }
       
-      console.log(`[checkSessionWeightPR] ❌ No PR for ${exerciseName}: ${weight}kg not > ${Math.max(originalRecord, sessionRecord)}kg`);
       return null;
     },
     [originalRecords, currentSessionMaxWeights]
@@ -1594,9 +1644,10 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     repsPR?: { isNew: boolean; weight: number; reps: number; previousReps: number } | null;
   } | null) => {
     if (isMounted.current) {
+      const key = `${exerciseId}_set_${setIndex}`;
       setExercisePRResults(prev => ({
         ...prev,
-        [`${exerciseId}_set_${setIndex}`]: data
+        [key]: data
       }));
     }
   }, []);

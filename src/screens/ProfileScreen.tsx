@@ -1,11 +1,12 @@
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   Dimensions,
-  TouchableOpacity
+  TouchableOpacity,
+  Modal
 } from 'react-native';
 import { useWorkout } from '../hooks/useWorkout';
 import { useWorkoutHistory } from '../workout/contexts/WorkoutHistoryContext';
@@ -13,21 +14,37 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { ProfileScreenProps } from '../types/navigation';
 import { useEnhancedPersonalRecords } from '../hooks/useEnhancedPersonalRecords';
+import { ErrorTestComponent } from '../components/common/ErrorTestComponent';
+import { StorageTestComponent } from '../components/common/StorageTestComponent';
+import { ImageCacheTestComponent } from '../components/common/ImageCacheTestComponent';
 
 export const ProfileScreen: React.FC = () => {
   const { personalRecords } = useWorkout();
-  const { completedWorkouts } = useWorkoutHistory();
+  const { completedWorkouts, refreshWorkoutHistory } = useWorkoutHistory();
   const { records: enhancedRecords, loadRecords } = useEnhancedPersonalRecords();
   const navigation = useNavigation<ProfileScreenProps['navigation']>();
+  const [showErrorTest, setShowErrorTest] = useState(false);
+  const [showStorageTest, setShowStorageTest] = useState(false);
+  const [showImageCacheTest, setShowImageCacheTest] = useState(false);
 
-  // Recharger les records lorsque l'écran Profile est focalisé
+  // Recharger les records et l'historique lorsque l'écran Profile est focalisé
   useFocusEffect(
-    React.useCallback(() => {
-      console.log('[ProfileScreen] Screen focused, reloading records...');
-      loadRecords().then(() => {
-        console.log('[ProfileScreen] Records reloaded on focus');
-      });
-    }, [loadRecords])
+    useCallback(() => {
+      const refreshData = async () => {
+        try {
+          // Rafraîchir l'historique des workouts
+          await refreshWorkoutHistory();
+          
+          // Recharger les records personnels
+          await loadRecords();
+          
+        } catch (error) {
+          console.error('[ProfileScreen] Error refreshing data:', error);
+        }
+      };
+      
+      refreshData();
+    }, [refreshWorkoutHistory, loadRecords])
   );
 
   // Calculate workout statistics
@@ -68,41 +85,31 @@ export const ProfileScreen: React.FC = () => {
     // Extract all unique exercises with their records (max weight)
     const exercisesMap = new Map();
     
-    // Utiliser d'abord les records améliorés comme source de vérité
-    console.log('[ProfileScreen] Enhanced records available:', Object.keys(enhancedRecords));
+    // Utiliser uniquement les records améliorés pour garantir la cohérence
+    // Si un exercice n'est pas dans enhancedRecords, il ne sera pas affiché
+    // Cela évite le problème de cards affichées mais avec des détails vides
+    console.log('[ProfileScreen] Processing enhanced records:', Object.keys(enhancedRecords));
     Object.entries(enhancedRecords).forEach(([exerciseName, record]) => {
-      console.log(`[ProfileScreen] ${exerciseName}: maxWeight=${record.maxWeight}kg`);
-      if (record.maxWeight > 0) {
+      // Validation stricte : s'assurer que l'exercice a des données complètes et valides
+      if (record.maxWeight > 0 && record.maxWeightDate && record.repsPerWeight && Object.keys(record.repsPerWeight).length > 0) {
+        console.log(`[ProfileScreen] ✅ Enhanced record valid for ${exerciseName}: ${record.maxWeight}kg`);
         exercisesMap.set(exerciseName, {
           name: exerciseName,
-          weight: record.maxWeight, // Utiliser directement maxWeight des enhancedRecords
+          weight: record.maxWeight,
           reps: 0, // On n'affiche plus les reps sur la card
           date: record.maxWeightDate
+        });
+      } else {
+        console.log(`[ProfileScreen] ❌ Enhanced record invalid for ${exerciseName}:`, {
+          maxWeight: record.maxWeight,
+          hasDate: !!record.maxWeightDate,
+          hasRepsPerWeight: !!record.repsPerWeight,
+          repsCount: Object.keys(record.repsPerWeight || {}).length
         });
       }
     });
     
-    // Compléter avec les anciens records seulement si l'exercice n'existe pas dans enhancedRecords
-    completedWorkouts.forEach(workout => {
-      workout.exercises.forEach(exercise => {
-        // Ne traiter que si l'exercice n'existe pas déjà dans enhancedRecords
-        if (!exercisesMap.has(exercise.name)) {
-          // For each exercise, check if it has completed sets
-          const completedSets = exercise.sets.filter(set => set.completed);
-          if (completedSets.length > 0) {
-            // Find the set with the highest weight
-            const maxWeightSet = [...completedSets].sort((a, b) => b.weight - a.weight)[0];
-            
-            exercisesMap.set(exercise.name, {
-              name: exercise.name,
-              weight: maxWeightSet.weight,
-              reps: maxWeightSet.reps,
-              date: workout.date
-            });
-          }
-        }
-      });
-    });
+    console.log('[ProfileScreen] Final exercises to display:', Array.from(exercisesMap.keys()));
     
     // Convert the map to array and sort by weight (highest to lowest)
     const exercisesList = Array.from(exercisesMap.values()).sort((a, b) => b.weight - a.weight);
@@ -126,6 +133,34 @@ export const ProfileScreen: React.FC = () => {
       <ScrollView style={styles.scrollView}>
         <View style={styles.header}>
           <Text style={styles.title}>Profile</Text>
+          {/* Development-only test buttons */}
+          {__DEV__ && (
+            <View style={styles.testButtonsContainer}>
+              <TouchableOpacity
+                style={styles.testButton}
+                onPress={() => setShowStorageTest(true)}
+              >
+                <Ionicons name="server" size={18} color="#10B981" />
+                <Text style={[styles.testButtonText, { color: '#10B981' }]}>Storage</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.testButton}
+                onPress={() => setShowImageCacheTest(true)}
+              >
+                <Ionicons name="image" size={18} color="#3B82F6" />
+                <Text style={[styles.testButtonText, { color: '#3B82F6' }]}>Images</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.testButton}
+                onPress={() => setShowErrorTest(true)}
+              >
+                <Ionicons name="bug" size={18} color="#FF6B6B" />
+                <Text style={[styles.testButtonText, { color: '#FF6B6B' }]}>Errors</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
         
         {/* Stats Grid */}
@@ -185,6 +220,39 @@ export const ProfileScreen: React.FC = () => {
           )}
         </View>
       </ScrollView>
+      
+      {/* Storage Test Modal (Development only) */}
+      {__DEV__ && (
+        <Modal
+          visible={showStorageTest}
+          animationType="slide"
+          presentationStyle="pageSheet"
+        >
+          <StorageTestComponent onClose={() => setShowStorageTest(false)} />
+        </Modal>
+      )}
+      
+      {/* Error Boundary Test Modal (Development only) */}
+      {__DEV__ && (
+        <Modal
+          visible={showErrorTest}
+          animationType="slide"
+          presentationStyle="pageSheet"
+        >
+          <ErrorTestComponent onClose={() => setShowErrorTest(false)} />
+        </Modal>
+      )}
+      
+      {/* Image Cache Test Modal (Development only) */}
+      {__DEV__ && (
+        <Modal
+          visible={showImageCacheTest}
+          animationType="slide"
+          presentationStyle="pageSheet"
+        >
+          <ImageCacheTestComponent onClose={() => setShowImageCacheTest(false)} />
+        </Modal>
+      )}
     </View>
   );
 };
@@ -286,5 +354,22 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginTop: 20,
     textAlign: 'center',
+  },
+  testButtonsContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  testButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2A2A2D',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  testButtonText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginLeft: 5,
   },
 });

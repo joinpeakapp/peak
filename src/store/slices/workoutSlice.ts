@@ -1,6 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { Workout, WorkoutState, Exercise } from '../../types/workout';
-import { StorageService } from '../../services/storage';
+import { RobustStorageService } from '../../services/storage';
 
 // État initial
 const initialState: WorkoutState = {
@@ -46,9 +46,13 @@ const workoutSlice = createSlice({
         }
       });
       
-      // Sauvegarde dans le stockage local
-      StorageService.saveWorkouts(state.workouts);
-      StorageService.savePersonalRecords(state.personalRecords);
+      // Sauvegarde avec le nouveau service robuste
+      RobustStorageService.saveWorkoutTemplates(state.workouts);
+      RobustStorageService.savePersonalRecords({
+        legacy: state.personalRecords,
+        enhanced: {},
+        lastUpdated: new Date().toISOString()
+      });
     },
     // Mettre à jour une séance existante
     updateWorkout: (state, action: PayloadAction<Workout>) => {
@@ -69,9 +73,13 @@ const workoutSlice = createSlice({
             }
           }
         });
-        // Sauvegarde dans le stockage local
-        StorageService.saveWorkouts(state.workouts);
-        StorageService.savePersonalRecords(state.personalRecords);
+        // Sauvegarde avec le nouveau service robuste
+        RobustStorageService.saveWorkoutTemplates(state.workouts);
+        RobustStorageService.savePersonalRecords({
+          legacy: state.personalRecords,
+          enhanced: {},
+          lastUpdated: new Date().toISOString()
+        });
       }
     },
     // Supprimer une séance
@@ -82,8 +90,8 @@ const workoutSlice = createSlice({
       // Filtrer le workout à supprimer en se basant sur son ID exact
       state.workouts = state.workouts.filter(workout => workout.id !== workoutIdToDelete);
       
-      // Sauvegarde dans le stockage local
-      StorageService.saveWorkouts(state.workouts);
+      // Sauvegarde avec le nouveau service robuste
+      RobustStorageService.saveWorkoutTemplates(state.workouts);
     },
     // Mettre à jour un exercice dans une séance
     updateExercise: (state, action: PayloadAction<{ workoutId: string; exercise: Exercise }>) => {
@@ -104,9 +112,13 @@ const workoutSlice = createSlice({
               };
             }
           }
-          // Sauvegarde dans le stockage local
-          StorageService.saveWorkouts(state.workouts);
-          StorageService.savePersonalRecords(state.personalRecords);
+          // Sauvegarde avec le nouveau service robuste
+          RobustStorageService.saveWorkoutTemplates(state.workouts);
+          RobustStorageService.savePersonalRecords({
+            legacy: state.personalRecords,
+            enhanced: {},
+            lastUpdated: new Date().toISOString()
+          });
         }
       }
     },
@@ -118,6 +130,13 @@ const workoutSlice = createSlice({
     setError: (state, action: PayloadAction<string | null>) => {
       state.error = action.payload;
     },
+    // Effacer toutes les données (reset to new user)
+    clearWorkouts: (state) => {
+      state.workouts = [];
+      state.personalRecords = {};
+      state.loading = false;
+      state.error = null;
+    },
   },
 });
 
@@ -125,13 +144,22 @@ const workoutSlice = createSlice({
 export const loadInitialData = () => async (dispatch: any) => {
   dispatch(setLoading(true));
   try {
-    const [workouts, records] = await Promise.all([
-      StorageService.loadWorkouts(),
-      StorageService.loadPersonalRecords(),
+    const [workoutsResult, recordsResult] = await Promise.all([
+      RobustStorageService.loadWorkoutTemplates(),
+      RobustStorageService.loadPersonalRecords(),
     ]);
-    dispatch(setWorkouts(workouts));
+    
+    dispatch(setWorkouts(workoutsResult.data || []));
+    
+    // Charger les records legacy si disponibles
+    if (recordsResult.success && recordsResult.data.legacy) {
+      // Les records legacy seront mis à jour via les actions Redux
+      console.log('[loadInitialData] Personal records loaded from storage');
+    }
+    
     dispatch(setError(null));
   } catch (error) {
+    console.error('[loadInitialData] Error loading initial data:', error);
     dispatch(setError('Erreur lors du chargement des données'));
   } finally {
     dispatch(setLoading(false));
@@ -147,6 +175,7 @@ export const {
   updateExercise,
   setLoading,
   setError,
+  clearWorkouts,
 } = workoutSlice.actions;
 
 // Export du reducer

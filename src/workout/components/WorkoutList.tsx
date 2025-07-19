@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { WorkoutCard } from './WorkoutCard';
 import { Workout } from '../../types/workout';
@@ -48,15 +48,12 @@ export const WorkoutList: React.FC<WorkoutListProps> = ({
     
     // Force update to trigger a clean render
     setEditingWorkout(null);
-    setIsEditModalVisible(false);
     
-    // Utilisons requestAnimationFrame pour garantir que la réinitialisation est traitée
-    requestAnimationFrame(() => {
-      // Puis définir le workout et rendre visible
-      console.log('Setting workout in next frame');
+    // Small delay to ensure previous state is cleared
+    setTimeout(() => {
       setEditingWorkout(workout);
       setIsEditModalVisible(true);
-    });
+    }, 10);
   };
 
   const handleDelete = (workoutId: string) => {
@@ -66,17 +63,15 @@ export const WorkoutList: React.FC<WorkoutListProps> = ({
   const handleEditClose = () => {
     console.log('handleEditClose called');
     setIsEditModalVisible(false);
+    // Clear the editing workout after modal animation
     setTimeout(() => {
-      console.log('Clearing editingWorkout');
       setEditingWorkout(null);
     }, 300);
   };
 
   const handleEditSave = () => {
-    setIsEditModalVisible(false);
-    setTimeout(() => {
-      setEditingWorkout(null);
-    }, 300);
+    console.log('handleEditSave called');
+    handleEditClose();
   };
 
   const renderEmptyState = () => (
@@ -94,32 +89,39 @@ export const WorkoutList: React.FC<WorkoutListProps> = ({
     </View>
   );
 
+  const renderWorkoutItem = ({ item }: { item: Workout }) => (
+    <WorkoutCard
+      key={item.id}
+      workout={item}
+      onPress={() => onWorkoutPress(item)}
+      onEdit={() => handleEdit(item)}
+      onDelete={() => handleDelete(item.id)}
+    />
+  );
+
   return (
     <>
-      <ScrollView style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Workouts</Text>
-          <TouchableOpacity style={styles.addButton} onPress={onAddPress}>
-            <Ionicons name="add" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.content}>
-          {workouts.length > 0 ? (
-            workouts.map(workout => (
-              <WorkoutCard
-                key={workout.id}
-                workout={workout}
-                onPress={() => onWorkoutPress(workout)}
-                onEdit={() => handleEdit(workout)}
-                onDelete={() => handleDelete(workout.id)}
-              />
-            ))
-          ) : (
-            renderEmptyState()
-          )}
-        </View>
-      </ScrollView>
+      {/* Header always visible at the top */}
+      <View style={styles.header}>
+        <Text style={styles.title}>Workouts</Text>
+        <TouchableOpacity style={styles.addButton} onPress={onAddPress}>
+          <Ionicons name="add" size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+      </View>
+      
+      <FlatList
+        style={styles.container}
+        data={workouts}
+        renderItem={renderWorkoutItem}
+        keyExtractor={(item) => item.id}
+        ListEmptyComponent={renderEmptyState}
+        contentContainerStyle={workouts.length === 0 ? styles.emptyContainer : styles.content}
+        showsVerticalScrollIndicator={false}
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={10}
+        initialNumToRender={8}
+        windowSize={10}
+      />
       
       {editingWorkout && (
         <WorkoutEditModal
@@ -142,63 +144,62 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingTop: 80,
     paddingBottom: 24,
+    backgroundColor: '#0D0D0F',
   },
   title: {
     fontSize: 32,
     fontWeight: '600',
     color: '#FFFFFF',
+    marginBottom: 8,
   },
   addButton: {
     width: 44,
     height: 44,
-    borderRadius: 100,
-    backgroundColor: '#242526',
+    borderRadius: 22, // Made round: 44/2 = 22
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   content: {
-    paddingHorizontal: 16,
-    paddingTop: 24,
+    paddingHorizontal: 12,
+    paddingBottom: 20,
+  },
+  emptyContainer: {
+    flex: 1,
   },
   emptyStateContainer: {
-    backgroundColor: 'rgba(36, 37, 38, 0.5)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 16,
-    paddingHorizontal: 32,
-    paddingVertical: 48,
-    alignItems: 'center',
+    flex: 1,
     justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
   },
   emptyStateTextContainer: {
-    marginTop: 16,
     alignItems: 'center',
+    marginVertical: 24,
   },
   emptyStateTitle: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: '600',
     color: '#FFFFFF',
-    marginBottom: 4,
+    marginBottom: 8,
   },
   emptyStateSubtitle: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#AAAAAA',
+    textAlign: 'center',
   },
   createButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 16,
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    width: '100%',
-    alignItems: 'center',
-    marginTop: 32,
+    borderRadius: 12,
   },
   createButtonText: {
-    color: '#000000',
-    fontWeight: '600',
+    color: '#0D0D0F',
     fontSize: 16,
+    fontWeight: '600',
   },
 }); 

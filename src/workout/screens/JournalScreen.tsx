@@ -1,25 +1,26 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
-  TouchableOpacity, 
-  ActivityIndicator, 
-  Alert,
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
   FlatList,
   Dimensions,
   ImageBackground,
-  Image,
   Animated,
+  Alert,
+  RefreshControl,
+  ActivityIndicator,
   Easing
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { CompletedWorkout } from '../../types/workout';
-import { useRoute, RouteProp, useFocusEffect, useNavigation, NavigationProp } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, NavigationProp, useRoute, RouteProp } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { RootStackParamList } from '../../types/navigation';
+import { CompletedWorkout } from '../../types/workout';
+import { useWorkoutHistory } from '../contexts/WorkoutHistoryContext';
+import { OptimizedImage } from '../../components/common/OptimizedImage';
 
 // Type pour les paramètres de route
 type JournalScreenParams = {
@@ -39,10 +40,10 @@ const CARD_HEIGHT = CARD_WIDTH * (192 / 114); // Ratio 114x192px
  * Écran qui affiche les séances d'entraînement enregistrées
  */
 export const JournalScreen: React.FC = () => {
-  const [completedWorkouts, setCompletedWorkouts] = useState<CompletedWorkout[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [newWorkoutIndex, setNewWorkoutIndex] = useState<number>(-1);
+  
+  // Utiliser le contexte WorkoutHistory au lieu d'un état local
+  const { completedWorkouts, isLoading: loading, error, refreshWorkoutHistory } = useWorkoutHistory();
   
   // Référence pour stocker les animations des cartes
   const cardAnimations = useRef<{[key: string]: Animated.Value}>({});
@@ -57,48 +58,40 @@ export const JournalScreen: React.FC = () => {
   // Récupérer la navigation
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
 
-  // Charger les séances enregistrées
-  const loadCompletedWorkouts = async () => {
-    try {
-      setLoading(true);
-      const storedWorkouts = await AsyncStorage.getItem('completedWorkouts');
-      
-      if (storedWorkouts) {
-        const parsedWorkouts: CompletedWorkout[] = JSON.parse(storedWorkouts);
-        // Tri par date (plus récentes en premier)
-        const sortedWorkouts = parsedWorkouts.sort((a, b) => 
-          new Date(b.date).getTime() - new Date(a.date).getTime()
-        );
-        
-        // Initialiser les animations pour chaque workout
-        sortedWorkouts.forEach(workout => {
-          if (!cardAnimations.current[workout.id]) {
-            cardAnimations.current[workout.id] = new Animated.Value(1);
-          }
-        });
-        
-        setCompletedWorkouts(sortedWorkouts);
-        
-        // Si on a un ID de nouvel entraînement, trouver son index
-        if (newWorkoutId && shouldAnimateWorkout) {
-          const workoutIndex = sortedWorkouts.findIndex(w => w.id === newWorkoutId);
-          if (workoutIndex !== -1) {
-            setNewWorkoutIndex(workoutIndex);
-          }
-        }
+  // Organiser les workouts par date (plus récentes en premier) et initialiser les animations
+  const sortedWorkouts = React.useMemo(() => {
+    if (!completedWorkouts) return [];
+    
+    const sorted = [...completedWorkouts].sort((a, b) => 
+      new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+    
+    // Initialiser les animations pour chaque workout
+    sorted.forEach(workout => {
+      if (!cardAnimations.current[workout.id]) {
+        cardAnimations.current[workout.id] = new Animated.Value(1);
       }
-    } catch (error) {
-      console.error('Error loading completed workouts:', error);
-      setError('Failed to load your workout history');
-    } finally {
-      setLoading(false);
-    }
-  };
+    });
+    
+    return sorted;
+  }, [completedWorkouts]);
 
-  // Effet pour charger les séances au montage et chaque fois que newWorkoutId change
+  // Effet pour détecter un nouvel entraînement et préparer l'animation
   useEffect(() => {
-    loadCompletedWorkouts();
-  }, [newWorkoutId]);
+    if (newWorkoutId && shouldAnimateWorkout && sortedWorkouts.length > 0) {
+      const workoutIndex = sortedWorkouts.findIndex(w => w.id === newWorkoutId);
+      if (workoutIndex !== -1) {
+        setNewWorkoutIndex(workoutIndex);
+      }
+    }
+  }, [newWorkoutId, shouldAnimateWorkout, sortedWorkouts]);
+
+  // Recharger les données quand l'écran devient visible
+  useFocusEffect(
+    React.useCallback(() => {
+      refreshWorkoutHistory();
+    }, [refreshWorkoutHistory])
+  );
 
   // Gestionnaire pour l'effet d'animation du nouvel entraînement
   useEffect(() => {
@@ -211,6 +204,9 @@ export const JournalScreen: React.FC = () => {
     // Déterminer si cette carte est la nouvelle à animer
     const isNewWorkout = index === newWorkoutIndex;
     
+    // Calculer si c'est la dernière carte de la ligne (pas de margin droite)
+    const isLastInRow = (index + 1) % 3 === 0;
+    
     // Améliorer les styles d'animation pour la nouvelle carte
     const animatedCardStyle = {
       transform: [{ 
@@ -267,7 +263,7 @@ export const JournalScreen: React.FC = () => {
 
     return (
       <TouchableOpacity 
-        style={styles.cardContainer}
+        style={[styles.cardContainer, isLastInRow && { marginRight: 0 }]}
         onPress={() => handleWorkoutPress(item)}
         activeOpacity={0.8}
       >
@@ -279,6 +275,11 @@ export const JournalScreen: React.FC = () => {
   };
 
   const handleWorkoutPress = (workout: CompletedWorkout) => {
+    // Garder le même ordre que dans le Journal pour cohérence
+    // Journal: récent à gauche, ancien à droite
+    // Carousel: swipe gauche = plus récent, swipe droite = plus ancien
+    const workoutIndex = sortedWorkouts.findIndex(w => w.id === workout.id);
+    
     // Naviguer vers l'écran de détail du workout avec tous les workouts pour le carousel
     navigation.navigate('SummaryFlow', {
       screen: 'WorkoutOverview',
@@ -286,15 +287,15 @@ export const JournalScreen: React.FC = () => {
         workout: workout,
         photoUri: workout.photo || 'https://via.placeholder.com/400x600/242526/FFFFFF?text=Workout',
         sourceType: 'journal',
-        workouts: completedWorkouts,
-        currentIndex: completedWorkouts.findIndex(w => w.id === workout.id)
+        workouts: sortedWorkouts,
+        currentIndex: workoutIndex
       }
     });
   };
 
   // Mettre à jour manuellement les séances
   const handleRefresh = () => {
-    loadCompletedWorkouts();
+    refreshWorkoutHistory();
   };
 
   // Afficher un état de chargement
@@ -338,7 +339,7 @@ export const JournalScreen: React.FC = () => {
             <View style={{ width: 44, height: 44 }} />
           </View>
         )}
-        data={completedWorkouts}
+        data={sortedWorkouts}
         renderItem={renderWorkoutCard}
         keyExtractor={item => item.id}
         numColumns={3}
@@ -347,6 +348,7 @@ export const JournalScreen: React.FC = () => {
         showsVerticalScrollIndicator={true}
         onRefresh={handleRefresh}
         refreshing={loading}
+        key={sortedWorkouts.length} // Force re-render when data changes
       />
     </View>
   );
@@ -363,7 +365,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 0,
-    paddingTop: 80,
+    paddingTop: 64,
     paddingBottom: 24,
     marginBottom: 0,
   },
@@ -396,6 +398,7 @@ const styles = StyleSheet.create({
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
     marginBottom: 8,
+    marginRight: GAP,
   },
   card: {
     width: '100%',
@@ -467,7 +470,8 @@ const styles = StyleSheet.create({
     color: '#AAAAAA',
   },
   row: {
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
+    paddingHorizontal: 0,
   },
   loadingContainer: {
     flex: 1,

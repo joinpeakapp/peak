@@ -1,32 +1,33 @@
-import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TouchableOpacity, 
+import React, { useRef, useState, useMemo, useCallback, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
   Image,
+  Dimensions,
+  FlatList,
+  StatusBar,
+  Alert,
+  ViewToken,
   SafeAreaView,
   Platform,
-  Dimensions,
-  ScrollView,
-  Alert,
-  FlatList,
-  ViewToken,
-  ActivityIndicator,
-  StatusBar
+  ActivityIndicator
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { 
-  NavigationProp, 
-  RouteProp, 
   useNavigation, 
-  useRoute,
-  CommonActions 
+  useRoute, 
+  NavigationProp, 
+  CommonActions, 
+  RouteProp 
 } from '@react-navigation/native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { RootStackParamList, SummaryStackParamList } from '../../types/navigation';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CompletedWorkout } from '../../types/workout';
+import { useWorkoutHistory } from '../contexts/WorkoutHistoryContext';
+import { OptimizedImage } from '../../components/common/OptimizedImage';
 
 type WorkoutOverviewRouteProp = RouteProp<SummaryStackParamList, 'WorkoutOverview'>;
 
@@ -34,6 +35,9 @@ export const WorkoutOverviewScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const route = useRoute<WorkoutOverviewRouteProp>();
   const { workout, photoUri, sourceType = 'tracking', workouts = [], currentIndex = 0 } = route.params;
+  
+  // Utiliser le contexte WorkoutHistory
+  const { updateCompletedWorkout } = useWorkoutHistory();
   
   const [saving, setSaving] = useState(false);
   const [activeIndex, setActiveIndex] = useState(currentIndex);
@@ -126,26 +130,10 @@ export const WorkoutOverviewScreen: React.FC = () => {
     setSaving(true);
     
     try {
-      // Get existing workouts
-      const storedWorkouts = await AsyncStorage.getItem('completedWorkouts');
-      let workouts: CompletedWorkout[] = [];
-      
-      if (storedWorkouts) {
-        workouts = JSON.parse(storedWorkouts);
+      // Utiliser le contexte pour mettre à jour le workout avec la photo
+      if (photoUri) {
+        await updateCompletedWorkout(workout.id, { photo: photoUri });
       }
-      
-      // Update or add workout with photo
-      const workoutWithPhoto = { ...workout, photo: photoUri };
-      const existingIndex = workouts.findIndex(w => w.id === workout.id);
-      
-      if (existingIndex >= 0) {
-        workouts[existingIndex] = workoutWithPhoto;
-      } else {
-        workouts.push(workoutWithPhoto);
-      }
-      
-      // Save to AsyncStorage
-      await AsyncStorage.setItem('completedWorkouts', JSON.stringify(workouts));
       
       // Navigate to journal tab directly with optimized navigation
       navigation.dispatch(
@@ -183,7 +171,7 @@ export const WorkoutOverviewScreen: React.FC = () => {
         [{ text: "OK", onPress: () => setSaving(false) }]
       );
     }
-  }, [navigation, workout, photoUri]);
+  }, [navigation, workout, photoUri, updateCompletedWorkout]);
 
   // Rendu d'un workout dans le carousel (pour le mode journal)
   const renderWorkoutItem = useCallback(({ item }: { item: CompletedWorkout }) => {
@@ -199,10 +187,11 @@ export const WorkoutOverviewScreen: React.FC = () => {
         >
           {/* Photo container */}
           <View style={styles.photoContainer}>
-            <Image
-              source={{ uri: currentWorkout.photo || 'https://via.placeholder.com/400x600/242526/FFFFFF?text=Workout' }}
+            <OptimizedImage
+              uri={currentWorkout.photo || 'https://via.placeholder.com/400x600/242526/FFFFFF?text=Workout'}
               style={styles.photo}
               resizeMode="cover"
+              fallbackUri="https://via.placeholder.com/400x600/242526/FFFFFF?text=Workout"
             />
             <LinearGradient
               colors={[
@@ -337,7 +326,7 @@ export const WorkoutOverviewScreen: React.FC = () => {
         </ScrollView>
 
         {/* Back button et SafeAreaView en overlay */}
-        <SafeAreaView style={styles.safeAreaOverlay} pointerEvents="box-none">
+        <View style={styles.safeAreaOverlay} pointerEvents="box-none">
           <TouchableOpacity
             style={styles.backButton}
             onPress={handleGoBack}
@@ -345,7 +334,7 @@ export const WorkoutOverviewScreen: React.FC = () => {
           >
             <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
           </TouchableOpacity>
-        </SafeAreaView>
+        </View>
       </View>
     );
   }, [screenWidth, handleGoBack, getStickers]);
@@ -409,10 +398,11 @@ export const WorkoutOverviewScreen: React.FC = () => {
       >
         {/* Photo container */}
         <View style={styles.photoContainer}>
-          <Image
-            source={{ uri: photoUri }}
+          <OptimizedImage
+            uri={photoUri}
             style={styles.photo}
             resizeMode="cover"
+            fallbackUri="https://via.placeholder.com/400x600/242526/FFFFFF?text=Workout"
           />
           <LinearGradient
             colors={[
@@ -561,14 +551,14 @@ export const WorkoutOverviewScreen: React.FC = () => {
       )}
 
       {/* Back button et SafeAreaView en overlay */}
-      <SafeAreaView style={styles.safeAreaOverlay} pointerEvents="box-none">
+      <View style={styles.safeAreaOverlay} pointerEvents="box-none">
         <TouchableOpacity
           style={styles.backButton}
           onPress={handleGoBack}
         >
           <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
-      </SafeAreaView>
+      </View>
     </View>
   );
 };
@@ -609,7 +599,7 @@ const styles = StyleSheet.create({
     pointerEvents: 'box-none',
   },
   backButton: {
-    marginTop: Platform.OS === 'ios' ? 8 : (StatusBar.currentHeight || 0) + 8,
+    marginTop: 64, // Position fixe à 64px du haut
     marginLeft: 20,
     padding: 8,
     borderRadius: 20,

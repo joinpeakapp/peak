@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { StreakData, Workout } from '../../types/workout';
 import { useStreak } from '../contexts/StreakContext';
@@ -13,31 +13,45 @@ export const StreakDisplay: React.FC<StreakDisplayProps> = ({
   workout, 
   showDaysRemaining = true
 }) => {
-  const { getWorkoutStreak, formatStreakText, getDaysUntilStreakLoss } = useStreak();
+  const { getWorkoutStreak, formatStreakText, getDaysUntilStreakLoss, subscribeToStreakUpdates } = useStreak();
   const [streakData, setStreakData] = useState<StreakData | null>(null);
   const [daysRemaining, setDaysRemaining] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const loadStreakData = async () => {
-      try {
-        setLoading(true);
-        const data = await getWorkoutStreak(workout.id, workout);
-        setStreakData(data);
-        
-        if (showDaysRemaining && data.lastCompletedDate) {
-          const days = await getDaysUntilStreakLoss(workout.id, workout);
-          setDaysRemaining(days);
-        }
-      } catch (error) {
-        console.error("[StreakDisplay] Error loading streak data:", error);
-      } finally {
-        setLoading(false);
+  const loadStreakData = useCallback(async () => {
+    try {
+      setLoading(true);
+      console.log(`[StreakDisplay] Loading streak data for workout ${workout.id} (${workout.name})`);
+      const data = await getWorkoutStreak(workout.id, workout);
+      console.log(`[StreakDisplay] Loaded streak data for ${workout.id}:`, { current: data.current, lastDate: data.lastCompletedDate });
+      setStreakData(data);
+      
+      if (showDaysRemaining && data.lastCompletedDate) {
+        const days = await getDaysUntilStreakLoss(workout.id, workout);
+        console.log(`[StreakDisplay] Days remaining for ${workout.id}:`, days);
+        setDaysRemaining(days);
       }
-    };
+    } catch (error) {
+      console.error("[StreakDisplay] Error loading streak data:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [workout.id, workout.name, getWorkoutStreak, getDaysUntilStreakLoss, showDaysRemaining]);
 
+  useEffect(() => {
     loadStreakData();
-  }, [workout.id, getWorkoutStreak, getDaysUntilStreakLoss, showDaysRemaining, workout]);
+  }, [loadStreakData]);
+
+  // S'abonner aux mises à jour globales des streaks
+  useEffect(() => {
+    console.log(`[StreakDisplay] Subscribing to streak updates for workout ${workout.id}`);
+    const unsubscribe = subscribeToStreakUpdates(() => {
+      console.log(`[StreakDisplay] Received streak update notification for workout ${workout.id}, reloading...`);
+      loadStreakData();
+    });
+
+    return unsubscribe;
+  }, [subscribeToStreakUpdates, workout.id]); // Enlever loadStreakData des dépendances pour éviter les boucles
 
   if (loading) {
     return (

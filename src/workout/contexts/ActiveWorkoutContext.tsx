@@ -4,6 +4,7 @@ import { Exercise } from '../../types/workout';
 import { AppState, AppStateStatus } from 'react-native';
 import { useStreak } from './StreakContext';
 import { useWorkout } from '../../hooks/useWorkout';
+import { RobustStorageService } from '../../services/storage';
 
 // Types pour la séance active
 export interface TrackingSet {
@@ -72,49 +73,42 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
   const { getWorkoutStreak, updateStreakOnCompletion } = useStreak();
   const { workouts } = useWorkout();
 
-  // Chargement de la séance active depuis AsyncStorage au démarrage
+  // Chargement de la séance active depuis le service robuste au démarrage
   useEffect(() => {
     const loadActiveWorkout = async () => {
       try {
-        const storedData = await AsyncStorage.getItem(STORAGE_KEY);
-        if (storedData) {
-          const parsedData = JSON.parse(storedData) as ActiveWorkout;
+        console.log('[ActiveWorkout] Loading active session from robust storage...');
+        const result = await RobustStorageService.loadActiveSession();
+        
+        if (result.success && result.data?.activeWorkout) {
+          const parsedData = result.data.activeWorkout as ActiveWorkout;
           
-          // Si le workout avait été mis en pause (app fermée), calculer le temps écoulé pendant l'absence
-          if (parsedData.pausedAt && parsedData.isActive) {
-            const now = Date.now();
-            const pausedDuration = Math.floor((now - parsedData.pausedAt) / 1000);
+          // Vérifier si la séance est toujours valide (pas trop ancienne)
+          const timeSinceLastUpdate = parsedData.lastResumeTime ? 
+            Date.now() - parsedData.lastResumeTime : 
+            Date.now() - parsedData.startTime;
+          const maxInactiveTime = 24 * 60 * 60 * 1000; // 24 heures
+          
+          if (timeSinceLastUpdate < maxInactiveTime) {
+            console.log('[ActiveWorkout] Restoring active workout session');
+            setActiveWorkout(parsedData);
+            setIsTrackingWorkout(true);
             
-            // Ne pas mettre à jour pausedAt ici pour conserver l'historique
-            parsedData.elapsedTime += pausedDuration;
-            parsedData.lastResumeTime = now;
-            
-            // Sauvegarder les changements
-            await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData));
-          }
-          
-          setActiveWorkout(parsedData);
-          setIsTrackingWorkout(parsedData.isActive);
-          
-          // Si la séance est active, on démarre immédiatement le timer
-          if (parsedData.isActive) {
-            startGlobalTimer();
+            // Reprendre le timer global si la séance était active
+            if (parsedData.isActive) {
+              startGlobalTimer();
+            }
+          } else {
+            console.log('[ActiveWorkout] Active workout session expired, clearing...');
+            await RobustStorageService.clearActiveSession();
           }
         }
       } catch (error) {
-        console.error('Erreur lors du chargement de la séance active:', error);
+        console.error('[ActiveWorkout] Error loading active workout:', error);
       }
     };
 
     loadActiveWorkout();
-    
-    // Nettoyage du timer lors du démontage
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-    };
   }, []);
 
   // Gérer les changements d'état de l'app (premier plan, arrière-plan)
@@ -171,7 +165,10 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
       };
       
       setActiveWorkout(pausedWorkout);
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(pausedWorkout));
+      await RobustStorageService.saveActiveSession({ 
+        activeWorkout: pausedWorkout,
+        lastUpdated: new Date().toISOString()
+      });
     }
   };
   
@@ -191,7 +188,10 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
       };
       
       setActiveWorkout(updatedWorkout);
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedWorkout));
+      await RobustStorageService.saveActiveSession({ 
+        activeWorkout: updatedWorkout,
+        lastUpdated: new Date().toISOString()
+      });
       
       // Redémarrer le timer
       startGlobalTimer();
@@ -200,8 +200,6 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Fonction pour démarrer le timer global
   const startGlobalTimer = () => {
-    console.log('[GLOBAL TIMER] Démarrage du timer global');
-    
     // Nettoyage du timer existant si nécessaire
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -223,25 +221,31 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
   
   // Fonction pour arrêter le timer global
   const stopGlobalTimer = () => {
-    console.log('[GLOBAL TIMER] Arrêt du timer global');
-    
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
   };
 
-  // Sauvegarde de la séance active dans AsyncStorage à chaque mise à jour
+  // Sauvegarde de la séance active avec le service robuste à chaque mise à jour
   useEffect(() => {
     const saveActiveWorkout = async () => {
       try {
         if (activeWorkout) {
-          await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(activeWorkout));
+          const sessionData = {
+            activeWorkout,
+            lastUpdated: new Date().toISOString()
+          };
+          
+          const result = await RobustStorageService.saveActiveSession(sessionData);
+          if (!result.success) {
+            console.error('[ActiveWorkout] Failed to save active session:', result.error?.userMessage);
+          }
         } else {
-          await AsyncStorage.removeItem(STORAGE_KEY);
+          await RobustStorageService.clearActiveSession();
         }
       } catch (error) {
-        console.error('Erreur lors de la sauvegarde de la séance active:', error);
+        console.error('[ActiveWorkout] Error saving active workout:', error);
       }
     };
 
@@ -294,7 +298,7 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
         // Pour le moment, on se contente de réinitialiser l'état
         setActiveWorkout(null);
         setIsTrackingWorkout(false);
-        await AsyncStorage.removeItem(STORAGE_KEY);
+        await RobustStorageService.clearActiveSession();
 
       // Récupérer le workout original pour mettre à jour la streak
       // Uniquement si updateStreak est true (uniquement quand on clique sur "Log Workout")

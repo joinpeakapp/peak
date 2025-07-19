@@ -11,6 +11,8 @@ import { StreakProvider, useStreak } from './src/workout/contexts/StreakContext'
 import { WorkoutHistoryProvider } from './src/workout/contexts/WorkoutHistoryContext';
 import { useSelector } from 'react-redux';
 import { RootState } from './src/store';
+import { ErrorBoundary } from './src/components/common/ErrorBoundary';
+import { RobustStorageService } from './src/services/storage';
 
 // Composant pour valider les streaks au démarrage
 const StreakValidator: React.FC = () => {
@@ -32,31 +34,44 @@ const StreakValidator: React.FC = () => {
 // Composant interne pour gérer la validation des streaks après le chargement des données
 const AppContent: React.FC = () => {
   return (
-    <StreakProvider>
-      <WorkoutHistoryProvider>
-        <ActiveWorkoutProvider>
-          <RestTimerProvider>
-            <SafeAreaProvider>
-              <StreakValidator />
-              <StatusBar style="light" />
-              <AppNavigator />
-            </SafeAreaProvider>
-          </RestTimerProvider>
-        </ActiveWorkoutProvider>
-      </WorkoutHistoryProvider>
-    </StreakProvider>
+    <ErrorBoundary>
+      <StreakProvider>
+        <WorkoutHistoryProvider>
+          <ActiveWorkoutProvider>
+            <RestTimerProvider>
+              <SafeAreaProvider>
+                <StreakValidator />
+                <StatusBar style="light" />
+                <AppNavigator />
+              </SafeAreaProvider>
+            </RestTimerProvider>
+          </ActiveWorkoutProvider>
+        </WorkoutHistoryProvider>
+      </StreakProvider>
+    </ErrorBoundary>
   );
 };
 
 export default function App() {
   useEffect(() => {
-    // Charger les données initiales au démarrage de l'application
-    store.dispatch(loadInitialData());
+    // Initialiser le service de stockage robuste avec migration des données
+    const initializeApp = async () => {
+      console.log('[App] Initializing storage service...');
+      await RobustStorageService.initialize();
+      
+      // Charger les données initiales après l'initialisation du stockage
+      console.log('[App] Loading initial data...');
+      store.dispatch(loadInitialData());
+    };
+
+    initializeApp();
   }, []);
 
   return (
-    <Provider store={store}>
-      <AppContent />
-    </Provider>
+    <ErrorBoundary>
+      <Provider store={store}>
+        <AppContent />
+      </Provider>
+    </ErrorBoundary>
   );
 }

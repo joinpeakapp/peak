@@ -1,24 +1,18 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   TextInput,
-  FlatList,
-  Pressable,
-  StatusBar,
-  ScrollView,
+  Modal,
+  SectionList,
   Platform,
-  KeyboardAvoidingView,
-  TouchableWithoutFeedback,
-  Keyboard,
-  SafeAreaView
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Exercise } from '../../types/workout';
-import { FullScreenModal } from '../../components/common/FullScreenModal';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Exercise } from '../../types/workout';
 import { ExerciseFilterModal } from './ExerciseFilterModal';
 
 // Exemple de données d'exercices
@@ -118,69 +112,27 @@ interface AlphabeticalSection {
   data: Exercise[];
 }
 
-export const ExerciseSelectionModal: React.FC<ExerciseSelectionModalProps> = ({
+const ExerciseSelectionModal: React.FC<ExerciseSelectionModalProps> = ({
   visible,
   onClose,
-  onExercisesSelected,
-  workoutId
+  onExercisesSelected
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedExercises, setSelectedExercises] = useState<Exercise[]>([]);
-  const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  
-  // Reset selections when modal is opened
-  useEffect(() => {
-    if (visible) {
-      setSearchQuery('');
-      setSelectedExercises([]);
-    }
-  }, [visible]);
+  const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
 
-  // Ouvrir la modale de filtres
-  const handleOpenFilterModal = () => {
-    setIsFilterModalVisible(true);
-  };
-
-  // Fonction pour mettre à jour les tags sélectionnés
-  const handleTagsSelected = (tags: string[]) => {
-    setSelectedTags(tags);
-  };
-
-  // Fonction pour obtenir le texte du bouton de filtre
-  const getFilterButtonText = () => {
-    if (selectedTags.length === 0) {
-      return "Filter by";
-    } else if (selectedTags.length === 1) {
-      return selectedTags[0];
-    } else {
-      return `${selectedTags.length} filters`;
-    }
-  };
-
-  // Filter exercises based on search query and tags
+  // Filter exercises based on search query and selected tags
   const filteredExercises = useMemo(() => {
-    let filtered = SAMPLE_EXERCISES;
-    
-    // Filter by search query
-    if (searchQuery.trim()) {
-      filtered = filtered.filter(exercise => 
-      exercise.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-    }
-    
-    // Filter by selected tags
-    if (selectedTags.length > 0) {
-      filtered = filtered.filter(exercise => 
-        exercise.tags?.some(tag => selectedTags.includes(tag))
-      );
-    }
-    
-    return filtered;
+    return SAMPLE_EXERCISES.filter(exercise => {
+      const matchesSearch = exercise.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesTags = selectedTags.length === 0 || selectedTags.some(tag => exercise.tags?.includes(tag));
+      return matchesSearch && matchesTags;
+    });
   }, [searchQuery, selectedTags]);
 
-  // Group exercises by first letter
-  const groupedExercises = useMemo(() => {
+  // Group exercises by first letter for SectionList
+  const sectionedExercises = useMemo(() => {
     const sorted = [...filteredExercises].sort((a, b) => 
       a.name.localeCompare(b.name)
     );
@@ -196,7 +148,7 @@ export const ExerciseSelectionModal: React.FC<ExerciseSelectionModalProps> = ({
     });
     
     return Object.entries(groups).map(([letter, exercises]) => ({
-      letter,
+      title: letter,
       data: exercises
     }));
   }, [filteredExercises]);
@@ -218,164 +170,164 @@ export const ExerciseSelectionModal: React.FC<ExerciseSelectionModalProps> = ({
     onClose();
   };
 
-  const renderSectionHeader = ({ letter }: { letter: string }) => (
+  const renderSectionHeader = ({ section }: { section: { title: string, data: Exercise[] } }) => (
     <View style={styles.sectionHeader}>
-      <Text style={styles.sectionHeaderText}>{letter}</Text>
+      <Text style={styles.sectionHeaderText}>{section.title}</Text>
     </View>
   );
 
-  const renderExerciseItem = (exercise: Exercise) => {
+  const renderExerciseItem = ({ item: exercise }: { item: Exercise }) => {
     const isSelected = selectedExercises.some(ex => ex.id === exercise.id);
     
     return (
-      <TouchableOpacity 
-        style={styles.exerciseItem}
+      <TouchableOpacity
+        style={[styles.exerciseItem, isSelected && styles.exerciseItemSelected]}
         onPress={() => toggleExerciseSelection(exercise)}
-        activeOpacity={0.7}
       >
-        <View style={[
-          styles.checkbox, 
-          isSelected && styles.checkboxSelected
-        ]}>
-          {isSelected && (
-            <Ionicons name="checkmark" size={24} color="#000000" />
-          )}
+        <View style={styles.exerciseItemContent}>
+          <View style={styles.exerciseInfo}>
+            <Text style={[styles.exerciseName, isSelected && styles.exerciseNameSelected]}>
+              {exercise.name}
+            </Text>
+            <View style={styles.exerciseDetails}>
+              <Text style={[styles.exerciseDetailText, isSelected && styles.exerciseDetailTextSelected]}>
+                {exercise.sets} sets × {exercise.reps} reps
+              </Text>
+              {exercise.weight && exercise.weight > 0 && (
+                <Text style={[styles.exerciseDetailText, isSelected && styles.exerciseDetailTextSelected]}>
+                  {exercise.weight}kg
+                </Text>
+              )}
+            </View>
+            
+            {/* Tags */}
+            <View style={styles.exerciseTags}>
+              {exercise.tags?.slice(0, 2).map((tag, index) => (
+                <View key={index} style={[styles.exerciseTag, isSelected && styles.exerciseTagSelected]}>
+                  <Text style={[styles.exerciseTagText, isSelected && styles.exerciseTagTextSelected]}>
+                    {tag}
+                  </Text>
+                </View>
+              ))}
+              {exercise.tags && exercise.tags.length > 2 && (
+                <Text style={[styles.exerciseMoreTags, isSelected && styles.exerciseMoreTagsSelected]}>
+                  +{exercise.tags.length - 2}
+                </Text>
+              )}
+            </View>
+          </View>
+
+          <View style={[styles.selectionIndicator, isSelected && styles.selectionIndicatorSelected]}>
+            {isSelected && <Ionicons name="checkmark" size={16} color="#FFFFFF" />}
+          </View>
         </View>
-        
-        <Text style={styles.exerciseName}>{exercise.name}</Text>
       </TouchableOpacity>
     );
   };
 
   return (
-    <FullScreenModal
-      visible={visible}
-      onClose={onClose}
-    >
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
       <View style={styles.container}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.keyboardAvoidingView}
-        >
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <View style={styles.innerContainer}>
-              {/* Header */}
-              <View style={styles.header}>
-                <TouchableOpacity 
-                  style={styles.backButton} 
-                  onPress={onClose}
-                >
-                  <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-                </TouchableOpacity>
-                
-                <View style={styles.searchContainer}>
-                  <Ionicons name="search" size={20} color="rgba(255, 255, 255, 0.5)" style={styles.searchIcon} />
-                  <TextInput
-                    style={styles.searchInput}
-                    placeholder="Search exercises..."
-                    placeholderTextColor="rgba(255, 255, 255, 0.5)"
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                  />
-                </View>
-                
-                <TouchableOpacity 
-                  style={styles.addButton}
-                  onPress={() => {
-                    // This will be implemented later
-                    // For now, this makes the button fully clickable
-                  }}
-                >
-                  <Ionicons name="add" size={24} color="#FFFFFF" />
-                </TouchableOpacity>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <Ionicons name="close" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+          <Text style={styles.title}>Add Exercises</Text>
+          <TouchableOpacity 
+            onPress={() => setIsFilterModalVisible(true)}
+            style={styles.filterButton}
+          >
+            <Ionicons name="filter" size={22} color="#FFFFFF" />
+            {selectedTags.length > 0 && (
+              <View style={styles.filterBadge}>
+                <Text style={styles.filterBadgeText}>{selectedTags.length}</Text>
               </View>
-              
-              {/* Filter Button */}
-              <TouchableOpacity 
-                style={styles.filterButton}
-                onPress={handleOpenFilterModal}
-              >
-                <Text style={styles.filterButtonText}>{getFilterButtonText()}</Text>
-                <Ionicons name="chevron-down" size={20} color="#FFFFFF" />
-              </TouchableOpacity>
-              
-              {/* Exercise List */}
-              <View style={styles.exerciseListContainer}>
-                <ScrollView style={styles.scrollView}>
-                  {groupedExercises.map((section) => (
-                    <View key={section.letter}>
-                      {renderSectionHeader({ letter: section.letter })}
-                      {section.data.map((exercise) => (
-                        <View key={exercise.id}>
-                          {renderExerciseItem(exercise)}
-                        </View>
-                      ))}
-                    </View>
-                  ))}
-                  <View style={styles.bottomPadding} />
-                </ScrollView>
-                
-                {/* Fade Out Gradient */}
-                <LinearGradient
-                  colors={['rgba(13, 13, 15, 0)', 'rgba(13, 13, 15, 0.8)', 'rgba(13, 13, 15, 1)']}
-                  style={styles.fadeGradient}
-                />
-              </View>
-              
-              {/* Bottom Add Button */}
-              <View style={styles.bottomButtonContainer}>
-                <TouchableOpacity 
-                  style={[
-                    styles.addExercisesButton,
-                    selectedExercises.length === 0 && styles.addExercisesButtonDisabled
-                  ]}
-                  onPress={handleAddSelectedExercises}
-                  disabled={selectedExercises.length === 0}
-                >
-                  <Text style={styles.addExercisesButtonText}>
-                    {selectedExercises.length === 0 
-                      ? 'Select exercises' 
-                      : `Add ${selectedExercises.length} exercise${selectedExercises.length > 1 ? 's' : ''}`}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+            )}
+          </TouchableOpacity>
+        </View>
 
-              {/* Filter Modal */}
-              <ExerciseFilterModal
-                visible={isFilterModalVisible}
-                onClose={() => setIsFilterModalVisible(false)}
-                availableTags={useMemo(() => {
-                  const tagSet = new Set<string>();
-                  
-                  // Ajouter les catégories de base (Upper/Lower Body)
-                  tagSet.add("Upper Body");
-                  tagSet.add("Lower Body");
-                  
-                  // Ajouter les groupes musculaires principaux
-                  const muscleGroups = [
-                    "Chest", "Back", "Shoulders", "Biceps", "Triceps", 
-                    "Abs", "Quads", "Hamstrings", "Glutes", "Calves"
-                  ];
-                  
-                  muscleGroups.forEach(muscle => tagSet.add(muscle));
-                  
-                  // Ajouter les tags des exercices
-                  SAMPLE_EXERCISES.forEach(exercise => {
-                    if (exercise.tags) {
-                      exercise.tags.forEach(tag => tagSet.add(tag));
-                    }
-                  });
-                  
-                  return Array.from(tagSet).sort();
-                }, [])}
-                selectedTags={selectedTags}
-                onTagsSelected={handleTagsSelected}
-              />
-            </View>
-          </TouchableWithoutFeedback>
-        </KeyboardAvoidingView>
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <View style={styles.searchBar}>
+            <Ionicons name="search" size={20} color="#AAAAAA" style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search exercises..."
+              placeholderTextColor="#AAAAAA"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoCapitalize="none"
+              returnKeyType="search"
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
+                <Ionicons name="close-circle" size={20} color="#AAAAAA" />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+        
+        {/* Exercise List */}
+        <View style={styles.exerciseListContainer}>
+          <SectionList
+            sections={sectionedExercises}
+            renderItem={renderExerciseItem}
+            renderSectionHeader={renderSectionHeader}
+            keyExtractor={(item) => item.id}
+            style={styles.sectionList}
+            showsVerticalScrollIndicator={false}
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={15}
+            initialNumToRender={12}
+            windowSize={10}
+            contentContainerStyle={styles.sectionListContent}
+          />
+          
+          {/* Fade Out Gradient */}
+          <LinearGradient
+            colors={['rgba(13, 13, 15, 0)', 'rgba(13, 13, 15, 0.8)', 'rgba(13, 13, 15, 1)']}
+            style={styles.fadeGradient}
+          />
+        </View>
+        
+        {/* Bottom Add Button */}
+        <View style={styles.bottomButtonContainer}>
+          <TouchableOpacity 
+            style={[
+              styles.addExercisesButton,
+              selectedExercises.length === 0 && styles.addExercisesButtonDisabled
+            ]}
+            onPress={handleAddSelectedExercises}
+            disabled={selectedExercises.length === 0}
+          >
+            <Text style={styles.addExercisesButtonText}>
+              {selectedExercises.length === 0 
+                ? 'Select exercises' 
+                : `Add ${selectedExercises.length} exercise${selectedExercises.length > 1 ? 's' : ''}`}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Filter Modal */}
+        <ExerciseFilterModal
+          visible={isFilterModalVisible}
+          onClose={() => setIsFilterModalVisible(false)}
+          availableTags={useMemo(() => {
+            const tagSet = new Set<string>();
+            
+            // Ajouter les catégories de base (Upper/Lower Body)
+            SAMPLE_EXERCISES.forEach(exercise => {
+              exercise.tags?.forEach(tag => tagSet.add(tag));
+            });
+            
+            return Array.from(tagSet).sort();
+          }, [])}
+          selectedTags={selectedTags}
+          onTagsSelected={setSelectedTags}
+        />
       </View>
-    </FullScreenModal>
+    </Modal>
   );
 };
 
@@ -473,8 +425,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 16,
+    paddingHorizontal: 20,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  exerciseItemSelected: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   checkbox: {
     width: 40,
@@ -491,9 +447,10 @@ const styles = StyleSheet.create({
     borderColor: '#FFFFFF',
   },
   exerciseName: {
-    marginLeft: 16,
-    fontSize: 16,
     color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 4,
   },
   fadeGradient: {
     position: 'absolute',
@@ -528,5 +485,120 @@ const styles = StyleSheet.create({
   },
   bottomPadding: {
     height: 116, // Space for bottom button + extra padding
+  },
+  // New styles for SectionList rendering
+  exerciseItemContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flex: 1,
+  },
+  exerciseInfo: {
+    flex: 1,
+    marginRight: 10,
+  },
+  exerciseNameSelected: {
+    color: '#FFFFFF',
+  },
+  exerciseDetails: {
+    flexDirection: 'row',
+    marginTop: 4,
+  },
+  exerciseDetailText: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 14,
+  },
+  exerciseDetailTextSelected: {
+    color: '#FFFFFF',
+  },
+  exerciseTags: {
+    flexDirection: 'row',
+    marginTop: 8,
+    alignItems: 'center',
+  },
+  exerciseTag: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginRight: 6,
+  },
+  exerciseTagSelected: {
+    backgroundColor: '#FFFFFF',
+  },
+  exerciseTagText: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 12,
+  },
+  exerciseTagTextSelected: {
+    color: '#000000',
+  },
+  exerciseMoreTags: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 12,
+  },
+  exerciseMoreTagsSelected: {
+    color: '#000000',
+  },
+  selectionIndicator: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  selectionIndicatorSelected: {
+    backgroundColor: '#FFFFFF',
+  },
+  // New styles for Modal header
+  closeButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  title: {
+    flex: 1,
+    textAlign: 'center',
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '600',
+  },
+  filterBadge: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: '#FF0000',
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  filterBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 100,
+    paddingHorizontal: 16,
+    marginHorizontal: 16,
+    marginBottom: 24,
+  },
+  clearButton: {
+    padding: 8,
+  },
+  sectionList: {
+    flex: 1,
+  },
+  sectionListContent: {
+    paddingBottom: 116, // Space for bottom button + extra padding
   },
 }); 

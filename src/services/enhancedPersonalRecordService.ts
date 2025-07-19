@@ -1,4 +1,4 @@
-import { StorageService } from './storage';
+import { RobustStorageService } from './storage';
 import { EnhancedPersonalRecord, EnhancedPersonalRecords } from '../types/workout';
 
 /**
@@ -7,19 +7,78 @@ import { EnhancedPersonalRecord, EnhancedPersonalRecords } from '../types/workou
  */
 export const EnhancedPersonalRecordService = {
   /**
-   * Charge les records personnels améliorés depuis le stockage.
+   * Charge les records personnels améliorés depuis le stockage robuste.
    * @returns Une promesse qui se résout avec les records personnels
    */
   loadRecords: async (): Promise<EnhancedPersonalRecords> => {
-    return StorageService.loadEnhancedPersonalRecords();
+    try {
+      const result = await RobustStorageService.loadPersonalRecords();
+      
+      if (result.success && result.data?.enhanced) {
+        return result.data.enhanced;
+      }
+      
+      // Fallback vers un objet vide si pas de données ou erreur
+      console.warn('[EnhancedPersonalRecordService] No enhanced records found, returning empty object');
+      return {};
+    } catch (error) {
+      console.error('[EnhancedPersonalRecordService] Failed to load records:', error);
+      return {};
+    }
   },
 
   /**
-   * Sauvegarde les records personnels améliorés dans le stockage.
+   * Sauvegarde les records personnels améliorés dans le stockage robuste.
    * @param records - Les records à sauvegarder
    */
   saveRecords: async (records: EnhancedPersonalRecords): Promise<void> => {
-    await StorageService.saveEnhancedPersonalRecords(records);
+    try {
+      console.log('[EnhancedPersonalRecordService] Attempting to save records:', Object.keys(records));
+      
+      // Charger les données existantes pour préserver les records legacy
+      const currentData = await RobustStorageService.loadPersonalRecords();
+      console.log('[EnhancedPersonalRecordService] Current data loaded:', currentData.success, currentData.data);
+      
+      // S'assurer que nous avons une structure de données valide
+      const existingData = currentData.success && currentData.data ? currentData.data : {
+        legacy: {},
+        enhanced: {},
+        migratedAt: new Date().toISOString()
+      };
+      
+      const mergedData = {
+        ...existingData,
+        enhanced: records,
+        lastUpdated: new Date().toISOString()
+      };
+      
+      console.log('[EnhancedPersonalRecordService] Merged data to save:', {
+        hasLegacy: Object.keys(mergedData.legacy || {}).length > 0,
+        hasEnhanced: Object.keys(mergedData.enhanced || {}).length > 0,
+        enhancedKeys: Object.keys(records)
+      });
+      
+      const result = await RobustStorageService.savePersonalRecords(mergedData);
+      
+      if (!result.success) {
+        console.error('[EnhancedPersonalRecordService] Failed to save records:', result.error?.userMessage);
+        throw new Error(result.error?.userMessage || 'Failed to save personal records');
+      }
+      
+      console.log('[EnhancedPersonalRecordService] Successfully saved enhanced records');
+      
+      // Vérification immédiate pour s'assurer que les données sont bien sauvegardées
+      const verificationData = await RobustStorageService.loadPersonalRecords();
+      if (verificationData.success && verificationData.data?.enhanced) {
+        console.log('[EnhancedPersonalRecordService] Verification: saved data confirmed:', Object.keys(verificationData.data.enhanced));
+      } else {
+        console.error('[EnhancedPersonalRecordService] Verification failed: data not found after save');
+      }
+      
+    } catch (error) {
+      console.error('[EnhancedPersonalRecordService] Save error:', error);
+      throw error;
+    }
   },
 
   /**

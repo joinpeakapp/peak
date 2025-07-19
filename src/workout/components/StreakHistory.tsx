@@ -1,72 +1,85 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, FlatList } from 'react-native';
 import { StreakData, StreakHistoryEntry, Workout } from '../../types/workout';
 import { useStreak } from '../contexts/StreakContext';
 import { theme } from '../../constants/theme';
 import { format, parse } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { useMemo } from 'react';
 
 interface StreakHistoryProps {
-  workout: Workout;
-  maxItems?: number;
+  workoutId: string;
+  streakData: StreakData | null;
+  loading: boolean;
 }
 
 export const StreakHistory: React.FC<StreakHistoryProps> = ({ 
-  workout, 
-  maxItems = 5 
+  workoutId, 
+  streakData, 
+  loading 
 }) => {
-  const { getWorkoutStreak, formatBestStreakText } = useStreak();
-  const [streakData, setStreakData] = useState<StreakData | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Sort streak history by start date (most recent first)
+  const sortedHistory = useMemo(() => {
+    if (!streakData?.streakHistory) return [];
+    
+    return [...streakData.streakHistory].sort((a, b) => {
+      const dateA = new Date(a.startDate);
+      const dateB = new Date(b.startDate);
+      return dateB.getTime() - dateA.getTime();
+    });
+  }, [streakData?.streakHistory]);
 
-  useEffect(() => {
-    const loadStreakData = async () => {
-      try {
-        setLoading(true);
-        const data = await getWorkoutStreak(workout.id, workout);
-        setStreakData(data);
-      } catch (error) {
-        console.error("[StreakHistory] Error loading streak data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadStreakData();
-  }, [workout.id, getWorkoutStreak, workout]);
-
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="small" color={theme.colors.primary} />
-      </View>
-    );
-  }
-
-  if (!streakData || !streakData.streakHistory || streakData.streakHistory.length === 0) {
-    return (
-      <View style={styles.emptyContainer}>
-        <Text style={styles.emptyText}>Aucun historique de streak disponible</Text>
-      </View>
-    );
-  }
-
-  // Trier l'historique par ordre décroissant de count et prendre les maxItems éléments
-  const sortedHistory = [...streakData.streakHistory]
-    .sort((a, b) => b.count - a.count)
-    .slice(0, maxItems);
-
-  const formatDate = (dateStr: string) => {
-    try {
-      const date = parse(dateStr, 'yyyy-MM-dd', new Date());
-      return format(date, 'd MMM yyyy', { locale: fr });
-    } catch (error) {
-      return dateStr;
-    }
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('fr-FR', { 
+      day: 'numeric', 
+      month: 'short' 
+    });
   };
 
-  return (
-    <View style={styles.container}>
+  const formatBestStreakText = (streakData: StreakData | null) => {
+    if (!streakData || streakData.longest === 0) {
+      return 'Aucune série pour le moment';
+    }
+    
+    const sessionText = streakData.longest === 1 ? 'session' : 'sessions';
+    return `Meilleure série : ${streakData.longest} ${sessionText}`;
+  };
+
+  const renderHistoryItem = ({ item: entry, index }: { item: StreakHistoryEntry, index: number }) => {
+    const progress = entry.count / (streakData?.longest || 1);
+    return (
+      <View style={styles.historyItem}>
+        <View style={styles.historyItemHeader}>
+          <Text style={styles.historyItemCount}>
+            {entry.count} session{entry.count > 1 ? 's' : ''}
+          </Text>
+          <View style={styles.historyItemDates}>
+            <Text style={styles.historyItemDateText}>
+              {entry.startDate === entry.endDate
+                ? formatDate(entry.startDate)
+                : `${formatDate(entry.startDate)} - ${formatDate(entry.endDate)}`
+              }
+            </Text>
+          </View>
+        </View>
+        <View style={styles.historyItemBar}>
+          <View 
+            style={[
+              styles.historyItemProgress, 
+              { 
+                width: `${progress * 100}%`,
+                backgroundColor: theme.colors.primary 
+              }
+            ]} 
+          />
+        </View>
+      </View>
+    );
+  };
+
+  const renderHeader = () => (
+    <>
       <Text style={styles.title}>Historique des Streaks</Text>
       
       <View style={styles.bestStreakContainer}>
@@ -75,40 +88,39 @@ export const StreakHistory: React.FC<StreakHistoryProps> = ({
           {formatBestStreakText(streakData)}
         </Text>
       </View>
-      
-      <ScrollView style={styles.historyList} showsVerticalScrollIndicator={false}>
-        {sortedHistory.map((entry, index) => {
-          const progress = entry.count / (streakData?.longest || 1);
-          return (
-            <View key={index} style={styles.historyItem}>
-              <View style={styles.historyItemHeader}>
-                <Text style={styles.historyItemCount}>
-                  {entry.count} session{entry.count > 1 ? 's' : ''}
-                </Text>
-                <View style={styles.historyItemDates}>
-                  <Text style={styles.historyItemDateText}>
-                    {entry.startDate === entry.endDate
-                      ? formatDate(entry.startDate)
-                      : `${formatDate(entry.startDate)} - ${formatDate(entry.endDate)}`
-                    }
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.historyItemBar}>
-                <View 
-                  style={[
-                    styles.historyItemProgress, 
-                    { 
-                      width: `${progress * 100}%`,
-                      backgroundColor: theme.colors.primary 
-                    }
-                  ]} 
-                />
-              </View>
-            </View>
-          );
-        })}
-      </ScrollView>
+    </>
+  );
+
+  const renderEmptyState = () => (
+    <View style={styles.emptyState}>
+      <Text style={styles.emptyStateText}>Aucun historique de streak disponible</Text>
+    </View>
+  );
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="small" color={theme.colors.primary} />
+        <Text style={styles.loadingText}>Chargement de l'historique...</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <FlatList
+        data={sortedHistory}
+        renderItem={renderHistoryItem}
+        keyExtractor={(item, index) => `${item.startDate}-${item.endDate}-${index}`}
+        ListHeaderComponent={renderHeader}
+        ListEmptyComponent={renderEmptyState}
+        showsVerticalScrollIndicator={false}
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={10}
+        initialNumToRender={8}
+        windowSize={10}
+        contentContainerStyle={styles.listContent}
+      />
     </View>
   );
 };
@@ -196,5 +208,25 @@ const styles = StyleSheet.create({
   historyItemProgress: {
     height: '100%',
     borderRadius: theme.borderRadius.md,
+  },
+  listContent: {
+    paddingBottom: theme.spacing.md,
+  },
+  emptyState: {
+    padding: theme.spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#191A1D',
+    borderRadius: theme.borderRadius.md,
+    marginVertical: theme.spacing.md,
+  },
+  emptyStateText: {
+    color: theme.colors.textSecondary,
+    fontSize: 16,
+  },
+  loadingText: {
+    marginTop: theme.spacing.sm,
+    color: theme.colors.textSecondary,
+    fontSize: 14,
   },
 }); 

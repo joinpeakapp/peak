@@ -2,6 +2,37 @@ import React, { createContext, useContext, ReactNode, useState, useEffect, useCa
 import { StreakData, Workout } from '../../types/workout';
 import { StreakService } from '../../services/streakService';
 
+// Gestionnaire d'événements global pour synchroniser toutes les instances de StreakDisplay
+class StreakEventManager {
+  private listeners: Set<() => void> = new Set();
+  private notificationTimeout: NodeJS.Timeout | null = null;
+
+  subscribe(callback: () => void) {
+    this.listeners.add(callback);
+    return () => {
+      this.listeners.delete(callback);
+    };
+  }
+
+  // Notification debouncée pour éviter les spams
+  notify() {
+    if (this.notificationTimeout) {
+      clearTimeout(this.notificationTimeout);
+    }
+    
+    // Notification immédiate
+    this.listeners.forEach(callback => callback());
+    
+    // Notification de sécurité après un délai
+    this.notificationTimeout = setTimeout(() => {
+      this.listeners.forEach(callback => callback());
+      this.notificationTimeout = null;
+    }, 50);
+  }
+}
+
+const streakEventManager = new StreakEventManager();
+
 interface StreakContextType {
   getWorkoutStreak: (workoutId: string, workout?: Workout) => Promise<StreakData>;
   updateStreakOnCompletion: (workout: Workout) => Promise<StreakData>;
@@ -9,6 +40,7 @@ interface StreakContextType {
   formatStreakText: (streakData: StreakData | null) => string;
   formatBestStreakText: (streakData: StreakData | null) => string;
   validateAllStreaks: (workouts: Workout[]) => Promise<void>;
+  subscribeToStreakUpdates: (callback: () => void) => () => void;
 }
 
 const StreakContext = createContext<StreakContextType | undefined>(undefined);
@@ -34,7 +66,13 @@ export const StreakProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   // Mettre à jour la streak après la complétion d'un workout
   const updateStreakOnCompletion = useCallback(async (workout: Workout): Promise<StreakData> => {
     try {
-      return await StreakService.updateStreakOnCompletion(workout);
+      const result = await StreakService.updateStreakOnCompletion(workout);
+      
+      // Notifier tous les composants StreakDisplay de la mise à jour
+      console.log('[StreakContext] Notifying all streak listeners of update...');
+      streakEventManager.notify();
+      
+      return result;
     } catch (error) {
       console.error('[StreakContext] Error updating streak:', error);
       // Retourner une streak vide en cas d'erreur
@@ -81,6 +119,11 @@ export const StreakProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     return StreakService.formatBestStreakText(streakData);
   }, []);
 
+  // S'abonner aux mises à jour de streaks
+  const subscribeToStreakUpdates = useCallback((callback: () => void) => {
+    return streakEventManager.subscribe(callback);
+  }, []);
+
   return (
     <StreakContext.Provider value={{
       getWorkoutStreak,
@@ -88,7 +131,8 @@ export const StreakProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       getDaysUntilStreakLoss,
       formatStreakText,
       formatBestStreakText,
-      validateAllStreaks
+      validateAllStreaks,
+      subscribeToStreakUpdates
     }}>
       {children}
     </StreakContext.Provider>

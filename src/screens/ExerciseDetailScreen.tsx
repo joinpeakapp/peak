@@ -12,12 +12,38 @@ export const ExerciseDetailScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute<ExerciseDetailRouteProp>();
   const { exerciseName } = route.params;
-  const { records, loadRecords } = useEnhancedPersonalRecords();
+  const { records, loadRecords, loading } = useEnhancedPersonalRecords();
   const [exerciseRecord, setExerciseRecord] = useState<EnhancedPersonalRecord | null>(null);
 
   useEffect(() => {
     if (records && exerciseName) {
-      setExerciseRecord(records[exerciseName] || null);
+      // Essayer une correspondance exacte d'abord
+      let record = records[exerciseName];
+      
+      // Si pas de correspondance exacte, essayer une correspondance fuzzy
+      if (!record) {
+        // Chercher des noms similaires (insensible à la casse et aux espaces)
+        const normalizedSearchName = exerciseName.toLowerCase().trim();
+        const matchingKey = Object.keys(records).find(key => 
+          key.toLowerCase().trim() === normalizedSearchName
+        );
+        
+        if (matchingKey) {
+          console.log('[ExerciseDetailScreen] Found fuzzy match:', matchingKey, 'for', exerciseName);
+          record = records[matchingKey];
+        }
+      }
+      
+      // En mode développement, afficher toutes les clés disponibles pour diagnostic
+      if (__DEV__ && !record) {
+        console.log('[ExerciseDetailScreen] DEBUG - All available exercise names:');
+        Object.keys(records).forEach(key => {
+          console.log(`  - "${key}"`);
+        });
+        console.log(`[ExerciseDetailScreen] DEBUG - Looking for: "${exerciseName}"`);
+      }
+      
+      setExerciseRecord(record || null);
     }
   }, [records, exerciseName]);
 
@@ -27,6 +53,27 @@ export const ExerciseDetailScreen: React.FC = () => {
       loadRecords();
     }, [loadRecords])
   );
+
+  // Afficher un état de chargement
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+          <Text style={styles.title}>{exerciseName}</Text>
+          <View style={styles.placeholder} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading records...</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -247,5 +294,16 @@ const styles = StyleSheet.create({
     color: '#888888',
     textAlign: 'center',
     maxWidth: '80%',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#0D0D0F',
+  },
+  loadingText: {
+    fontSize: 18,
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
 }); 

@@ -21,8 +21,6 @@ export const WorkoutEditModal: React.FC<WorkoutEditModalProps> = ({
   
   // Synchroniser avec les props externes
   useEffect(() => {
-    console.log('WorkoutEditModal useEffect - visible prop changed to:', visible);
-    
     if (visible) {
       // Montrer le modal immédiatement quand on demande de l'afficher
       setIsModalVisible(true);
@@ -38,18 +36,12 @@ export const WorkoutEditModal: React.FC<WorkoutEditModalProps> = ({
   
   // Fonction callback pour gérer la fermeture du modal
   const handleClose = () => {
-    console.log('WorkoutEditModal handleClose');
     onClose();
   };
   
   const handleSave = () => {
-    console.log('WorkoutEditModal handleSave');
     onSave();
   };
-
-  console.log('WorkoutEditModal render - visible:', visible, 
-              'isModalVisible:', isModalVisible, 
-              'workout:', workout?.name);
 
   return (
     <FullScreenModal 

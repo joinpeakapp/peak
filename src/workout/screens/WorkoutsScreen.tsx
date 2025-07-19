@@ -5,7 +5,6 @@ import { LoadingSpinner } from '../../components/common/LoadingSpinner';
 import { ErrorMessage } from '../../components/common/ErrorMessage';
 import { useWorkout } from '../../hooks/useWorkout';
 import { Workout } from '../../types/workout';
-import { mockWorkouts } from '../../data/mockWorkouts';
 import { WorkoutCreationModal } from '../components/WorkoutCreationModal';
 import { WorkoutDetailModal } from '../components/WorkoutDetailModal';
 import ActiveWorkoutIndicator from '../components/ActiveWorkoutIndicator';
@@ -17,14 +16,6 @@ export const WorkoutsScreen: React.FC = () => {
   const [isCreationModalVisible, setIsCreationModalVisible] = useState(false);
   const [isDetailModalVisible, setIsDetailModalVisible] = useState(false);
   const [selectedWorkout, setSelectedWorkout] = useState<Workout | null>(null);
-
-  // Charger les données de test au montage du composant
-  useEffect(() => {
-    // Cette logique est pour le développement uniquement
-    if (workouts.length === 0) {
-      mockWorkouts.forEach(workout => createWorkout(workout));
-    }
-  }, []);
 
   const handleWorkoutPress = (workout: Workout) => {
     // Si une séance est en cours pour ce workout, continuer avec ce workout
