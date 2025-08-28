@@ -45,10 +45,19 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
         
         setOptimizedUri(processedUri);
       } catch (error) {
-        console.error('🖼️ [OptimizedImage] Error loading optimized image:', error);
-        setHasError(true);
-        // En cas d'erreur, utiliser l'URI original
-        setOptimizedUri(uri);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.warn('🖼️ [OptimizedImage] Could not optimize image, using original:', errorMessage);
+        
+        // En cas d'erreur d'optimisation, essayer d'utiliser l'URI original
+        // mais seulement si ce n'est pas une erreur de fichier manquant
+        if (errorMessage && errorMessage.includes('Source file not found')) {
+          // Si le fichier source n'existe pas, marquer comme erreur
+          setHasError(true);
+          setOptimizedUri(null);
+        } else {
+          // Pour les autres erreurs, utiliser l'URI original
+          setOptimizedUri(uri);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -78,7 +87,11 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
         {...imageProps}
         source={{ uri: fallbackUri }}
         style={style}
-        onError={() => console.error('🖼️ [OptimizedImage] Fallback image also failed to load')}
+        onError={() => {
+          if (__DEV__) {
+            console.log('🖼️ [OptimizedImage] Fallback image also failed');
+          }
+        }}
       />
     );
   }
@@ -90,8 +103,11 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
         {...imageProps}
         source={{ uri: optimizedUri }}
         style={style}
-        onError={() => {
-          console.error('🖼️ [OptimizedImage] Optimized image failed to load');
+        onError={(error) => {
+          // Ne plus spammer les logs d'erreur pour les images qui échouent
+          if (__DEV__) {
+            console.log('🖼️ [OptimizedImage] Image load failed, falling back');
+          }
           setHasError(true);
         }}
       />

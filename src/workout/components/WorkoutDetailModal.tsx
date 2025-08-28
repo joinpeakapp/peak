@@ -21,7 +21,7 @@ import {
   StatusBar
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Workout, Exercise, CompletedWorkout, EnhancedPersonalRecords } from '../../types/workout';
+import { Workout, Exercise, CompletedWorkout, PersonalRecords } from '../../types/workout';
 import { FullScreenModal } from '../../components/common/FullScreenModal';
 import { useWorkout } from '../../hooks/useWorkout';
 import { ExerciseSettingsModal } from './ExerciseSettingsModal';
@@ -35,16 +35,21 @@ import { useNavigation, CommonActions, NavigationProp } from '@react-navigation/
 import { StreakHistory } from './StreakHistory';
 import { useStreak } from '../contexts/StreakContext';
 import { SAMPLE_EXERCISES } from './ExerciseSelectionModal';
-import { useEnhancedPersonalRecords } from '../../hooks/useEnhancedPersonalRecords';
+import { usePersonalRecords } from '../../hooks/usePersonalRecords';
+import { useWorkoutSession } from '../hooks/useWorkoutSession';
+import { useExerciseTracking } from '../hooks/useExerciseTracking';
+import { useExerciseSelection } from '../hooks/useExerciseSelection';
+import { useModalManagement } from '../hooks/useModalManagement';
+import { useWorkoutAnimations } from '../hooks/useWorkoutAnimations';
 import { PRBadge } from './PRBadge';
 import { SetRow } from './SetRow';
 import { WorkoutEditModal } from './WorkoutEditModal';
-import { EnhancedPersonalRecordService } from '../../services/enhancedPersonalRecordService';
+import { PersonalRecordService } from '../../services/personalRecordService';
 import { RootStackParamList, WorkoutStackParamList } from '../../types/navigation';
 import { useWorkoutHistory } from '../contexts/WorkoutHistoryContext';
 
-// Définition d'un type pour ModalMode
-type ModalMode = 'workout' | 'exercise-selection' | 'exercise-tracking' | 'exercise-replacement';
+// Import du type depuis le hook
+import type { ExerciseSelectionMode } from '../hooks/useExerciseSelection';
 
 // Fonction pour générer un ID unique
 const generateId = (): string => {
@@ -75,30 +80,17 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   onStartWorkout
 }) => {
   const [exercises, setExercises] = useState<Exercise[]>([]);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [isExerciseSettingsVisible, setIsExerciseSettingsVisible] = useState(false);
-  const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
-  const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(null);
-  // État pour le mode d'affichage de la modale
-  const [modalMode, setModalMode] = useState<ModalMode>('workout');
-  // États pour la sélection d'exercices
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedExercises, setSelectedExercises] = useState<Exercise[]>([]);
-  // État pour les filtres de tags
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  // État pour stocker l'ID de l'exercice à remplacer
-  const [exerciseToReplaceId, setExerciseToReplaceId] = useState<string | null>(null);
+  
+  // Hook unifié pour gérer la sélection d'exercices
+  const exerciseSelection = useExerciseSelection();
+  
+  // Hook unifié pour gérer toutes les modales
+  const modalManagement = useModalManagement();
+  
+  // Hook unifié pour gérer toutes les animations
+  const animations = useWorkoutAnimations();
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  
-  // États pour stocker les animations de chaque série
-  const [setAnimations, setSetAnimations] = useState<{ [key: number]: Animated.Value }>({});
-  
-  // États pour les animations des exercices
-  const [exerciseProgressAnimations, setExerciseProgressAnimations] = useState<{ [key: string]: Animated.Value }>({});
-  const [exerciseBounceAnimations, setExerciseBounceAnimations] = useState<{ [key: string]: Animated.Value }>({});
-  // État pour contrôler l'affichage des checkmarks
-  const [completedCheckmarks, setCompletedCheckmarks] = useState<{ [key: string]: boolean }>({});
   
   const { updateWorkout } = useWorkout();
   const { 
@@ -111,8 +103,8 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     isTrackingWorkout
   } = useActiveWorkout();
   
-  // Référence aux exerciseSets basée sur le contexte et l'exercice sélectionné
-  const [exerciseSets, setExerciseSets] = useState<TrackingSet[]>([]);
+  // Hook unifié pour gérer le tracking des exercices et séries
+  const exerciseTracking = useExerciseTracking();
 
   // Récupération du contexte de timer de repos
   const { startRestTimer, resetTimer, stopTimer } = useRestTimer();
@@ -126,81 +118,23 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   // Récupération du contexte d'historique des workouts
   const { getPersonalRecords: getHistoryPersonalRecords, addCompletedWorkout } = useWorkoutHistory();
   
-  // État pour les records personnels améliorés
-  const enhancedPersonalRecords = useEnhancedPersonalRecords();
+  // État pour les records personnels
+  const personalRecords = usePersonalRecords();
   
-  // Mémoriser les records originaux pour les comparaisons (avant le début de la séance)
-  const [originalRecords, setOriginalRecords] = useState<EnhancedPersonalRecords>({});
-  
-  // Suivre les records maximaux atteints pendant la séance en cours
-  // Seuls les PR de poids tiendront compte de cet état (les PR de répétitions utilisent toujours originalRecords)
-  const [currentSessionMaxWeights, setCurrentSessionMaxWeights] = useState<{[exerciseName: string]: number}>({});
-  
-  // États pour les PR
-  const [prResults, setPrResults] = useState<{
-    setIndex: number;
-    weightPR?: { isNew: boolean; weight: number } | null;
-    repsPR?: { isNew: boolean; weight: number; reps: number; previousReps: number } | null;
-    isWeightPR?: boolean;
-    isRepsPR?: boolean;
-  } | null>(null);
-  
-  // État pour stocker les PR par exercice
-  const [exercisePRResults, setExercisePRResults] = useState<{
-    [exerciseId: string]: {
-      setIndex: number;
-      weightPR?: { isNew: boolean; weight: number } | null;
-      repsPR?: { isNew: boolean; weight: number; reps: number; previousReps: number } | null;
-      isWeightPR?: boolean;
-      isRepsPR?: boolean;
-    } | null
-  }>({});
+  // Hook unifié pour gérer la session d'entraînement et les PRs
+  const workoutSession = useWorkoutSession();
 
-  // Référence pour l'animation du badge PR
-  const prBadgeAnim = useRef(new Animated.Value(0)).current;
+
 
   // Fonction pour animer le badge PR
-  const animatePrBadge = () => {
-    // Reset animation
-    prBadgeAnim.setValue(0);
-    
-    Animated.sequence([
-      // Scale up
-      Animated.timing(prBadgeAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true
-      }),
-      // Hold
-      Animated.delay(1000),
-      // Scale down
-      Animated.timing(prBadgeAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true
-      })
-    ]).start(() => {
-      // Reset PR results after animation completes - mais seulement si le composant est monté
-      if (isMounted.current) {
-        setTimeout(() => {
-          if (isMounted.current) {
-            setPrResults(null);
-          }
-        }, 300);
-      }
-    });
-  };
+  const animatePrBadge = animations.animatePrBadge;
   
   // Initialiser les animations pour chaque série
   useEffect(() => {
-    if (modalMode === 'exercise-tracking' && exerciseSets.length > 0) {
-      const animations: { [key: number]: Animated.Value } = {};
-      exerciseSets.forEach((_, index) => {
-        animations[index] = new Animated.Value(1);
-      });
-      setSetAnimations(animations);
+    if (exerciseSelection.modalMode === 'exercise-tracking' && exerciseTracking.exerciseSets.length > 0) {
+      exerciseTracking.initializeSetAnimations(exerciseTracking.exerciseSets.length);
     }
-  }, [modalMode, exerciseSets.length]);
+  }, [exerciseSelection.modalMode, exerciseTracking.exerciseSets.length]);
 
   // Chargement initial des exercices
   useEffect(() => {
@@ -212,7 +146,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
         // Ne rien faire ici, le timer est géré par le contexte global
       } else {
         // Réinitialiser les modes si aucune séance n'est en cours
-        setModalMode('workout');
+        exerciseSelection.setModalMode('workout');
       }
     }
   }, [workout, visible, isTrackingWorkout, activeWorkout?.workoutId]);
@@ -228,20 +162,18 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     };
     
     updateWorkout(updatedWorkout);
-    setHasUnsavedChanges(false);
+    // Les changements sont maintenant sauvegardés (gérés automatiquement par le hook)
   };
 
   // Fonction pour passer au mode de sélection d'exercices
   const handleAddExercise = () => {
-    setModalMode('exercise-selection');
-    setSearchQuery('');
-    setSelectedExercises([]);
+    exerciseSelection.startExerciseSelection();
   };
 
   // Fonction pour ajouter les exercices sélectionnés
   const handleExercisesSelected = () => {
     // Ajouter seulement les exercices qui ne sont pas déjà présents dans le workout
-    const newExercises = selectedExercises.filter(
+    const newExercises = exerciseSelection.selectedExercises.filter(
       newEx => !exercises.some(existingEx => existingEx.id === newEx.id)
     );
     
@@ -260,11 +192,11 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
         console.log(`[handleExercisesSelected] Workout saved with ${newExercises.length} new exercises`);
       }
       
-      setHasUnsavedChanges(false); // Les changements sont maintenant sauvegardés
+      // Les changements sont maintenant sauvegardés (gérés automatiquement par le hook) // Les changements sont maintenant sauvegardés
     }
     
     // Retour au mode affichage de workout
-    setModalMode('workout');
+    exerciseSelection.resetToWorkoutMode();
   };
 
   // Fonction pour retirer un exercice
@@ -283,37 +215,33 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       console.log(`[handleRemoveExercise] Workout saved after removing exercise`);
     }
     
-    setHasUnsavedChanges(false); // Les changements sont maintenant sauvegardés
+    // Les changements sont maintenant sauvegardés (gérés automatiquement par le hook) // Les changements sont maintenant sauvegardés
   };
 
   // Fonction pour remplacer un exercice
   const handleReplaceExercise = () => {
     // Démarrer le processus de remplacement si un exercice est sélectionné
-    if (currentExercise) {
-      startReplaceExercise(currentExercise.id);
-      setSettingsModalVisible(false); // Fermer la modale des paramètres
+    if (modalManagement.currentExercise) {
+      startReplaceExercise(modalManagement.currentExercise.id);
+      modalManagement.hideExerciseSettingsModal(); // Fermer la modale des paramètres
     }
   };
 
   // Fonction pour démarrer le processus de remplacement d'un exercice
   const startReplaceExercise = (exerciseId: string) => {
-    setExerciseToReplaceId(exerciseId);
-    setModalMode('exercise-replacement');
-    setSearchQuery('');
-    setSelectedExercises([]);
-    setSelectedTags([]);
+    exerciseSelection.startExerciseReplacement(exerciseId);
   };
 
   // Fonction pour finaliser le remplacement d'un exercice
   const handleExerciseReplaced = () => {
     // Vérifier qu'on a bien un exercice à remplacer et un nouvel exercice sélectionné
-    if (exerciseToReplaceId && selectedExercises.length === 1) {
-      const newExercise = selectedExercises[0];
+    if (exerciseSelection.exerciseToReplaceId && exerciseSelection.selectedExercises.length === 1) {
+      const newExercise = exerciseSelection.selectedExercises[0];
       
       // Mettre à jour la liste des exercices en remplaçant l'ancien par le nouveau
       const updatedExercises = exercises.map(ex => 
-        ex.id === exerciseToReplaceId 
-          ? { ...newExercise, id: exerciseToReplaceId } // Conserve l'ID original pour maintenir les références
+        ex.id === exerciseSelection.exerciseToReplaceId 
+          ? { ...newExercise, id: exerciseSelection.exerciseToReplaceId } // Conserve l'ID original pour maintenir les références
           : ex
       );
       setExercises(updatedExercises);
@@ -329,12 +257,11 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
         console.log(`[handleExerciseReplaced] Workout saved after replacing exercise`);
       }
       
-      setHasUnsavedChanges(false); // Les changements sont maintenant sauvegardés
+      // Les changements sont maintenant sauvegardés (gérés automatiquement par le hook) // Les changements sont maintenant sauvegardés
     }
     
     // Réinitialiser et retourner au mode workout
-    setExerciseToReplaceId(null);
-    setModalMode('workout');
+    exerciseSelection.resetToWorkoutMode();
   };
 
   // Fonction pour démarrer une séance
@@ -342,20 +269,18 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     if (!workout) return;
     
     // S'assurer que les records sont bien chargés avant de commencer
-    await enhancedPersonalRecords.loadRecords();
+    await personalRecords.loadRecords();
     
     // Capturer les records actuels qui serviront de référence pour toute la séance
     // Utiliser une copie profonde pour éviter toute référence partagée
-    const capturedRecords = JSON.parse(JSON.stringify(enhancedPersonalRecords.records));
+    const capturedRecords = JSON.parse(JSON.stringify(personalRecords.records));
     console.log('[handleStartWorkout] Capturing original records:', Object.keys(capturedRecords));
     Object.entries(capturedRecords).forEach(([exerciseName, record]: [string, any]) => {
       console.log(`[handleStartWorkout] ${exerciseName}: maxWeight=${record.maxWeight}kg`);
     });
     
-    setOriginalRecords(capturedRecords);
-    
-    // Réinitialiser les records de séance
-    setCurrentSessionMaxWeights({});
+    // Initialiser la session avec les records capturés
+    workoutSession.initializeSession(capturedRecords);
     
     // Démarrer une nouvelle séance via le contexte
     // Le contexte gère maintenant le timer
@@ -368,7 +293,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
 
   // Fonction pour finir la séance
   const handleFinishWorkout = () => {
-    setIsFinishModalVisible(true);
+    modalManagement.showFinishModal();
   };
 
   const handleDiscardWorkout = async () => {
@@ -386,19 +311,16 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
           style: "destructive",
           onPress: async () => {
             // Annuler tout record temporaire
-            if (prResults) {
-              safeSetPrResults(null);
+            if (workoutSession.prResults) {
+              workoutSession.safeSetPrResults(null);
               
               // Pas besoin de recharger les records, il suffit de réinitialiser l'UI
               // Les records permanents n'ont jamais été sauvegardés, donc rien à annuler côté stockage
               console.log("Personal record UI display reset")
             }
             
-            // Réinitialiser tous les PR stockés par exercice
-            setExercisePRResults({});
-            
-            // Réinitialiser les records de séance
-            setCurrentSessionMaxWeights({});
+            // Nettoyer complètement la session
+            workoutSession.clearSession();
             
             // Terminer la séance sans sauvegarder
             // NOTE: La streak n'est pas mise à jour lors d'un abandon de workout
@@ -407,7 +329,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
               await finishWorkout(false); // Ne pas mettre à jour la streak lors d'un abandon
             }
             // Fermer la modale
-            setIsFinishModalVisible(false);
+            modalManagement.hideFinishModal();
             // Fermer la modale principale
             onClose();
           }
@@ -431,10 +353,10 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     try {
       // 🔧 FIX: S'assurer que toutes les données de tracking sont sauvegardées avant de terminer
       // Sauvegarder une dernière fois les données de l'exercice actuellement sélectionné
-      if (selectedExerciseId && exerciseSets.length > 0) {
-        const completedCount = exerciseSets.filter(set => set.completed).length;
-        if (ENABLE_DIAGNOSTIC_LOGS) console.log(`🔧 [FIX] Final save of tracking data for current exercise ${selectedExerciseId}: ${completedCount} completed sets`);
-        updateTrackingData(selectedExerciseId, exerciseSets, completedCount);
+      if (modalManagement.selectedExerciseId && exerciseTracking.exerciseSets.length > 0) {
+        const completedCount = exerciseTracking.exerciseSets.filter(set => set.completed).length;
+        if (ENABLE_DIAGNOSTIC_LOGS) console.log(`🔧 [FIX] Final save of tracking data for current exercise ${modalManagement.selectedExerciseId}: ${completedCount} completed sets`);
+        updateTrackingData(modalManagement.selectedExerciseId, exerciseTracking.exerciseSets, completedCount);
       }
       
       // 🔧 FIX: Vérifier et initialiser trackingData pour tous les exercices du workout
@@ -454,98 +376,53 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       const prSavePromises = [];
       
       // 1. D'abord sauvegarder le PR actuellement affiché (s'il existe)
-      if (prResults && selectedExerciseId) {
-        const exercise = exercises.find(ex => ex.id === selectedExerciseId);
+      if (workoutSession.prResults && modalManagement.selectedExerciseId) {
+        const exercise = exercises.find(ex => ex.id === modalManagement.selectedExerciseId);
         if (exercise) {
-          const set = exerciseSets[prResults.setIndex];
+          const set = exerciseTracking.exerciseSets[workoutSession.prResults.setIndex];
           if (set) {
             const weight = parseInt(set.weight);
             const reps = parseInt(set.reps);
             
-            // Vérifier que c'est vraiment un PR avant de sauvegarder
-            if (prResults.weightPR?.isNew && weight > 0 && reps > 0) {
-              console.log(`[WorkoutDetailModal] Saving current display PR: ${exercise.name} ${weight}kg x ${reps}`);
-              prSavePromises.push(
-                enhancedPersonalRecords.updateRecords(
-                  exercise.name,
-                  weight,
-                  reps,
-                  new Date().toISOString()
-                )
-              );
-            }
-            
-            // Pour les PR de reps, vérifier aussi qu'ils sont valides
-            if (prResults.repsPR?.isNew && weight > 0 && reps > 0) {
-              console.log(`[WorkoutDetailModal] Saving current display reps PR: ${exercise.name} ${weight}kg x ${reps}`);
-              prSavePromises.push(
-                enhancedPersonalRecords.updateRecords(
-                  exercise.name,
-                  weight,
-                  reps,
-                  new Date().toISOString()
-                )
-              );
-            }
+            // Ne plus traiter les PRs individuellement ici
+            // Tous les PRs seront sauvegardés via updateRecordsFromCompletedWorkout
           }
         }
       }
       
-      // 2. Ensuite sauvegarder tous les PRs stockés par exercice
-      console.log(`[WorkoutDetailModal] Processing ${Object.keys(exercisePRResults).length} stored PRs...`);
-      Object.keys(exercisePRResults).forEach((key) => {
-        const [exerciseId, setKey] = key.split('_set_');
-        const exercise = exercises.find(ex => ex.id === exerciseId);
-        const prResult = exercisePRResults[key];
-        
-        if (exercise && prResult) {
-          const trackingData = activeWorkout.trackingData[exerciseId];
-          
-          if (trackingData && trackingData.sets) {
-            const setIndex = parseInt(setKey);
-            const set = trackingData.sets[setIndex];
-            
-            if (set && set.completed) { // S'assurer que le set est complété
-              const weight = parseInt(set.weight);
-              const reps = parseInt(set.reps);
-              
-              // Vérifier que c'est vraiment un PR avant de sauvegarder
-              if ((prResult.weightPR?.isNew || prResult.repsPR?.isNew) && weight > 0 && reps > 0) {
-                console.log(`[WorkoutDetailModal] Saving stored PR: ${exercise.name} ${weight}kg x ${reps} (weightPR: ${!!prResult.weightPR?.isNew}, repsPR: ${!!prResult.repsPR?.isNew})`);
-                prSavePromises.push(
-                  enhancedPersonalRecords.updateRecords(
-                    exercise.name,
-                    weight,
-                    reps,
-                    new Date().toISOString()
-                  )
-                );
-              }
-            }
-          }
-        }
-      });
+      // Maintenant utiliser le nouveau système unifié pour sauvegarder tous les PRs
+      // Le nouveau système traite automatiquement tous les PRs du workout complété
+      console.log(`[WorkoutDetailModal] Using unified PR system to save all records...`);
       
-      // Attendre que toutes les mises à jour soient terminées
-      if (prSavePromises.length > 0) {
-        console.log(`[WorkoutDetailModal] Saving ${prSavePromises.length} personal records...`);
-        await Promise.all(prSavePromises);
-        console.log(`[WorkoutDetailModal] ${prSavePromises.length} personal records saved permanently`);
-        
-        // Recharger les records pour assurer la cohérence dans toute l'application
-        await enhancedPersonalRecords.loadRecords();
+      // Créer un objet workout temporaire pour la mise à jour des PRs
+      const tempWorkout = {
+        date: new Date().toISOString(),
+        exercises: exercises.map(exercise => {
+          const trackingData = activeWorkout.trackingData[exercise.id];
+          const sets = trackingData?.sets || [];
+          
+          return {
+            name: exercise.name,
+            sets: sets.map(set => ({
+              weight: parseInt(set.weight) || 0,
+              reps: parseInt(set.reps) || 0,
+              completed: set.completed
+            }))
+          };
+        })
+      };
+      
+      // Utiliser le nouveau système pour mettre à jour et sauvegarder les PRs
+      const prUpdateResult = await personalRecords.updateRecordsFromCompletedWorkout(tempWorkout);
+      
+      if (prUpdateResult.hasUpdates) {
+        console.log(`[WorkoutDetailModal] ✅ Personal records updated and saved via unified system`);
       } else {
         console.log(`[WorkoutDetailModal] No personal records to save`);
       }
       
-      // Réinitialiser l'état PR après sauvegarde
-      safeSetPrResults(null);
-      
-      // Réinitialiser tous les PR stockés par exercice
-      setExercisePRResults({});
-      
-      // Réinitialiser les records de séance
-      setCurrentSessionMaxWeights({});
+      // Nettoyer complètement la session après sauvegarde
+      workoutSession.clearSession();
       
       // On supprime l'appel à updateStreakOnCompletion ici car il est déjà fait dans finishWorkout
       // via ActiveWorkoutContext
@@ -565,7 +442,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
         name: workout.name,
         date: new Date().toISOString(),
         duration: activeWorkout.elapsedTime,
-        photo: 'https://via.placeholder.com/114x192/242526/FFFFFF?text=Workout',
+        photo: activeWorkout.photoUri || 'https://via.placeholder.com/114x192/242526/FFFFFF?text=Workout',
         exercises: exercises.map(exercise => {
           const trackingData = activeWorkout.trackingData[exercise.id];
           const sets = trackingData?.sets || [];
@@ -636,7 +513,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       console.log("Completed workout saved successfully via context");
       
       // Fermer la modale de confirmation
-      setIsFinishModalVisible(false);
+      modalManagement.hideFinishModal();
       
       // Fermer la modale principale
       onClose();
@@ -692,31 +569,12 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     
     // Utiliser les mêmes données que pendant la séance (originalRecords)
     // pour assurer la cohérence
-    const originalRecord = originalRecords[exercise.name];
+    const originalRecord = workoutSession.originalRecords[exercise.name];
     
     // Si pas de record original, c'est le premier workout pour cet exercice
     if (!originalRecord) {
-      // Vérifier si c'est vraiment le premier workout en consultant l'historique
-      try {
-        const historyRecords = getHistoryPersonalRecords(exercise.name);
-        
-        // S'il y a des records dans l'historique mais pas dans originalRecords,
-        // cela indique un problème de synchronisation - ne pas afficher de PR
-        if (historyRecords.maxWeight > 0) {
-          // Il y a des records historiques, comparer avec eux
-          const isNewRecord = maxWeight > historyRecords.maxWeight || 
-            (maxWeight === historyRecords.maxWeight && maxReps > historyRecords.maxReps);
-          
-          return isNewRecord ? { maxWeight, maxReps } : undefined;
-        }
-        
-        // Vraiment premier workout pour cet exercice - pas de PR affiché
-        // (on évite de spammer l'utilisateur avec des PR pour chaque nouvel exercice)
-        return undefined;
-      } catch {
-        // En cas d'erreur, être conservateur et ne pas afficher de PR
-        return undefined;
-      }
+      // Premier exercice fait = toujours un PR
+      return { maxWeight, maxReps };
     }
     
     // Comparer avec les records originaux (début de séance)
@@ -730,17 +588,14 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   const handleExerciseTracking = (exerciseId: string) => {
     if (isTrackingWorkout && activeWorkout?.workoutId === workout?.id) {
       // Sauvegarder les PR actuels dans l'exercice actuel avant de changer
-      if (selectedExerciseId && prResults) {
-        setExercisePRResults(prev => ({
-          ...prev,
-          [`${selectedExerciseId}_set_${prResults.setIndex}`]: prResults
-        }));
+      if (modalManagement.selectedExerciseId && workoutSession.prResults) {
+        workoutSession.safeSetExercisePRResults(modalManagement.selectedExerciseId, workoutSession.prResults.setIndex, workoutSession.prResults);
       }
       
       // Réinitialiser le PR affiché (sera mis à jour par SetRow si nécessaire)
-      setPrResults(null);
+      workoutSession.safeSetPrResults(null);
       
-      setSelectedExerciseId(exerciseId);
+      modalManagement.selectExercise(exerciseId);
       
       // Utiliser les données de tracking existantes ou en créer de nouvelles
       const exercise = currentExercises.find(ex => ex.id === exerciseId);
@@ -753,244 +608,171 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
         }));
         
         updateTrackingData(exerciseId, initialSets, 0);
-        setExerciseSets(initialSets);
+        exerciseTracking.initializeSets(initialSets);
       } else if (activeWorkout && activeWorkout.trackingData[exerciseId]) {
-        setExerciseSets(activeWorkout.trackingData[exerciseId]?.sets || []);
+        exerciseTracking.initializeSets(activeWorkout.trackingData[exerciseId]?.sets || []);
       }
       
-      setModalMode('exercise-tracking');
+      exerciseSelection.setModalMode('exercise-tracking');
     }
   };
 
   // Fonction pour revenir au mode workout
   const handleBackToWorkout = () => {
     // Sauvegarder les PR de l'exercice actuel avant de retourner à la liste
-    if (selectedExerciseId && prResults) {
-      safeSetExercisePRResults(selectedExerciseId, prResults.setIndex, prResults);
+    if (modalManagement.selectedExerciseId && workoutSession.prResults) {
+      workoutSession.safeSetExercisePRResults(modalManagement.selectedExerciseId, workoutSession.prResults.setIndex, workoutSession.prResults);
     }
     
     // Réinitialiser les PR actuels (car on n'est plus sur un exercice spécifique)
-    safeSetPrResults(null);
+    workoutSession.safeSetPrResults(null);
     
     // Sauvegarder les modifications de tracking actuelles avant de revenir
-    if (selectedExerciseId) {
-      const newSets = [...exerciseSets];
+    if (modalManagement.selectedExerciseId) {
+      const newSets = [...exerciseTracking.exerciseSets];
       const completedCount = newSets.filter(set => set.completed).length;
       
-      updateTrackingData(selectedExerciseId, newSets, completedCount);
+      updateTrackingData(modalManagement.selectedExerciseId, newSets, completedCount);
       
       // Préparer l'animation pour l'exercice
-      const exercise = currentExercises.find(ex => ex.id === selectedExerciseId);
+      const exercise = currentExercises.find(ex => ex.id === modalManagement.selectedExerciseId);
       if (exercise) {
         const isCompleted = completedCount === exercise.sets;
         const progress = completedCount / exercise.sets;
         
         // 🔧 FIX: Mise à jour immédiate de l'état visuel sans délai
         // Créer ou mettre à jour l'animation de progression avec la valeur correcte immédiatement
-        if (!exerciseProgressAnimations[selectedExerciseId]) {
-          setExerciseProgressAnimations(prev => ({
-            ...prev,
-            [selectedExerciseId]: new Animated.Value(progress) // Valeur correcte immédiatement
-          }));
-        } else {
-          exerciseProgressAnimations[selectedExerciseId].setValue(progress); // Valeur correcte immédiatement
+        if (modalManagement.selectedExerciseId) {
+          animations.animateExerciseProgress(modalManagement.selectedExerciseId, progress);
         }
         
-        // Créer ou réinitialiser l'animation de rebond
-        if (!exerciseBounceAnimations[selectedExerciseId]) {
-          setExerciseBounceAnimations(prev => ({
-            ...prev,
-            [selectedExerciseId]: new Animated.Value(1)
-          }));
-        } else {
-          exerciseBounceAnimations[selectedExerciseId].setValue(1);
+        // Animer le rebond si l'exercice vient d'être complété
+        if (modalManagement.selectedExerciseId && isCompleted) {
+          animations.animateExerciseBounce(modalManagement.selectedExerciseId);
         }
         
         // 🔧 FIX: Mise à jour immédiate du checkmark pour les exercices complétés
         if (isCompleted) {
-          setCompletedCheckmarks(prev => ({
-            ...prev,
-            [selectedExerciseId]: true
-          }));
+          exerciseTracking.markExerciseComplete(modalManagement.selectedExerciseId, true);
           
           // Animation de rebond seulement si pas déjà complété avant
-          const wasAlreadyCompleted = completedCheckmarks[selectedExerciseId];
+          const wasAlreadyCompleted = exerciseTracking.completedCheckmarks[modalManagement.selectedExerciseId];
           if (!wasAlreadyCompleted) {
             setTimeout(() => {
-              if (exerciseBounceAnimations[selectedExerciseId]) {
-                Animated.sequence([
-                  Animated.timing(exerciseBounceAnimations[selectedExerciseId], {
-                    toValue: 1.1,
-                    duration: 100,
-                    useNativeDriver: true,
-                  }),
-                  Animated.timing(exerciseBounceAnimations[selectedExerciseId], {
-                    toValue: 0.95,
-                    duration: 100,
-                    useNativeDriver: true,
-                  }),
-                  Animated.timing(exerciseBounceAnimations[selectedExerciseId], {
-                    toValue: 1,
-                    duration: 100,
-                    useNativeDriver: true,
-                  }),
-                ]).start();
+              if (modalManagement.selectedExerciseId) {
+                animations.animateExerciseBounce(modalManagement.selectedExerciseId);
               }
             }, 50); // Délai réduit pour la célébration
           }
         } else {
           // Exercice non complété, s'assurer que le checkmark est caché
-          setCompletedCheckmarks(prev => ({
-            ...prev,
-            [selectedExerciseId]: false
-          }));
+          exerciseTracking.markExerciseComplete(modalManagement.selectedExerciseId, false);
         }
       }
     }
     
-    setModalMode('workout');
-    setSelectedExerciseId(null);
+    exerciseSelection.setModalMode('workout');
+    modalManagement.clearSelectedExercise();
   };
 
   // Fonction pour animer le rebond d'une série
   const animateSetBounce = (index: number) => {
-    if (setAnimations[index]) {
-      try {
-        // Réinitialiser l'animation si nécessaire
-        setAnimations[index].setValue(1);
-        
-        // Séquence d'animation de rebond
-        Animated.sequence([
-          // Agrandir légèrement
-          Animated.timing(setAnimations[index], {
-            toValue: 1.05,
-            duration: 100,
-            useNativeDriver: true,
-          }),
-          // Revenir à une taille légèrement plus petite (pour l'effet de rebond)
-          Animated.timing(setAnimations[index], {
-            toValue: 0.97,
-            duration: 100,
-            useNativeDriver: true,
-          }),
-          // Revenir à la taille normale
-          Animated.timing(setAnimations[index], {
-            toValue: 1,
-            duration: 100,
-            useNativeDriver: true,
-          }),
-        ]).start();
-      } catch (error) {
-        console.log('Animation error:', error);
-      }
-    }
+    exerciseTracking.animateSet(index);
   };
 
   // Fonction pour gérer le toggle d'une série (completed/uncompleted)
   const handleSetToggle = (index: number) => {
-    // Animer la série au clic
-    Animated.sequence([
-      Animated.timing(setAnimations[index], {
-        toValue: 0.9,
-        duration: 100,
-        useNativeDriver: true
-      }),
-      Animated.timing(setAnimations[index], {
-        toValue: 1,
-        duration: 100,
-        useNativeDriver: true
-      })
-    ]).start();
-
-    // Mettre à jour l'état des sets
-    const newSets = [...exerciseSets];
-    const currentlyCompleted = newSets[index].completed;
-    const newCompleted = !currentlyCompleted;
+    // Mettre à jour l'état des sets via le hook et récupérer les nouvelles valeurs
+    const toggleResult = exerciseTracking.toggleSetCompletion(index);
     
-    newSets[index] = {
-      ...newSets[index],
-      completed: newCompleted
-    };
-
-    // Compter le nombre de sets complétés
+    if (!toggleResult || !modalManagement.selectedExerciseId) return;
+    
+    const { newSets, isNowCompleted } = toggleResult;
     const completedCount = newSets.filter(set => set.completed).length;
     
     // Mettre à jour les données de tracking
-    if (selectedExerciseId) {
-      updateTrackingData(selectedExerciseId, newSets, completedCount);
-      setExerciseSets(newSets);
+    updateTrackingData(modalManagement.selectedExerciseId, newSets, completedCount);
+    
+    // On vérifie si c'est un PR seulement quand la série est complétée (pas quand on décoche)
+    if (isNowCompleted) {
+      // Trouver l'exercice correspondant
+      const exercise = currentExercises.find(ex => ex.id === modalManagement.selectedExerciseId);
       
-      // On vérifie si c'est un PR seulement quand la série est complétée (pas quand on décoche)
-      if (newCompleted) {
-        // Trouver l'exercice correspondant
-        const exercise = currentExercises.find(ex => ex.id === selectedExerciseId);
+      if (exercise) {
+        // Démarrer ou réinitialiser le timer de repos
+        resetTimer(exercise);
         
-        if (exercise) {
-          // Démarrer ou réinitialiser le timer de repos
-          resetTimer(exercise);
+        // Vérifier si c'est un PR (seulement si weight et reps sont renseignés)
+        const weight = parseInt(newSets[index].weight) || 0;
+        const reps = parseInt(newSets[index].reps) || 0;
+        
+        console.log(`🔍 [PR_DETECTION] ${exercise.name} set ${index}: weight=${weight}kg, reps=${reps}`);
+        
+        if (weight > 0 && reps > 0) {
+          // Utiliser les fonctions du hook pour vérifier les PRs
+          const weightPR = workoutSession.checkSessionWeightPR(exercise.name, weight);
           
-          // Vérifier si c'est un PR (seulement si weight et reps sont renseignés)
-          const weight = parseInt(newSets[index].weight) || 0;
-          const reps = parseInt(newSets[index].reps) || 0;
+          // Vérifier les repetitions PR par rapport aux records originaux
+          const repsPR = workoutSession.checkOriginalRepsPR(exercise.name, weight, reps);
           
-          console.log(`🔍 [PR_DETECTION] ${exercise.name} set ${index}: weight=${weight}kg, reps=${reps}`);
+          console.log(`🔍 [PR_DETECTION] ${exercise.name}: weightPR=${!!weightPR}, repsPR=${!!repsPR}`);
           
-          if (weight > 0 && reps > 0) {
-            // Utiliser checkSessionWeightPR qui prend en compte le record de la session en cours
-            const weightPR = checkSessionWeightPR(exercise.name, weight);
+          // Si nous avons un nouveau PR de poids pour la session, mettre à jour et supprimer les anciens PR
+          if (weightPR) {
+            // 1. Mettre à jour le record maximum de poids de la séance
+            workoutSession.safeUpdateSessionWeight(exercise.name, weight);
             
-            // Vérifier les repetitions PR par rapport aux records originaux
-            const repsPR = checkOriginalRepsPR(exercise.name, weight, reps);
-            
-            console.log(`🔍 [PR_DETECTION] ${exercise.name}: weightPR=${!!weightPR}, repsPR=${!!repsPR}`);
-            
-            // Si nous avons un nouveau PR de poids pour la session, mettre à jour et supprimer les anciens PR
-            if (weightPR) {
-              // 1. Mettre à jour le record maximum de poids de la séance
-              safeUpdateSessionWeight(exercise.name, weight);
+            // 2. Supprimer tous les stickers "NEW PR" précédents pour cet exercice
+            // Parcourir tous les PR enregistrés et garder uniquement ceux qui n'ont pas de weightPR
+            if (modalManagement.selectedExerciseId) {
+              const updatedPRResults = { ...workoutSession.exercisePRResults };
               
-              // 2. Supprimer tous les stickers "NEW PR" précédents pour cet exercice
-              // Parcourir tous les PR enregistrés et garder uniquement ceux qui n'ont pas de weightPR
-              if (selectedExerciseId) {
-                const updatedPRResults = { ...exercisePRResults };
-                
-                // Pour chaque clé de PR existante pour cet exercice
+              // Pour chaque clé de PR existante pour cet exercice
+              if (modalManagement.selectedExerciseId) {
                 Object.keys(updatedPRResults).forEach(key => {
-                  if (key.startsWith(selectedExerciseId) && updatedPRResults[key]?.weightPR) {
+                  if (key.startsWith(modalManagement.selectedExerciseId!) && updatedPRResults[key]?.weightPR) {
                     // Créer une nouvelle entrée sans le weightPR (garder seulement repsPR s'il existe)
                     if (updatedPRResults[key]?.repsPR) {
-                      updatedPRResults[key] = {
-                        ...updatedPRResults[key],
-                        weightPR: null
-                      };
+                      workoutSession.safeSetExercisePRResults(
+                        modalManagement.selectedExerciseId!,
+                        parseInt(key.split('_set_')[1]),
+                        {
+                          ...updatedPRResults[key],
+                          weightPR: null
+                        }
+                      );
                     } else {
                       // S'il n'y a pas de repsPR, supprimer complètement l'entrée
-                      delete updatedPRResults[key];
+                      workoutSession.safeSetExercisePRResults(
+                        modalManagement.selectedExerciseId!,
+                        parseInt(key.split('_set_')[1]),
+                        null
+                      );
                     }
                   }
                 });
-                
-                // Mettre à jour l'état avec les PR mis à jour
-                setExercisePRResults(updatedPRResults);
               }
             }
+          }
+          
+          // Préparer les données PR pour ce set
+          const prData = {
+            setIndex: index,
+            weightPR: weightPR,
+            repsPR: repsPR
+          };
+          
+          // Afficher le badge PR pour le set actuel si nécessaire
+          if (weightPR || repsPR) {
+            // Pour le set courant, activer l'affichage du badge
+            workoutSession.safeSetPrResults(prData);
             
-            // Préparer les données PR pour ce set
-            const prData = {
-              setIndex: index,
-              weightPR: weightPR,
-              repsPR: repsPR
-            };
+            // Animer le badge PR
+            animatePrBadge();
             
-            // Afficher le badge PR pour le set actuel si nécessaire
-            if (weightPR || repsPR) {
-              // Pour le set courant, activer l'affichage du badge
-              safeSetPrResults(prData);
-              
-              // Enregistrer le badge dans les résultats PR de l'exercice
-              if (selectedExerciseId) {
-                safeSetExercisePRResults(selectedExerciseId, index, prData);
-              }
+            // Enregistrer le badge dans les résultats PR de l'exercice
+            if (modalManagement.selectedExerciseId) {
+              workoutSession.safeSetExercisePRResults(modalManagement.selectedExerciseId, index, prData);
             }
           }
         }
@@ -1000,11 +782,11 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
 
   // Fonction pour mettre à jour le temps de repos d'un exercice
   const handleRestTimeUpdate = (seconds: number) => {
-    if (!currentExercise) return;
+    if (!modalManagement.currentExercise) return;
     
     // Mettre à jour l'exercice actuel avec le nouveau temps de repos
     const updatedExercise = {
-      ...currentExercise,
+      ...modalManagement.currentExercise,
       restTimeSeconds: seconds
     };
     
@@ -1023,7 +805,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       console.log(`[handleRestTimeUpdate] Workout saved after updating rest time`);
     }
     
-    setHasUnsavedChanges(false); // Les changements sont maintenant sauvegardés
+    // Les changements sont maintenant sauvegardés (gérés automatiquement par le hook) // Les changements sont maintenant sauvegardés
     
     // Si on est en tracking, mettre à jour le reset timer dans le contexte
     if (isTrackingWorkout) {
@@ -1046,64 +828,9 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     </View>
   );
 
-  // Filter exercises based on search query and selected tags
-  const filteredExercises = useMemo(() => {
-    if (!searchQuery.trim() && selectedTags.length === 0) {
-      return SAMPLE_EXERCISES;
-    }
-    
-    return SAMPLE_EXERCISES.filter(exercise => {
-      // Filtre par texte de recherche
-      const matchesQuery = !searchQuery.trim() || 
-        exercise.name.toLowerCase().includes(searchQuery.toLowerCase());
-      
-      // Filtre par tags
-      const matchesTags = selectedTags.length === 0 || 
-        (exercise.tags && exercise.tags.some(tag => selectedTags.includes(tag)));
-      
-      return matchesQuery && matchesTags;
-    });
-  }, [searchQuery, selectedTags]);
 
-  // Group exercises by first letter
-  const groupedExercises = useMemo(() => {
-    const sorted = [...filteredExercises].sort((a, b) => 
-      a.name.localeCompare(b.name)
-    );
-    
-    const groups: Record<string, Exercise[]> = {};
-    
-    sorted.forEach(exercise => {
-      const firstLetter = exercise.name.charAt(0).toUpperCase();
-      if (!groups[firstLetter]) {
-        groups[firstLetter] = [];
-      }
-      groups[firstLetter].push(exercise);
-    });
-    
-    return Object.entries(groups).map(([letter, exercises]) => ({
-      letter,
-      data: exercises
-    }));
-  }, [filteredExercises]);
 
-  const toggleExerciseSelection = (exercise: Exercise) => {
-    if (modalMode === 'exercise-replacement') {
-      // En mode remplacement, on ne peut sélectionner qu'un seul exercice
-      setSelectedExercises([exercise]);
-    } else {
-      // En mode ajout, on peut sélectionner plusieurs exercices
-      setSelectedExercises(prev => {
-        const alreadySelected = prev.some(ex => ex.id === exercise.id);
-        
-        if (alreadySelected) {
-          return prev.filter(ex => ex.id !== exercise.id);
-        } else {
-          return [...prev, exercise];
-        }
-      });
-    }
-  };
+
 
   const renderSectionHeader = ({ letter }: { letter: string }) => (
     <View style={styles.sectionHeader}>
@@ -1112,12 +839,12 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   );
 
   const renderExerciseItem = (exercise: Exercise) => {
-    const isSelected = selectedExercises.some(ex => ex.id === exercise.id);
+    const isSelected = exerciseSelection.selectedExercises.some(ex => ex.id === exercise.id);
     
     return (
       <TouchableOpacity 
         style={styles.selectionExerciseItem}
-        onPress={() => toggleExerciseSelection(exercise)}
+        onPress={() => exerciseSelection.toggleExerciseSelection(exercise)}
         activeOpacity={0.7}
       >
         <View style={styles.exerciseSelectionRow}>
@@ -1136,105 +863,69 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     );
   };
 
-  // Extraire tous les tags uniques des exercices
-  const allTags = useMemo(() => {
-    const tagSet = new Set<string>();
-    
-    // Ajouter les catégories de base (Upper/Lower Body)
-    tagSet.add("Upper Body");
-    tagSet.add("Lower Body");
-    
-    // Ajouter les groupes musculaires principaux
-    const muscleGroups = [
-      "Chest", "Back", "Shoulders", "Biceps", "Triceps", 
-      "Abs", "Quads", "Hamstrings", "Glutes", "Calves"
-    ];
-    
-    muscleGroups.forEach(muscle => tagSet.add(muscle));
-    
-    // Ajouter les tags des exercices échantillons
-    SAMPLE_EXERCISES.forEach(exercise => {
-      if (exercise.tags) {
-        exercise.tags.forEach(tag => tagSet.add(tag));
-      }
-    });
-    
-    return Array.from(tagSet).sort();
-  }, []);
+
 
   // Fonction pour mettre à jour les tags sélectionnés
   const handleTagsSelected = (tags: string[]) => {
-    setSelectedTags(tags);
+    exerciseSelection.setSelectedTags(tags);
   };
 
   // Ouvrir la modale de filtres
   const handleOpenFilterModal = () => {
-    setIsFilterModalVisible(true);
+    modalManagement.showFilterModal();
   };
 
   // Fonction pour réinitialiser les filtres
   const handleResetFilters = (event: any) => {
     event.stopPropagation(); // Empêcher l'ouverture de la modale
-    setSelectedTags([]);
+    exerciseSelection.setSelectedTags([]);
   };
 
-  // Fonction pour obtenir le texte du bouton de filtre
-  const getFilterButtonText = () => {
-    if (selectedTags.length === 0) {
-      return "Filter by";
-    } else if (selectedTags.length === 1) {
-      return selectedTags[0];
-    } else {
-      return `${selectedTags.length} filters`;
-    }
-  };
+
 
   // Ajouter une fonction pour supprimer une série
   const handleRemoveSet = (index: number) => {
     // Ne pas permettre de supprimer la dernière série
-    if (exerciseSets.length <= 1) return;
+    if (exerciseTracking.exerciseSets.length <= 1) return;
     
     // Vérifier si la série à supprimer avait un PR
-    const hasPR = prResults && prResults.setIndex === index;
+    const hasPR = workoutSession.prResults && workoutSession.prResults.setIndex === index;
     
-    // Mettre à jour l'état local des sets
-    const newSets = exerciseSets.filter((_, i) => i !== index);
-    setExerciseSets(newSets);
+    // Mettre à jour l'état local des sets via le hook
+    exerciseTracking.removeSet(index);
+    const newSets = exerciseTracking.exerciseSets;
     
     // Si cette série avait un PR actif (affiché), le supprimer
-    if (hasPR && isMounted.current) {
-      safeSetPrResults(null);
+    if (hasPR) {
+      workoutSession.safeSetPrResults(null);
     }
     
-    // Supprimer tous les PR associés à cette série de exercisePRResults
-    if (selectedExerciseId && isMounted.current) {
-      setExercisePRResults(prev => {
-        const newResults = { ...prev };
-        // Supprimer l'entrée spécifique à cette série
-        delete newResults[`${selectedExerciseId}_set_${index}`];
-        
-        // Décaler les indices des séries suivantes pour éviter le problème de persistance
-        for (let i = index + 1; i < exerciseSets.length; i++) {
-          if (newResults[`${selectedExerciseId}_set_${i}`]) {
-            // Déplacer les PR vers l'index précédent
-            newResults[`${selectedExerciseId}_set_${i-1}`] = newResults[`${selectedExerciseId}_set_${i}`];
-            // Et supprimer l'ancien index
-            delete newResults[`${selectedExerciseId}_set_${i}`];
-          }
+    // Supprimer tous les PR associés à cette série
+    if (modalManagement.selectedExerciseId) {
+      // Supprimer l'entrée spécifique à cette série
+      workoutSession.safeSetExercisePRResults(modalManagement.selectedExerciseId, index, null);
+      
+      // Décaler les indices des séries suivantes
+      for (let i = index + 1; i < exerciseTracking.exerciseSets.length + 1; i++) {
+        const currentPR = workoutSession.exercisePRResults[`${modalManagement.selectedExerciseId}_set_${i}`];
+        if (currentPR) {
+          // Déplacer les PR vers l'index précédent
+          workoutSession.safeSetExercisePRResults(modalManagement.selectedExerciseId, i - 1, currentPR);
+          // Et supprimer l'ancien index
+          workoutSession.safeSetExercisePRResults(modalManagement.selectedExerciseId, i, null);
         }
-        return newResults;
-      });
+      }
     }
     
     // Mettre à jour le nombre total de séries pour l'exercice
-    if (selectedExerciseId) {
-      const selectedExercise = exercises.find(ex => ex.id === selectedExerciseId);
+    if (modalManagement.selectedExerciseId) {
+      const selectedExercise = exercises.find(ex => ex.id === modalManagement.selectedExerciseId);
       if (selectedExercise) {
         const updatedExercise = {
           ...selectedExercise,
           sets: Math.max(1, (selectedExercise.sets || 0) - 1)
         };
-        const updatedExercises = exercises.map(ex => ex.id === selectedExerciseId ? updatedExercise : ex);
+        const updatedExercises = exercises.map(ex => ex.id === modalManagement.selectedExerciseId ? updatedExercise : ex);
         setExercises(updatedExercises);
         
         // Sauvegarder immédiatement le workout
@@ -1250,47 +941,35 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
         
         // Mettre à jour les données de tracking avec les sets restants
         const completedCount = newSets.filter(set => set.completed).length;
-        updateTrackingData(selectedExerciseId, newSets, completedCount);
+        updateTrackingData(modalManagement.selectedExerciseId, newSets, completedCount);
       }
     }
   };
 
   useEffect(() => {
-    if (modalMode === 'exercise-tracking' && selectedExerciseId && activeWorkout) {
+    if (exerciseSelection.modalMode === 'exercise-tracking' && modalManagement.selectedExerciseId && activeWorkout) {
       // Lors du passage en mode tracking d'exercice, on charge les données existantes
-      setExerciseSets(activeWorkout.trackingData[selectedExerciseId]?.sets || []);
+      exerciseTracking.initializeSets(activeWorkout.trackingData[modalManagement.selectedExerciseId]?.sets || []);
     }
-  }, [modalMode, selectedExerciseId]);
+  }, [exerciseSelection.modalMode, modalManagement.selectedExerciseId]);
   
   // Sauvegarder les données de tracking lorsqu'on change d'exercice
   useEffect(() => {
     // Sauvegarder les données du précédent exercice si nécessaire
-    if (modalMode === 'exercise-tracking' && selectedExerciseId && exerciseSets.length > 0) {
-      const completedCount = exerciseSets.filter(set => set.completed).length;
+    if (exerciseSelection.modalMode === 'exercise-tracking' && modalManagement.selectedExerciseId && exerciseTracking.exerciseSets.length > 0) {
+      const completedCount = exerciseTracking.exerciseSets.filter(set => set.completed).length;
       
-      updateTrackingData(selectedExerciseId, exerciseSets, completedCount);
+      updateTrackingData(modalManagement.selectedExerciseId, exerciseTracking.exerciseSets, completedCount);
     }
-  }, [selectedExerciseId, exerciseSets]);
+  }, [modalManagement.selectedExerciseId, exerciseTracking.exerciseSets]);
 
   // Ajouter un effet de nettoyage pour les animations
   useEffect(() => {
     return () => {
       // Nettoyer les animations lors du démontage du composant
-      for (const key in exerciseProgressAnimations) {
-        if (exerciseProgressAnimations[key]) {
-          exerciseProgressAnimations[key].stopAnimation();
-        }
-      }
-      for (const key in exerciseBounceAnimations) {
-        if (exerciseBounceAnimations[key]) {
-          exerciseBounceAnimations[key].stopAnimation();
-        }
-      }
-      for (const key in setAnimations) {
-        if (setAnimations[key]) {
-          setAnimations[key].stopAnimation();
-        }
-      }
+      // Les animations sont maintenant gérées par le hook useWorkoutAnimations
+      animations.resetAllAnimations();
+      // Arrêter les animations des sets (pas de méthode stopAllAnimations disponible)
     };
   }, []);
 
@@ -1306,58 +985,71 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   useEffect(() => {
     if (isTrackingWorkout && exercises.length > 0 && visible) {
       // Initialiser les animations pour tous les exercices
-      const progressAnimations: { [key: string]: Animated.Value } = {};
-      const bounceAnimations: { [key: string]: Animated.Value } = {};
+      animations.initializeExerciseAnimations(exercises);
       
+      // Animer immédiatement jusqu'aux valeurs actuelles
       exercises.forEach(exercise => {
         const completedSets = activeWorkout?.trackingData[exercise.id]?.completedSets || 0;
-        const progress = completedSets / exercise.sets;
-        
-        // Créer une nouvelle animation à 0 pour permettre l'animation progressive
-        progressAnimations[exercise.id] = new Animated.Value(0);
-        bounceAnimations[exercise.id] = new Animated.Value(1);
-        
-        // Animer immédiatement jusqu'à la valeur actuelle
-        Animated.timing(progressAnimations[exercise.id], {
-          toValue: progress,
-          duration: 600,
-          useNativeDriver: false,
-        }).start();
+        const progress = (completedSets / exercise.sets) * 100;
+        animations.animateExerciseProgress(exercise.id, progress);
       });
-      
-      setExerciseProgressAnimations(progressAnimations);
-      setExerciseBounceAnimations(bounceAnimations);
     }
   }, [isTrackingWorkout, exercises.length, visible, activeWorkout?.workoutId]);
 
-  const [isFinishModalVisible, setIsFinishModalVisible] = useState(false);
-  const slideAnim = useRef(new Animated.Value(0)).current;
+
 
   useEffect(() => {
-    if (isFinishModalVisible) {
-      Animated.timing(slideAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
+    if (modalManagement.isFinishModalVisible) {
+      animations.animateSlideIn();
     } else {
-      slideAnim.setValue(0);
+      // Le hook d'animations gère déjà la réinitialisation
     }
-  }, [isFinishModalVisible]);
+  }, [modalManagement.isFinishModalVisible]);
 
   // Fonction pour obtenir le texte de progression pour un exercice
   const getExerciseProgressText = (exercise: Exercise) => {
     if (!isTrackingWorkout) {
       return exercise.tracking === 'trackedOnSets' ? 'Tracked on sets' : 'Tracked on time';
     }
-    const completedSets = activeWorkout?.trackingData[exercise.id]?.completedSets || 0;
-    return `${completedSets} of ${exercise.sets} sets completed`;
+    const trackingData = activeWorkout?.trackingData[exercise.id];
+    const completedSets = trackingData?.completedSets || 0;
+    const totalSets = trackingData?.sets.length || exercise.sets; // Utiliser le nombre actuel de sets
+    return `${completedSets} of ${totalSets} sets completed`;
   };
 
   // Calcule le pourcentage de complétion d'un exercice
   const getExerciseProgress = (exercise: Exercise) => {
-    const completedSets = activeWorkout?.trackingData[exercise.id]?.completedSets || 0;
-    return completedSets / exercise.sets;
+    const trackingData = activeWorkout?.trackingData[exercise.id];
+    const completedSets = trackingData?.completedSets || 0;
+    const totalSets = trackingData?.sets.length || exercise.sets; // Utiliser le nombre actuel de sets
+    return completedSets / totalSets;
+  };
+
+  // Helper pour obtenir les données de complétion d'un exercice
+  const getExerciseCompletionData = (exercise: Exercise) => {
+    const trackingData = activeWorkout?.trackingData[exercise.id];
+    const completedSets = trackingData?.completedSets || 0;
+    const totalSets = trackingData?.sets.length || exercise.sets;
+    const isCompleted = completedSets === totalSets && totalSets > 0; // Simplifié : juste basé sur les sets
+    const progressPercentage = totalSets > 0 ? (completedSets / totalSets) * 100 : 0;
+    
+    // 🔍 DEBUG temporaire pour vérifier la cohérence
+    if (__DEV__ && exercise.name === "Push-ups") { // Remplacer par le nom de l'exercice testé
+      console.log(`🔍 [CHECKBOX] ${exercise.name}:`, {
+        completedSets,
+        totalSets,
+        isCompleted,
+        progressPercentage: progressPercentage.toFixed(1) + '%',
+        text: `${completedSets} of ${totalSets} sets completed`
+      });
+    }
+    
+    return {
+      completedSets,
+      totalSets,
+      isCompleted,
+      progressPercentage
+    };
   };
 
   // Fonction pour obtenir l'icône en fonction du type d'exercice
@@ -1383,9 +1075,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   };
 
   // États pour les modales d'exercice
-  const [settingsModalVisible, setSettingsModalVisible] = useState(false);
-  const [currentExercise, setCurrentExercise] = useState<Exercise | undefined>(undefined);
-  const [openTimerDirectly, setOpenTimerDirectly] = useState(false);
+
 
   // Utiliser les exercices de activeWorkout quand on est en mode tracking, sinon utiliser l'état local
   const currentExercises = isTrackingWorkout && activeWorkout?.exercises 
@@ -1393,16 +1083,13 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     : exercises;
 
   // Obtenir l'exercice sélectionné
-  const selectedExercise = selectedExerciseId 
-    ? currentExercises.find(ex => ex.id === selectedExerciseId) 
+  const selectedExercise = modalManagement.selectedExerciseId 
+    ? currentExercises.find(ex => ex.id === modalManagement.selectedExerciseId) 
     : null;
 
   // Fonction pour ouvrir la modal de paramètres d'exercice
   const handleOpenSettings = (exercise: Exercise) => {
-    setCurrentExercise(exercise);
-    setSettingsModalVisible(true);
-    // Réinitialiser pour ouvrir en mode normal (menu principal)
-    setOpenTimerDirectly(false);
+    modalManagement.showExerciseSettingsModal(exercise, false);
   };
 
   // Fonction pour ouvrir la modal de paramètres d'exercice
@@ -1415,60 +1102,45 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
 
   // Fonction pour mettre à jour le poids d'une série
   const handleWeightChange = (index: number, value: string) => {
-    // Mettre à jour l'état local des sets
-    const newSets = [...exerciseSets];
-    newSets[index] = {
-      ...newSets[index],
-      weight: value
-    };
-    setExerciseSets(newSets);
+    // Mettre à jour l'état via le hook
+    exerciseTracking.updateSet(index, 'weight', value);
     
     // Mettre à jour immédiatement les données de tracking
-    if (selectedExerciseId) {
-      const completedCount = newSets.filter(set => set.completed).length;
-      updateTrackingData(selectedExerciseId, newSets, completedCount);
+    if (modalManagement.selectedExerciseId) {
+      const newSets = exerciseTracking.exerciseSets;
+      const completedCount = exerciseTracking.getCompletedSetsCount();
+      updateTrackingData(modalManagement.selectedExerciseId, newSets, completedCount);
     }
   };
 
   // Fonction pour mettre à jour les répétitions d'une série
   const handleRepsChange = (index: number, value: string) => {
-    // Mettre à jour l'état local des sets
-    const newSets = [...exerciseSets];
-    newSets[index] = {
-      ...newSets[index],
-      reps: value
-    };
-    setExerciseSets(newSets);
+    // Mettre à jour l'état via le hook
+    exerciseTracking.updateSet(index, 'reps', value);
     
     // Mettre à jour immédiatement les données de tracking
-    if (selectedExerciseId) {
-      const completedCount = newSets.filter(set => set.completed).length;
-      updateTrackingData(selectedExerciseId, newSets, completedCount);
+    if (modalManagement.selectedExerciseId) {
+      const newSets = exerciseTracking.exerciseSets;
+      const completedCount = exerciseTracking.getCompletedSetsCount();
+      updateTrackingData(modalManagement.selectedExerciseId, newSets, completedCount);
     }
   };
 
   // Fonction pour ajouter une série
   const handleAddSet = () => {
-    // Mettre à jour l'état local des sets
-    const newSets = [
-      ...exerciseSets,
-      {
-        completed: false,
-        weight: '',
-        reps: ''
-      }
-    ];
-    setExerciseSets(newSets);
+    // Ajouter une nouvelle série via le hook
+    exerciseTracking.addSet();
+    const newSets = exerciseTracking.exerciseSets;
     
     // Mettre à jour le nombre total de séries pour l'exercice
-    if (selectedExerciseId) {
-      const selectedExercise = exercises.find(ex => ex.id === selectedExerciseId);
+    if (modalManagement.selectedExerciseId) {
+      const selectedExercise = exercises.find(ex => ex.id === modalManagement.selectedExerciseId);
       if (selectedExercise) {
         const updatedExercise = {
           ...selectedExercise,
           sets: (selectedExercise.sets || 0) + 1
         };
-        const updatedExercises = exercises.map(ex => ex.id === selectedExerciseId ? updatedExercise : ex);
+        const updatedExercises = exercises.map(ex => ex.id === modalManagement.selectedExerciseId ? updatedExercise : ex);
         setExercises(updatedExercises);
         
         // Sauvegarder immédiatement le workout
@@ -1483,7 +1155,8 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
         }
         
         // Mettre à jour les données de tracking
-        updateTrackingData(selectedExerciseId, newSets, 0);
+        const completedCount = exerciseTracking.getCompletedSetsCount();
+        updateTrackingData(modalManagement.selectedExerciseId, newSets, completedCount);
       }
     }
   };
@@ -1491,14 +1164,13 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   // Gestion de la fermeture avec sauvegarde automatique
   const handleClose = () => {
     // Si on est en mode sélection ou remplacement, retourner au mode workout
-    if (modalMode === 'exercise-selection' || modalMode === 'exercise-replacement') {
-      setModalMode('workout');
-      setExerciseToReplaceId(null); // Réinitialiser l'ID de l'exercice à remplacer
+    if (exerciseSelection.modalMode === 'exercise-selection' || exerciseSelection.modalMode === 'exercise-replacement') {
+      exerciseSelection.resetToWorkoutMode();
       return;
     }
     
     // Si on est en mode tracking d'un exercice spécifique, retourner au mode workout
-    if (modalMode === 'exercise-tracking') {
+    if (exerciseSelection.modalMode === 'exercise-tracking') {
       handleBackToWorkout();
       return;
     }
@@ -1521,18 +1193,18 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   };
 
   // État pour la modal d'édition du workout
-  const [isWorkoutEditModalVisible, setIsWorkoutEditModalVisible] = useState(false);
+
 
   // Fonction pour gérer la fermeture du modal d'édition du workout
   const handleWorkoutEditClose = () => {
     console.log('Closing workout edit modal');
-    setIsWorkoutEditModalVisible(false);
+    modalManagement.hideWorkoutEditModal();
   };
 
   // Fonction pour gérer la sauvegarde après l'édition du workout
   const handleWorkoutEditSave = () => {
     console.log('Saving workout edit changes');
-    setIsWorkoutEditModalVisible(false);
+    modalManagement.hideWorkoutEditModal();
     
     // Recharger le workout après les modifications
     if (workout) {
@@ -1541,43 +1213,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     }
   };
 
-  // Fonctions pour vérifier les PR par rapport aux records ORIGINAUX (début de séance)
-  const checkOriginalWeightPR = useCallback(
-    (exerciseName: string, weight: number) => {
-      return EnhancedPersonalRecordService.checkWeightPR(exerciseName, weight, originalRecords);
-    },
-    [originalRecords]
-  );
-
-  const checkOriginalRepsPR = useCallback(
-    (exerciseName: string, weight: number, reps: number) => {
-      return EnhancedPersonalRecordService.checkRepsPR(exerciseName, weight, reps, originalRecords);
-    },
-    [originalRecords]
-  );
-
-  // Fonction pour vérifier les PR de poids en tenant compte du poids maximum de la séance actuelle
-  const checkSessionWeightPR = useCallback(
-    (exerciseName: string, weight: number) => {
-      // Récupérer le record original et le record de séance
-      const originalRecord = originalRecords[exerciseName]?.maxWeight || 0;
-      const sessionRecord = currentSessionMaxWeights[exerciseName] || originalRecord;
-      
-      // Un PR de poids est détecté si:
-      // 1. Le poids est supérieur au record original ET
-      // 2. Le poids est supérieur au record de séance actuel
-      if (weight > originalRecord && weight > sessionRecord) {
-        console.log(`[checkSessionWeightPR] ✅ NEW PR detected for ${exerciseName}: ${weight}kg > ${Math.max(originalRecord, sessionRecord)}kg`);
-        return {
-          isNew: true,
-          weight
-        };
-      }
-      
-      return null;
-    },
-    [originalRecords, currentSessionMaxWeights]
-  );
+  // Les fonctions de vérification des PRs sont maintenant dans le hook useWorkoutSession
 
   // Référence pour indiquer si le composant est monté
   const isMounted = useRef(true);
@@ -1592,65 +1228,13 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       isMounted.current = false;
       
       // Arrêter toutes les animations en cours pour éviter les mises à jour après démontage
-      if (prBadgeAnim) {
-        prBadgeAnim.stopAnimation();
-      }
+      animations.resetAllAnimations();
       
-      for (const key in exerciseProgressAnimations) {
-        if (exerciseProgressAnimations[key]) {
-          exerciseProgressAnimations[key].stopAnimation();
-        }
-      }
-      
-      for (const key in exerciseBounceAnimations) {
-        if (exerciseBounceAnimations[key]) {
-          exerciseBounceAnimations[key].stopAnimation();
-        }
-      }
-      
-      for (const key in setAnimations) {
-        if (setAnimations[key]) {
-          setAnimations[key].stopAnimation();
-        }
-      }
+      // Arrêter les animations des sets (pas de méthode stopAllAnimations disponible)
     };
   }, []);
   
-  // Fonction sécurisée pour mettre à jour les records de séance
-  const safeUpdateSessionWeight = useCallback((exerciseName: string, weight: number) => {
-    if (isMounted.current) {
-      setCurrentSessionMaxWeights(prev => ({
-        ...prev,
-        [exerciseName]: weight
-      }));
-    }
-  }, []);
-
-  // Fonction sécurisée pour mettre à jour les PR results
-  const safeSetPrResults = useCallback((data: {
-    setIndex: number;
-    weightPR?: { isNew: boolean; weight: number } | null;
-    repsPR?: { isNew: boolean; weight: number; reps: number; previousReps: number } | null;
-  } | null) => {
-    if (isMounted.current) {
-      setPrResults(data);
-    }
-  }, []);
-
-  // Fonction sécurisée pour mettre à jour les PR results par exercice
-  const safeSetExercisePRResults = useCallback((exerciseId: string, setIndex: number, data: {
-    setIndex: number;
-    weightPR?: { isNew: boolean; weight: number } | null;
-    repsPR?: { isNew: boolean; weight: number; reps: number; previousReps: number } | null;
-  } | null) => {
-    if (isMounted.current) {
-      const key = `${exerciseId}_set_${setIndex}`;
-      setExercisePRResults(prev => ({
-        ...prev,
-        [key]: data
-      }));
-    }
-  }, []);
+  // Les fonctions sécurisées de gestion des PRs sont maintenant dans le hook useWorkoutSession
 
   if (!workout) return null;
 
@@ -1665,7 +1249,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={[styles.container, { overflow: 'visible' }]}>
-            {modalMode === 'workout' ? (
+            {exerciseSelection.modalMode === 'workout' ? (
               // Mode affichage du workout
               <>
                 <View style={styles.header}>
@@ -1677,7 +1261,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                     {!isTrackingWorkout && (
                       <TouchableOpacity 
                         style={styles.settingsButton}
-                        onPress={() => setIsWorkoutEditModalVisible(true)}
+                        onPress={() => modalManagement.showWorkoutEditModal()}
                       >
                         <Ionicons name="settings-outline" size={24} color="#FFFFFF" />
                       </TouchableOpacity>
@@ -1746,22 +1330,22 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                                         borderWidth: 1,
                                         borderColor: 'rgba(255, 255, 255, 0.2)' // 20% d'opacité en mode tracking
                                       },
-                                      (activeWorkout?.trackingData[exercise.id]?.completedSets || 0) === exercise.sets && completedCheckmarks[exercise.id] && styles.trackingCheckboxCompleted,
-                                      { transform: [{ scale: exerciseBounceAnimations[exercise.id] || 1 }] }
+                                      getExerciseCompletionData(exercise).isCompleted && styles.trackingCheckboxCompleted,
+                                      { transform: [{ scale: animations.exerciseBounceAnimations[exercise.id] || 1 }] }
                                     ]}
                                   >
-                                    {(activeWorkout?.trackingData[exercise.id]?.completedSets || 0) === exercise.sets && completedCheckmarks[exercise.id] ? (
+                                    {getExerciseCompletionData(exercise).isCompleted ? (
                                       <Ionicons name="checkmark" size={24} color="#000000" />
                                     ) : (
                                       <Animated.View style={[
                                         styles.progressFill, 
                                         { 
-                                          height: exerciseProgressAnimations[exercise.id] 
-                                            ? exerciseProgressAnimations[exercise.id].interpolate({
+                                          height: animations.exerciseProgressAnimations[exercise.id] 
+                                            ? animations.exerciseProgressAnimations[exercise.id].interpolate({
                                                 inputRange: [0, 1],
                                                 outputRange: ['0%', '100%']
                                               })
-                                            : `${(activeWorkout?.trackingData[exercise.id]?.completedSets || 0) / exercise.sets * 100}%` 
+                                            : `${getExerciseCompletionData(exercise).progressPercentage}%` 
                                         }
                                       ]} />
                                     )}
@@ -1817,7 +1401,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                   </ScrollView>
                 </View>
               </>
-            ) : modalMode === 'exercise-selection' ? (
+            ) : exerciseSelection.modalMode === 'exercise-selection' ? (
               // Mode sélection d'exercices
               <>
                 {/* Header */}
@@ -1835,8 +1419,8 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                       style={styles.searchInput}
                       placeholder="Search exercises..."
                       placeholderTextColor="rgba(255, 255, 255, 0.5)"
-                      value={searchQuery}
-                      onChangeText={setSearchQuery}
+                      value={exerciseSelection.searchQuery}
+                      onChangeText={exerciseSelection.setSearchQuery}
                     />
                   </View>
                   
@@ -1849,19 +1433,19 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                 <TouchableOpacity 
                   style={[
                     styles.filterButton, 
-                    selectedTags.length > 0 && styles.filterButtonActive
+                    exerciseSelection.selectedTags.length > 0 && styles.filterButtonActive
                   ]} 
                   onPress={handleOpenFilterModal}
                 >
                   <Text 
                     style={[
                       styles.filterButtonText,
-                      selectedTags.length > 0 && styles.filterButtonTextActive
+                      exerciseSelection.selectedTags.length > 0 && styles.filterButtonTextActive
                     ]}
                   >
-                    {getFilterButtonText()}
+                    {exerciseSelection.getFilterButtonText()}
                   </Text>
-                  {selectedTags.length === 0 ? (
+                  {exerciseSelection.selectedTags.length === 0 ? (
                     <Ionicons name="chevron-down" size={20} color="#FFFFFF" />
                   ) : (
                     <TouchableOpacity onPress={handleResetFilters}>
@@ -1873,7 +1457,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                 {/* Exercise List */}
                 <View style={styles.exerciseListContainer}>
                   <ScrollView style={styles.scrollView}>
-                    {groupedExercises.map((section) => (
+                    {exerciseSelection.groupedExercises.map((section) => (
                       <View key={section.letter}>
                         {renderSectionHeader({ letter: section.letter })}
                         {section.data.map((exercise) => (
@@ -1898,20 +1482,20 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                   <TouchableOpacity 
                     style={[
                       styles.addExercisesButton,
-                      selectedExercises.length === 0 && styles.addExercisesButtonDisabled
+                      exerciseSelection.selectedExercises.length === 0 && styles.addExercisesButtonDisabled
                     ]}
                     onPress={handleExercisesSelected}
-                    disabled={selectedExercises.length === 0}
+                    disabled={exerciseSelection.selectedExercises.length === 0}
                   >
                     <Text style={styles.addExercisesButtonText}>
-                      {selectedExercises.length === 0 
+                      {exerciseSelection.selectedExercises.length === 0 
                         ? 'Select exercises' 
-                        : `Add ${selectedExercises.length} exercise${selectedExercises.length > 1 ? 's' : ''}`}
+                        : `Add ${exerciseSelection.selectedExercises.length} exercise${exerciseSelection.selectedExercises.length > 1 ? 's' : ''}`}
                     </Text>
                   </TouchableOpacity>
                 </View>
               </>
-            ) : modalMode === 'exercise-tracking' ? (
+            ) : exerciseSelection.modalMode === 'exercise-tracking' ? (
               // Mode tracking d'un exercice spécifique
               <>
                 <View style={styles.header}>
@@ -1925,10 +1509,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                       onPress={() => {
                         if (selectedExercise) {
                           // Ouvrir directement en mode configuration du timer
-                          setCurrentExercise(selectedExercise);
-                          setSettingsModalVisible(true);
-                          // Indiquer qu'on veut ouvrir directement en mode timer
-                          setOpenTimerDirectly(true);
+                          modalManagement.showExerciseSettingsModal(selectedExercise, true);
                         }
                       }}
                     >
@@ -1952,29 +1533,29 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                     showsVerticalScrollIndicator={false}
                   >
                     <View style={[styles.setsContainer, { overflow: 'visible' }]}>
-                      {exerciseSets.map((set, index) => (
+                      {exerciseTracking.exerciseSets.map((set, index) => (
                         <SetRow
                           key={index}
                           set={set}
                           index={index}
-                          animation={setAnimations[index] || new Animated.Value(1)}
+                          animation={exerciseTracking.setAnimations[index] || new Animated.Value(1)}
                           onToggle={handleSetToggle}
                           onWeightChange={handleWeightChange}
                           onRepsChange={handleRepsChange}
                           onRemove={handleRemoveSet}
                           prData={
                             // Si la série affichée est celle actuellement mise en évidence, utiliser prResults
-                            prResults && prResults.setIndex === index ? {
-                              weightPR: prResults.weightPR,
-                              repsPR: prResults.repsPR,
-                              prBadgeAnim: prBadgeAnim
+                            workoutSession.prResults && workoutSession.prResults.setIndex === index ? {
+                              weightPR: workoutSession.prResults.weightPR,
+                              repsPR: workoutSession.prResults.repsPR,
+                              prBadgeAnim: animations.prBadgeAnim
                             } : 
                             // Sinon, chercher dans exercisePRResults s'il y a un enregistrement pour cette série
-                            selectedExerciseId && 
-                            exercisePRResults[`${selectedExerciseId}_set_${index}`] ? {
-                              weightPR: exercisePRResults[`${selectedExerciseId}_set_${index}`]?.weightPR,
-                              repsPR: exercisePRResults[`${selectedExerciseId}_set_${index}`]?.repsPR,
-                              prBadgeAnim: prBadgeAnim
+                            modalManagement.selectedExerciseId && 
+                            workoutSession.exercisePRResults[`${modalManagement.selectedExerciseId}_set_${index}`] ? {
+                              weightPR: workoutSession.exercisePRResults[`${modalManagement.selectedExerciseId}_set_${index}`]?.weightPR,
+                              repsPR: workoutSession.exercisePRResults[`${modalManagement.selectedExerciseId}_set_${index}`]?.repsPR,
+                              prBadgeAnim: animations.prBadgeAnim
                             } : undefined
                           }
                         />
@@ -2016,8 +1597,8 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                       style={styles.searchInput}
                       placeholder="Search exercises..."
                       placeholderTextColor="rgba(255, 255, 255, 0.5)"
-                      value={searchQuery}
-                      onChangeText={setSearchQuery}
+                      value={exerciseSelection.searchQuery}
+                      onChangeText={exerciseSelection.setSearchQuery}
                     />
                   </View>
                   
@@ -2030,19 +1611,19 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                 <TouchableOpacity 
                   style={[
                     styles.filterButton, 
-                    selectedTags.length > 0 && styles.filterButtonActive
+                    exerciseSelection.selectedTags.length > 0 && styles.filterButtonActive
                   ]} 
                   onPress={handleOpenFilterModal}
                 >
                   <Text 
                     style={[
                       styles.filterButtonText,
-                      selectedTags.length > 0 && styles.filterButtonTextActive
+                      exerciseSelection.selectedTags.length > 0 && styles.filterButtonTextActive
                     ]}
                   >
-                    {getFilterButtonText()}
+                    {exerciseSelection.getFilterButtonText()}
                   </Text>
-                  {selectedTags.length === 0 ? (
+                  {exerciseSelection.selectedTags.length === 0 ? (
                     <Ionicons name="chevron-down" size={20} color="#FFFFFF" />
                   ) : (
                     <TouchableOpacity onPress={handleResetFilters}>
@@ -2054,7 +1635,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                 {/* Exercise List */}
                 <View style={styles.exerciseListContainer}>
                   <ScrollView style={styles.scrollView}>
-                    {groupedExercises.map((section) => (
+                    {exerciseSelection.groupedExercises.map((section) => (
                       <View key={section.letter}>
                         {renderSectionHeader({ letter: section.letter })}
                         {section.data.map((exercise) => (
@@ -2079,19 +1660,19 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                   <TouchableOpacity 
                     style={[
                       styles.addExercisesButton,
-                      selectedExercises.length === 0 && styles.addExercisesButtonDisabled
+                      exerciseSelection.selectedExercises.length === 0 && styles.addExercisesButtonDisabled
                     ]}
-                    onPress={modalMode === 'exercise-replacement' ? handleExerciseReplaced : handleExercisesSelected}
-                    disabled={selectedExercises.length === 0}
+                    onPress={exerciseSelection.modalMode === 'exercise-replacement' ? handleExerciseReplaced : handleExercisesSelected}
+                    disabled={exerciseSelection.selectedExercises.length === 0}
                   >
                     <Text style={styles.addExercisesButtonText}>
-                      {modalMode === 'exercise-replacement' 
-                        ? (selectedExercises.length === 0 
+                      {exerciseSelection.modalMode === 'exercise-replacement' 
+                        ? (exerciseSelection.selectedExercises.length === 0 
                           ? 'Select an exercise' 
                           : 'Replace with selected exercise')
-                        : (selectedExercises.length === 0 
+                        : (exerciseSelection.selectedExercises.length === 0 
                           ? 'Select exercises' 
-                          : `Add ${selectedExercises.length} exercise${selectedExercises.length > 1 ? 's' : ''}`)
+                          : `Add ${exerciseSelection.selectedExercises.length} exercise${exerciseSelection.selectedExercises.length > 1 ? 's' : ''}`)
                       }
                     </Text>
                   </TouchableOpacity>
@@ -2104,21 +1685,20 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       
       {/* Modale des paramètres d'exercice */}
       <ExerciseSettingsModal
-        visible={settingsModalVisible}
+        visible={modalManagement.settingsModalVisible}
         onClose={() => {
-          setSettingsModalVisible(false);
-          setOpenTimerDirectly(false);
+          modalManagement.hideExerciseSettingsModal();
         }}
         onReplace={handleReplaceExercise}
         onDelete={() => {
-          if (currentExercise) {
-            handleRemoveExercise(currentExercise.id);
-            setSettingsModalVisible(false);
+          if (modalManagement.currentExercise) {
+            handleRemoveExercise(modalManagement.currentExercise.id);
+            modalManagement.hideExerciseSettingsModal();
           }
         }}
-        exercise={currentExercise}
+        exercise={modalManagement.currentExercise}
         onRestTimeUpdate={handleRestTimeUpdate}
-        openTimerDirectly={openTimerDirectly}
+        openTimerDirectly={modalManagement.openTimerDirectly}
       />
       
       {/* Afficher le timer de repos s'il est actif */}
@@ -2126,32 +1706,32 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       
       {/* Modale pour les filtres */}
       <ExerciseFilterModal
-        visible={isFilterModalVisible}
-        onClose={() => setIsFilterModalVisible(false)}
-        availableTags={allTags}
-        selectedTags={selectedTags}
+        visible={modalManagement.isFilterModalVisible}
+        onClose={() => modalManagement.hideFilterModal()}
+        availableTags={exerciseSelection.allTags}
+        selectedTags={exerciseSelection.selectedTags}
         onTagsSelected={handleTagsSelected}
       />
       
       {/* Finish Workout Modal */}
       <Modal
-        visible={isFinishModalVisible}
+        visible={modalManagement.isFinishModalVisible}
         transparent={true}
         animationType="none"
-        onRequestClose={() => setIsFinishModalVisible(false)}
+        onRequestClose={() => modalManagement.hideFinishModal()}
       >
         <View style={styles.modalOverlay}>
           <TouchableOpacity 
             style={StyleSheet.absoluteFill} 
             activeOpacity={1}
-            onPress={() => setIsFinishModalVisible(false)}
+            onPress={() => modalManagement.hideFinishModal()}
           />
           <Animated.View 
             style={[
               styles.modalContainer,
               {
                 transform: [{
-                  translateY: slideAnim.interpolate({
+                  translateY: animations.slideAnim.interpolate({
                     inputRange: [0, 1],
                     outputRange: [300, 0]
                   })
@@ -2187,7 +1767,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       {/* Modal pour éditer le workout */}
       {workout && (
         <WorkoutEditModal
-          visible={isWorkoutEditModalVisible}
+          visible={modalManagement.isWorkoutEditModalVisible}
           workout={workout}
           onClose={handleWorkoutEditClose}
           onSave={handleWorkoutEditSave}

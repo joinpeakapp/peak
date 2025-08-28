@@ -1,15 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { useEnhancedPersonalRecords } from '../../hooks/useEnhancedPersonalRecords';
-import { EnhancedPersonalRecords } from '../../types/workout';
+import { usePersonalRecords } from '../../hooks/usePersonalRecords';
+import { PersonalRecords } from '../../types/workout';
 import { StorageService } from '../../services/storage';
 
 /**
  * Écran de débogage pour visualiser les records personnels
  */
 export const RecordsDebugScreen = () => {
-  const { records, loadRecords } = useEnhancedPersonalRecords();
-  const [recordsData, setRecordsData] = useState<EnhancedPersonalRecords>({});
+  const { records, loadRecords } = usePersonalRecords();
+  const [recordsData, setRecordsData] = useState<PersonalRecords>({});
 
   useEffect(() => {
     setRecordsData(records);
@@ -33,7 +33,7 @@ export const RecordsDebugScreen = () => {
           text: 'Clear',
           style: 'destructive',
           onPress: async () => {
-            await StorageService.saveEnhancedPersonalRecords({});
+            await StorageService.savePersonalRecords({});
             await loadRecords();
             Alert.alert('Success', 'All records cleared');
           }

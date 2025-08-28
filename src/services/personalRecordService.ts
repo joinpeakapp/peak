@@ -1,190 +1,312 @@
-import { StorageService } from './storage';
-import { WorkoutState } from '../types/workout';
-import { Exercise } from '../types/exercise';
+import UserProfileService from './userProfileService';
+import { PersonalRecords, PersonalRecord, WeightPR, RepsPR, PRCheckResult, PRUpdateResult } from '../types/workout';
 
 /**
- * Service de gestion des records personnels.
- * Fournit des méthodes pour vérifier, récupérer et sauvegarder les records personnels.
+ * Service unifié de gestion des records personnels.
+ * Gère la détection, la vérification et la sauvegarde des PRs dans le profil utilisateur.
  */
-export const PersonalRecordService = {
+export class PersonalRecordService {
+  
   /**
-   * Vérifie si un ensemble de poids et de répétitions est un nouveau record.
-   * @param exerciseName - Le nom de l'exercice
-   * @param weight - Le poids utilisé
-   * @param reps - Le nombre de répétitions
-   * @param personalRecords - L'état actuel des records personnels
-   * @returns Un booléen indiquant s'il s'agit d'un nouveau record
+   * Charge les records personnels depuis le profil utilisateur.
    */
-  isNewRecord: (
+  static async loadRecords(): Promise<PersonalRecords> {
+    try {
+      return await UserProfileService.getPersonalRecords();
+    } catch (error) {
+      console.error('[PersonalRecordService] Failed to load records:', error);
+      return {};
+    }
+  }
+
+  /**
+   * Sauvegarde les records personnels dans le profil utilisateur.
+   * Cette méthode sauvegarde définitivement les PRs dans le profil.
+   */
+  static async saveRecords(records: PersonalRecords): Promise<void> {
+    try {
+      await UserProfileService.updatePersonalRecords(records);
+      console.log('[PersonalRecordService] Records saved successfully');
+    } catch (error) {
+      console.error('[PersonalRecordService] Failed to save records:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Vérifie si un poids représente un nouveau record de poids maximum.
+   * Un Weight PR est détecté quand le poids est strictement supérieur au maxWeight enregistré.
+   */
+  static checkWeightPR(
+    exerciseName: string,
+    weight: number,
+    records: PersonalRecords
+  ): WeightPR | null {
+    if (weight <= 0) return null;
+
+    const exerciseRecord = records[exerciseName];
+    
+    // Nouveau record si on bat le record existant (strictement supérieur)
+    if (exerciseRecord) {
+      if (weight > exerciseRecord.maxWeight) {
+        return {
+          isNew: true,
+          weight
+        };
+      }
+    } else if (weight > 0) {
+      // Premier record pour cet exercice
+      return {
+        isNew: true,
+        weight
+      };
+    }
+    
+    return null;
+  }
+
+  /**
+   * Vérifie si des répétitions représentent un nouveau record pour un poids donné.
+   * Un Reps PR est détecté seulement s'il existe déjà un record pour ce poids 
+   * ET que les nouvelles répétitions sont supérieures.
+   */
+  static checkRepsPR(
     exerciseName: string,
     weight: number,
     reps: number,
-    personalRecords: WorkoutState['personalRecords']
-  ): boolean => {
-    const key = `${exerciseName}_${reps}`;
-    const currentRecord = personalRecords[key];
+    records: PersonalRecords
+  ): RepsPR | null {
+    if (weight <= 0 || reps <= 0) return null;
     
-    // Si aucun record n'existe pour cette combinaison exercice/reps, c'est un nouveau record
-    if (!currentRecord) {
-      return true;
-    }
-    
-    // Sinon, vérifier si le poids est plus élevé que le record actuel
-    return weight > currentRecord.weight;
-  },
-
-  /**
-   * Récupère le record personnel pour un exercice spécifique et un nombre de répétitions.
-   * @param exerciseName - Le nom de l'exercice
-   * @param reps - Le nombre de répétitions (optionnel)
-   * @param personalRecords - L'état actuel des records personnels
-   * @returns Le record personnel ou null s'il n'existe pas
-   */
-  getRecordForExercise: (
-    exerciseName: string,
-    reps: number | undefined,
-    personalRecords: WorkoutState['personalRecords']
-  ) => {
-    // Si les répétitions sont spécifiées, chercher le record spécifique
-    if (reps !== undefined) {
-      const key = `${exerciseName}_${reps}`;
-      return personalRecords[key] || null;
-    }
-    
-    // Sinon, trouver le record avec le poids le plus élevé parmi toutes les répétitions
-    const records = Object.entries(personalRecords)
-      .filter(([key]) => key.startsWith(`${exerciseName}_`))
-      .map(([_, record]) => record);
-    
-    if (records.length === 0) {
+    const exerciseRecord = records[exerciseName];
+    if (!exerciseRecord) {
+      // Premier record pour cet exercice - pas de Reps PR
       return null;
     }
+
+    const weightKey = weight.toString();
+    const previousRecord = exerciseRecord.repsPerWeight[weightKey];
     
-    // Trier par poids (du plus lourd au plus léger)
-    return records.sort((a, b) => b.weight - a.weight)[0];
-  },
+    // Seulement si il y a un record précédent pour ce poids ET que les nouvelles reps sont supérieures
+    if (previousRecord && reps > previousRecord.reps) {
+      return {
+        isNew: true,
+        weight,
+        reps,
+        previousReps: previousRecord.reps
+      };
+    }
+    
+    return null;
+  }
 
   /**
-   * Récupère tous les records personnels pour un exercice donné.
-   * @param exerciseName - Le nom de l'exercice
-   * @param personalRecords - L'état actuel des records personnels
-   * @returns Un tableau de tous les records personnels pour cet exercice
+   * Vérifie les PRs potentiels pour un set donné sans mettre à jour les records.
+   * Utilisé pour l'affichage en temps réel dans l'interface.
    */
-  getAllRecordsForExercise: (
+  static checkPRs(
     exerciseName: string,
-    personalRecords: WorkoutState['personalRecords']
-  ) => {
-    return Object.entries(personalRecords)
-      .filter(([key]) => key.startsWith(`${exerciseName}_`))
-      .map(([key, record]) => ({
-        ...record,
-        reps: parseInt(key.split('_')[1]),
-      }))
-      .sort((a, b) => b.weight - a.weight);
-  },
+    weight: number,
+    reps: number,
+    records: PersonalRecords
+  ): PRCheckResult {
+    const weightPR = this.checkWeightPR(exerciseName, weight, records);
+    const repsPR = this.checkRepsPR(exerciseName, weight, reps, records);
+    
+    return {
+      weightPR,
+      repsPR
+    };
+  }
 
   /**
-   * Met à jour les records personnels lors de la complétion d'un exercise.
-   * @param exercise - L'exercice complété
-   * @param personalRecords - L'état actuel des records personnels
-   * @param date - La date de l'entraînement
-   * @returns Les records personnels mis à jour
+   * Met à jour les records pour un exercice après une série complétée.
+   * Cette méthode met à jour les records en mémoire mais ne les sauvegarde pas.
+   * La sauvegarde doit être faite explicitement avec saveRecords().
    */
-  updateRecords: (
-    exercise: {
-      id: string;
-      name: string;
-      sets: Array<{ weight: number; reps: number; completed: boolean }>;
-    },
-    personalRecords: WorkoutState['personalRecords'],
-    date: string
-  ): WorkoutState['personalRecords'] => {
-    const newRecords = { ...personalRecords };
+  static updateRecords(
+    exerciseName: string,
+    weight: number,
+    reps: number,
+    date: string,
+    records: PersonalRecords
+  ): PRUpdateResult {
+    if (weight <= 0 || reps <= 0) {
+      return { updatedRecords: records };
+    }
+
+    const newRecords = { ...records };
+    const weightKey = weight.toString();
     
-    // Parcourir tous les sets complétés
-    exercise.sets.forEach(set => {
-      if (set.completed && set.weight > 0 && set.reps > 0) {
-        const key = `${exercise.name}_${set.reps}`;
-        const currentRecord = newRecords[key];
-        
-        // Vérifier si c'est un nouveau record
-        if (!currentRecord || set.weight > currentRecord.weight) {
-          newRecords[key] = {
-            weight: set.weight,
-            reps: set.reps,
-            date,
-          };
+    // Récupérer ou initialiser l'exercice
+    if (!newRecords[exerciseName]) {
+      newRecords[exerciseName] = {
+        exerciseName,
+        maxWeight: 0,
+        maxWeightDate: '',
+        repsPerWeight: {}
+      };
+    }
+    
+    const exerciseRecord = newRecords[exerciseName];
+    let weightPR: WeightPR | null = null;
+    let repsPR: RepsPR | null = null;
+    
+    // Vérifier record de poids - uniquement si strictement supérieur
+    if (weight > exerciseRecord.maxWeight) {
+      exerciseRecord.maxWeight = weight;
+      exerciseRecord.maxWeightDate = date;
+      weightPR = { isNew: true, weight };
+    }
+    
+    // Vérifier record de répétitions pour ce poids
+    const previousReps = exerciseRecord.repsPerWeight[weightKey]?.reps || 0;
+    const hasPreviousRecord = weightKey in exerciseRecord.repsPerWeight;
+    
+    // Mettre à jour le record de répétitions si c'est mieux que précédemment
+    if (reps > previousReps) {
+      exerciseRecord.repsPerWeight[weightKey] = {
+        reps,
+        date
+      };
+      
+      // Retourner un PR de répétitions seulement s'il y avait déjà un record
+      if (hasPreviousRecord) {
+        repsPR = {
+          isNew: true,
+          weight,
+          reps,
+          previousReps
+        };
+      }
+    } else if (!hasPreviousRecord) {
+      // Premier enregistrement pour ce poids
+      exerciseRecord.repsPerWeight[weightKey] = {
+        reps,
+        date
+      };
+      // Pas de repsPR retourné ici car c'est le premier enregistrement
+    }
+    
+    return {
+      updatedRecords: newRecords,
+      weightPR,
+      repsPR
+    };
+  }
+
+  /**
+   * Obtient tous les records pour un exercice spécifique.
+   */
+  static getRecordsForExercise(
+    exerciseName: string,
+    records: PersonalRecords
+  ): PersonalRecord | null {
+    return records[exerciseName] || null;
+  }
+
+  /**
+   * Met à jour les records à partir d'un workout complété.
+   * Cette méthode traite tous les sets complétés d'un workout et met à jour les PRs.
+   * Elle ne sauvegarde PAS automatiquement - la sauvegarde doit être faite séparément.
+   */
+  static updateRecordsFromCompletedWorkout(
+    completedWorkout: {
+      date: string;
+      exercises: Array<{
+        name: string;
+        sets: Array<{
+          weight: number;
+          reps: number;
+          completed: boolean;
+        }>;
+      }>;
+    },
+    currentRecords: PersonalRecords
+  ): { updatedRecords: PersonalRecords; hasUpdates: boolean } {
+    let updatedRecords = { ...currentRecords };
+    let hasUpdates = false;
+    
+    // Traiter chaque exercice du workout
+    for (const exercise of completedWorkout.exercises) {
+      // Traiter chaque set complété
+      for (const set of exercise.sets) {
+        if (set.completed && set.weight > 0 && set.reps > 0) {
+          const result = this.updateRecords(
+            exercise.name,
+            set.weight,
+            set.reps,
+            completedWorkout.date,
+            updatedRecords
+          );
+          
+          if (result.weightPR || result.repsPR) {
+            hasUpdates = true;
+            updatedRecords = result.updatedRecords;
+            
+            if (result.weightPR) {
+              console.log(`[PersonalRecordService] ✅ New weight PR for ${exercise.name}: ${result.weightPR.weight}kg`);
+            }
+            if (result.repsPR) {
+              console.log(`[PersonalRecordService] ✅ New reps PR for ${exercise.name}: ${result.repsPR.reps} reps at ${result.repsPR.weight}kg`);
+            }
+          }
         }
       }
-    });
+    }
     
-    // Sauvegarder les records mis à jour
-    StorageService.savePersonalRecords(newRecords);
-    
-    return newRecords;
-  },
+    return { updatedRecords, hasUpdates };
+  }
 
   /**
-   * Récupère les records personnels pour chaque catégorie d'exercice.
-   * @param personalRecords - L'état actuel des records personnels
-   * @returns Un objet contenant les records regroupés par catégorie
+   * Migre les records depuis l'historique des workouts.
+   * Utile pour la migration depuis l'ancien système ou pour recalculer tous les PRs.
    */
-  getRecordsByCategory: (personalRecords: WorkoutState['personalRecords']) => {
-    const categories: {
-      [category: string]: Array<{
-        exerciseName: string;
-        weight: number;
-        reps: number;
-        date: string;
+  static async migrateFromWorkoutHistory(
+    completedWorkouts: Array<{
+      date: string;
+      exercises: Array<{
+        name: string;
+        sets: Array<{
+          weight: number;
+          reps: number;
+          completed: boolean;
+        }>;
       }>;
-    } = {
-      'Poitrine': [],
-      'Dos': [],
-      'Jambes': [],
-      'Épaules': [],
-      'Bras': [],
-      'Autre': []
-    };
-
-    // Fonction pour déterminer la catégorie de l'exercice en fonction de son nom
-    const getCategoryForExerciseName = (name: string): string => {
-      const nameLower = name.toLowerCase();
+    }>
+  ): Promise<void> {
+    try {
+      console.log('[PersonalRecordService] Starting migration from workout history...');
       
-      if (nameLower.includes('bench') || nameLower.includes('chest') || nameLower.includes('pec') || nameLower.includes('poitrine')) {
-        return 'Poitrine';
-      } else if (nameLower.includes('back') || nameLower.includes('row') || nameLower.includes('pull') || nameLower.includes('dos')) {
-        return 'Dos';
-      } else if (nameLower.includes('leg') || nameLower.includes('squat') || nameLower.includes('jambe') || nameLower.includes('cuisse')) {
-        return 'Jambes';
-      } else if (nameLower.includes('shoulder') || nameLower.includes('press') || nameLower.includes('épaule') || nameLower.includes('delto')) {
-        return 'Épaules';
-      } else if (nameLower.includes('arm') || nameLower.includes('curl') || nameLower.includes('tricep') || nameLower.includes('bicep')) {
-        return 'Bras';
-      } else {
-        return 'Autre';
+      const currentRecords = await this.loadRecords();
+      let updatedRecords = { ...currentRecords };
+      let hasUpdates = false;
+      
+      // Traiter tous les workouts complétés par ordre chronologique
+      const sortedWorkouts = [...completedWorkouts].sort(
+        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+      );
+      
+      for (const workout of sortedWorkouts) {
+        const result = this.updateRecordsFromCompletedWorkout(workout, updatedRecords);
+        if (result.hasUpdates) {
+          hasUpdates = true;
+          updatedRecords = result.updatedRecords;
+        }
       }
-    };
-
-    // Remplir les catégories avec les records correspondants
-    Object.entries(personalRecords).forEach(([key, record]) => {
-      // Extraire le nom de l'exercice à partir de la clé (format "exercice_reps")
-      const exerciseName = key.split('_')[0];
       
-      const category = getCategoryForExerciseName(exerciseName);
+      if (hasUpdates) {
+        await this.saveRecords(updatedRecords);
+        console.log('[PersonalRecordService] ✅ Migration completed successfully');
+      } else {
+        console.log('[PersonalRecordService] No migration needed');
+      }
       
-      categories[category].push({
-        exerciseName,
-        weight: record.weight,
-        reps: record.reps,
-        date: record.date
-      });
-    });
-
-    // Trier les records par poids dans chaque catégorie (du plus lourd au plus léger)
-    Object.keys(categories).forEach(category => {
-      categories[category].sort((a, b) => b.weight - a.weight);
-    });
-
-    return categories;
+    } catch (error) {
+      console.error('[PersonalRecordService] Migration error:', error);
+      throw error;
+    }
   }
-}; 
+}
+
+export default PersonalRecordService;

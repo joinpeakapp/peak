@@ -6,26 +6,33 @@ import {
   ScrollView,
   Dimensions,
   TouchableOpacity,
-  Modal
+  Alert
 } from 'react-native';
 import { useWorkout } from '../hooks/useWorkout';
 import { useWorkoutHistory } from '../workout/contexts/WorkoutHistoryContext';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { ProfileScreenProps } from '../types/navigation';
-import { useEnhancedPersonalRecords } from '../hooks/useEnhancedPersonalRecords';
-import { ErrorTestComponent } from '../components/common/ErrorTestComponent';
-import { StorageTestComponent } from '../components/common/StorageTestComponent';
-import { ImageCacheTestComponent } from '../components/common/ImageCacheTestComponent';
+import { usePersonalRecords } from '../hooks/usePersonalRecords';
+import UserProfileService, { UserProfile } from '../services/userProfileService';
+import { PersonalRecordService } from '../services/personalRecordService';
 
 export const ProfileScreen: React.FC = () => {
   const { personalRecords } = useWorkout();
   const { completedWorkouts, refreshWorkoutHistory } = useWorkoutHistory();
-  const { records: enhancedRecords, loadRecords } = useEnhancedPersonalRecords();
+  const { records, loadRecords, migrateFromWorkoutHistory } = usePersonalRecords();
   const navigation = useNavigation<ProfileScreenProps['navigation']>();
-  const [showErrorTest, setShowErrorTest] = useState(false);
-  const [showStorageTest, setShowStorageTest] = useState(false);
-  const [showImageCacheTest, setShowImageCacheTest] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+
+  // Charger le profil utilisateur
+  const loadUserProfile = useCallback(async () => {
+    try {
+      const profile = await UserProfileService.getUserProfile();
+      setUserProfile(profile);
+    } catch (error) {
+      console.error('[ProfileScreen] Error loading user profile:', error);
+    }
+  }, []);
 
   // Recharger les records et l'historique lorsque l'écran Profile est focalisé
   useFocusEffect(
@@ -35,8 +42,14 @@ export const ProfileScreen: React.FC = () => {
           // Rafraîchir l'historique des workouts
           await refreshWorkoutHistory();
           
+          // Migrer/synchroniser les records depuis l'historique
+          await migrateFromWorkoutHistory(completedWorkouts);
+          
           // Recharger les records personnels
           await loadRecords();
+
+          // Charger le profil utilisateur
+          await loadUserProfile();
           
         } catch (error) {
           console.error('[ProfileScreen] Error refreshing data:', error);
@@ -44,8 +57,34 @@ export const ProfileScreen: React.FC = () => {
       };
       
       refreshData();
-    }, [refreshWorkoutHistory, loadRecords])
+    }, [refreshWorkoutHistory, loadRecords, loadUserProfile])
   );
+
+  // Fonction pour réinitialiser l'onboarding (développement uniquement)
+  const handleResetOnboarding = () => {
+    Alert.alert(
+      'Reset Onboarding',
+      'This will reset your profile and show the onboarding again. Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reset',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await UserProfileService.resetUserProfile();
+              setUserProfile(null);
+              // L'app va redétecter que l'onboarding n'est pas fait
+              Alert.alert('Success', 'Onboarding reset. Restart the app to see the onboarding flow.');
+            } catch (error) {
+              console.error('[ProfileScreen] Error resetting onboarding:', error);
+              Alert.alert('Error', 'Failed to reset onboarding');
+            }
+          },
+        },
+      ]
+    );
+  };
 
   // Calculate workout statistics
   const workoutStats = useMemo(() => {
@@ -85,14 +124,14 @@ export const ProfileScreen: React.FC = () => {
     // Extract all unique exercises with their records (max weight)
     const exercisesMap = new Map();
     
-    // Utiliser uniquement les records améliorés pour garantir la cohérence
-    // Si un exercice n'est pas dans enhancedRecords, il ne sera pas affiché
+    // Utiliser les records unifiés pour garantir la cohérence
+    // Si un exercice n'est pas dans records, il ne sera pas affiché
     // Cela évite le problème de cards affichées mais avec des détails vides
-    console.log('[ProfileScreen] Processing enhanced records:', Object.keys(enhancedRecords));
-    Object.entries(enhancedRecords).forEach(([exerciseName, record]) => {
+    console.log('[ProfileScreen] Processing records:', Object.keys(records));
+    Object.entries(records).forEach(([exerciseName, record]) => {
       // Validation stricte : s'assurer que l'exercice a des données complètes et valides
       if (record.maxWeight > 0 && record.maxWeightDate && record.repsPerWeight && Object.keys(record.repsPerWeight).length > 0) {
-        console.log(`[ProfileScreen] ✅ Enhanced record valid for ${exerciseName}: ${record.maxWeight}kg`);
+        console.log(`[ProfileScreen] ✅ Record valid for ${exerciseName}: ${record.maxWeight}kg`);
         exercisesMap.set(exerciseName, {
           name: exerciseName,
           weight: record.maxWeight,
@@ -100,7 +139,7 @@ export const ProfileScreen: React.FC = () => {
           date: record.maxWeightDate
         });
       } else {
-        console.log(`[ProfileScreen] ❌ Enhanced record invalid for ${exerciseName}:`, {
+        console.log(`[ProfileScreen] ❌ Record invalid for ${exerciseName}:`, {
           maxWeight: record.maxWeight,
           hasDate: !!record.maxWeightDate,
           hasRepsPerWeight: !!record.repsPerWeight,
@@ -122,7 +161,7 @@ export const ProfileScreen: React.FC = () => {
       uniqueWorkoutTypes: workoutTypes.size,
       exercisesList
     };
-  }, [completedWorkouts, enhancedRecords]);
+  }, [completedWorkouts, records]);
   
   const navigateToExerciseDetail = (exerciseName: string) => {
     navigation.navigate('ExerciseDetail', { exerciseName });
@@ -133,37 +172,41 @@ export const ProfileScreen: React.FC = () => {
       <ScrollView style={styles.scrollView}>
         <View style={styles.header}>
           <Text style={styles.title}>Profile</Text>
-          {/* Development-only test buttons */}
+          {/* Development-only reset onboarding button */}
           {__DEV__ && (
-            <View style={styles.testButtonsContainer}>
-              <TouchableOpacity
-                style={styles.testButton}
-                onPress={() => setShowStorageTest(true)}
-              >
-                <Ionicons name="server" size={18} color="#10B981" />
-                <Text style={[styles.testButtonText, { color: '#10B981' }]}>Storage</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={styles.testButton}
-                onPress={() => setShowImageCacheTest(true)}
-              >
-                <Ionicons name="image" size={18} color="#3B82F6" />
-                <Text style={[styles.testButtonText, { color: '#3B82F6' }]}>Images</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={styles.testButton}
-                onPress={() => setShowErrorTest(true)}
-              >
-                <Ionicons name="bug" size={18} color="#FF6B6B" />
-                <Text style={[styles.testButtonText, { color: '#FF6B6B' }]}>Errors</Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              style={styles.testButton}
+              onPress={handleResetOnboarding}
+            >
+              <Ionicons name="refresh" size={18} color="#F59E0B" />
+              <Text style={[styles.testButtonText, { color: '#F59E0B' }]}>Reset</Text>
+            </TouchableOpacity>
           )}
         </View>
-        
-        {/* Stats Grid */}
+
+        {/* User Profile Information */}
+        {userProfile && (
+          <View style={styles.userProfileContainer}>
+            <View style={styles.profileHeader}>
+              <View style={styles.profileIconContainer}>
+                <Ionicons name="person" size={32} color="#FFFFFF" />
+              </View>
+              <View style={styles.profileInfo}>
+                <Text style={styles.profileName}>Hello, {userProfile.firstName}!</Text>
+                <Text style={styles.profileDetails}>
+                  {UserProfileService.getFitnessLevelLabel(userProfile.fitnessLevel)} • {UserProfileService.getPrimaryGoalLabel(userProfile.primaryGoal)}
+                </Text>
+              </View>
+            </View>
+            {userProfile.createdAt && (
+              <Text style={styles.memberSince}>
+                Member since {new Date(userProfile.createdAt).toLocaleDateString()}
+              </Text>
+            )}
+          </View>
+        )}
+
+        {/* Workout Statistics */}
         <View style={styles.statsGrid}>
           <View style={styles.statsRow}>
             <View style={styles.statsCard}>
@@ -220,39 +263,6 @@ export const ProfileScreen: React.FC = () => {
           )}
         </View>
       </ScrollView>
-      
-      {/* Storage Test Modal (Development only) */}
-      {__DEV__ && (
-        <Modal
-          visible={showStorageTest}
-          animationType="slide"
-          presentationStyle="pageSheet"
-        >
-          <StorageTestComponent onClose={() => setShowStorageTest(false)} />
-        </Modal>
-      )}
-      
-      {/* Error Boundary Test Modal (Development only) */}
-      {__DEV__ && (
-        <Modal
-          visible={showErrorTest}
-          animationType="slide"
-          presentationStyle="pageSheet"
-        >
-          <ErrorTestComponent onClose={() => setShowErrorTest(false)} />
-        </Modal>
-      )}
-      
-      {/* Image Cache Test Modal (Development only) */}
-      {__DEV__ && (
-        <Modal
-          visible={showImageCacheTest}
-          animationType="slide"
-          presentationStyle="pageSheet"
-        >
-          <ImageCacheTestComponent onClose={() => setShowImageCacheTest(false)} />
-        </Modal>
-      )}
     </View>
   );
 };
@@ -355,10 +365,6 @@ const styles = StyleSheet.create({
     marginTop: 20,
     textAlign: 'center',
   },
-  testButtonsContainer: {
-    flexDirection: 'row',
-    gap: 8,
-  },
   testButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -371,5 +377,45 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
     marginLeft: 5,
+  },
+  userProfileContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    backgroundColor: '#1A1A1D',
+    borderRadius: 10,
+    marginBottom: 20,
+    marginHorizontal: 20,
+  },
+  profileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  profileIconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#3B82F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 15,
+  },
+  profileInfo: {
+    flex: 1,
+  },
+  profileName: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 5,
+  },
+  profileDetails: {
+    fontSize: 14,
+    color: '#888888',
+  },
+  memberSince: {
+    fontSize: 12,
+    color: '#888888',
+    textAlign: 'center',
   },
 });

@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { NavigationProp, RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { RootStackParamList, SummaryStackParamList } from '../../types/navigation';
 import ImageOptimizationService from '../../services/imageOptimizationService';
+import { useActiveWorkout } from '../contexts/ActiveWorkoutContext';
 
 type WorkoutPhotoRouteProp = RouteProp<SummaryStackParamList, 'WorkoutPhoto'>;
 
@@ -24,6 +25,7 @@ export const WorkoutPhotoScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const route = useRoute<WorkoutPhotoRouteProp>();
   const { workout } = route.params;
+  const { updatePhotoUri } = useActiveWorkout();
   
   // Référence à la caméra
   const cameraRef = useRef<any>(null);
@@ -126,6 +128,10 @@ export const WorkoutPhotoScreen: React.FC = () => {
         );
         
         console.log('🖼️ [WorkoutPhoto] Photo optimization completed');
+        
+        // Sauvegarder l'URI de la photo dans le contexte ActiveWorkout
+        updatePhotoUri(optimizedPhotoUri);
+        
         setIsOptimizing(false);
         
         // 3. Naviguer vers l'écran de prévisualisation avec l'URI optimisée

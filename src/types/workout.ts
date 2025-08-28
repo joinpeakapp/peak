@@ -20,8 +20,8 @@ export interface Exercise {
   };
 }
 
-// Types pour les records personnels avancés
-export interface EnhancedPersonalRecord {
+// Types unifiés pour les records personnels
+export interface PersonalRecord {
   exerciseName: string;        // Nom de l'exercice
   maxWeight: number;           // Poids maximum jamais soulevé
   maxWeightDate: string;       // Date du record de poids
@@ -33,10 +33,35 @@ export interface EnhancedPersonalRecord {
   };
 }
 
-// État amélioré pour les records personnels
-export interface EnhancedPersonalRecords {
-  // Stockage par exercice
-  [exerciseName: string]: EnhancedPersonalRecord;
+// Collection de tous les records personnels
+export interface PersonalRecords {
+  [exerciseName: string]: PersonalRecord;
+}
+
+// Types pour la détection de nouveaux PRs
+export interface WeightPR {
+  isNew: boolean;
+  weight: number;
+}
+
+export interface RepsPR {
+  isNew: boolean;
+  weight: number;
+  reps: number;
+  previousReps: number;
+}
+
+// Résultat de vérification de PRs
+export interface PRCheckResult {
+  weightPR?: WeightPR | null;
+  repsPR?: RepsPR | null;
+}
+
+// Résultat de mise à jour de PRs
+export interface PRUpdateResult {
+  updatedRecords: PersonalRecords;
+  weightPR?: WeightPR | null;
+  repsPR?: RepsPR | null;
 }
 
 // Types pour les séances d'entraînement

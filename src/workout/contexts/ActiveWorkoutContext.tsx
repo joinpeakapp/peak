@@ -30,6 +30,7 @@ export interface ActiveWorkout {
   pausedAt?: number; // Timestamp quand l'app a été mise en pause
   trackingData: TrackingData;
   isActive: boolean;
+  photoUri?: string; // URI de la photo prise après le workout
 }
 
 // Interface du contexte
@@ -39,6 +40,7 @@ interface ActiveWorkoutContextValue {
   finishWorkout: (updateStreak?: boolean) => Promise<void>;
   updateTrackingData: (exerciseId: string, sets: TrackingSet[], completedSets: number) => void;
   updateElapsedTime: (newElapsedTime: number) => void;
+  updatePhotoUri: (photoUri: string) => void; // Nouvelle fonction pour mettre à jour la photo
   resumeWorkout: () => void;
   pauseWorkout: () => void; // Nouvelle fonction pour mettre en pause
   isTrackingWorkout: boolean;
@@ -51,6 +53,7 @@ const defaultContextValue: ActiveWorkoutContextValue = {
   finishWorkout: async () => {},
   updateTrackingData: () => {},
   updateElapsedTime: () => {},
+  updatePhotoUri: () => {}, // Ajout de la nouvelle fonction
   resumeWorkout: () => {},
   pauseWorkout: () => {}, // Ajout de la nouvelle fonction
   isTrackingWorkout: false,
@@ -347,6 +350,20 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
     });
   };
 
+  // Mettre à jour l'URI de la photo
+  const updatePhotoUri = (photoUri: string) => {
+    if (!activeWorkout) return;
+
+    setActiveWorkout(prev => {
+      if (!prev) return null;
+      
+      return {
+        ...prev,
+        photoUri
+      };
+    });
+  };
+
   // Reprendre une séance mise en pause (manuellement)
   const resumeWorkout = () => {
     if (!activeWorkout) return;
@@ -394,6 +411,7 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
         finishWorkout,
         updateTrackingData,
         updateElapsedTime,
+        updatePhotoUri,
         resumeWorkout,
         pauseWorkout,
         isTrackingWorkout

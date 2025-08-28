@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
-import { useEnhancedPersonalRecords } from '../hooks/useEnhancedPersonalRecords';
-import { EnhancedPersonalRecord } from '../types/workout';
+import { usePersonalRecords } from '../hooks/usePersonalRecords';
+import { PersonalRecord } from '../types/workout';
 import { ProfileStackParamList } from '../types/navigation';
 
 type ExerciseDetailRouteProp = RouteProp<ProfileStackParamList, 'ExerciseDetail'>;
@@ -12,8 +12,8 @@ export const ExerciseDetailScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute<ExerciseDetailRouteProp>();
   const { exerciseName } = route.params;
-  const { records, loadRecords, loading } = useEnhancedPersonalRecords();
-  const [exerciseRecord, setExerciseRecord] = useState<EnhancedPersonalRecord | null>(null);
+  const { records, loadRecords, loading } = usePersonalRecords();
+  const [exerciseRecord, setExerciseRecord] = useState<PersonalRecord | null>(null);
 
   useEffect(() => {
     if (records && exerciseName) {

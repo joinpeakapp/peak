@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { WorkoutState, StreakData, EnhancedPersonalRecords, CompletedWorkout, Workout } from '../types/workout';
+import { WorkoutState, StreakData, PersonalRecords, CompletedWorkout, Workout } from '../types/workout';
 
 // Nouvelles clés optimisées (5 au total)
 const STORAGE_KEYS = {
@@ -586,7 +586,7 @@ export const StorageService = {
   loadWorkouts: () => RobustStorageService.loadWorkoutTemplates().then(result => result.data),
   savePersonalRecords: (records: any) => RobustStorageService.savePersonalRecords(records),
   loadPersonalRecords: () => RobustStorageService.loadPersonalRecords().then(result => result.data.legacy),
-  saveEnhancedPersonalRecords: (records: EnhancedPersonalRecords) => 
+  saveEnhancedPersonalRecords: (records: PersonalRecords) => 
     RobustStorageService.loadPersonalRecords().then(result => {
       const merged = { ...result.data, enhanced: records };
       return RobustStorageService.savePersonalRecords(merged);

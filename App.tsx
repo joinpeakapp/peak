@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Provider } from 'react-redux';
@@ -13,6 +13,9 @@ import { useSelector } from 'react-redux';
 import { RootState } from './src/store';
 import { ErrorBoundary } from './src/components/common/ErrorBoundary';
 import { RobustStorageService } from './src/services/storage';
+import { OnboardingNavigator } from './src/screens/onboarding/OnboardingNavigator';
+import UserProfileService, { UserProfile } from './src/services/userProfileService';
+import ImageOptimizationService from './src/services/imageOptimizationService';
 
 // Composant pour valider les streaks au démarrage
 const StreakValidator: React.FC = () => {
@@ -31,8 +34,47 @@ const StreakValidator: React.FC = () => {
   return null; // Ce composant ne rend rien visuellement
 };
 
-// Composant interne pour gérer la validation des streaks après le chargement des données
+// Composant interne pour gérer l'onboarding et l'app principale
 const AppContent: React.FC = () => {
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingChecked, setOnboardingChecked] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+
+  // Vérifier si l'onboarding a été complété
+  useEffect(() => {
+    const checkOnboardingStatus = async () => {
+      try {
+        const isCompleted = await UserProfileService.isOnboardingCompleted();
+        const profile = await UserProfileService.getUserProfile();
+        
+        console.log('[App] Onboarding status:', { isCompleted, profile });
+        
+        setUserProfile(profile);
+        setShowOnboarding(!isCompleted);
+        setOnboardingChecked(true);
+      } catch (error) {
+        console.error('[App] Error checking onboarding status:', error);
+        // En cas d'erreur, on considère que l'onboarding n'est pas fait
+        setShowOnboarding(true);
+        setOnboardingChecked(true);
+      }
+    };
+
+    checkOnboardingStatus();
+  }, []);
+
+  // Handler pour terminer l'onboarding
+  const handleOnboardingComplete = (profile: UserProfile) => {
+    console.log('[App] Onboarding completed:', profile);
+    setUserProfile(profile);
+    setShowOnboarding(false);
+  };
+
+  // Ne rien afficher tant qu'on n'a pas vérifié le statut d'onboarding
+  if (!onboardingChecked) {
+    return null; // On pourrait afficher un splash screen ici
+  }
+
   return (
     <ErrorBoundary>
       <StreakProvider>
@@ -43,6 +85,12 @@ const AppContent: React.FC = () => {
                 <StreakValidator />
                 <StatusBar style="light" />
                 <AppNavigator />
+                
+                {/* Onboarding Modal */}
+                <OnboardingNavigator
+                  visible={showOnboarding}
+                  onComplete={handleOnboardingComplete}
+                />
               </SafeAreaProvider>
             </RestTimerProvider>
           </ActiveWorkoutProvider>
@@ -58,6 +106,14 @@ export default function App() {
     const initializeApp = async () => {
       console.log('[App] Initializing storage service...');
       await RobustStorageService.initialize();
+      
+      // Initialiser et nettoyer le service d'optimisation d'images
+      console.log('[App] Initializing image optimization service...');
+      await ImageOptimizationService.initialize();
+      
+      // Nettoyer seulement les images manquantes du cache
+      console.log('[App] Cleaning up missing images...');
+      await ImageOptimizationService.cleanupMissingFiles();
       
       // Charger les données initiales après l'initialisation du stockage
       console.log('[App] Loading initial data...');

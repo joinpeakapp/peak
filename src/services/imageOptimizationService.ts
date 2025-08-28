@@ -32,6 +32,93 @@ class ImageOptimizationService {
   private static readonly CACHE_METADATA_KEY = 'image_cache_metadata';
   private static readonly MAX_CACHE_SIZE = 100 * 1024 * 1024; // 100MB
   private static readonly MAX_CACHE_AGE = 30 * 24 * 60 * 60 * 1000; // 30 jours
+  private static readonly PERMANENT_IMAGES_DIR = `${FileSystem.documentDirectory}optimized_images/`;
+  private static readonly FAILED_IMAGES_KEY = 'failed_image_optimizations';
+  private static failedImages = new Set<string>();
+
+  /**
+   * Initialise le service et charge la liste des images échouées
+   */
+  static async initialize(): Promise<void> {
+    try {
+      // Créer le dossier d'images permanentes s'il n'existe pas
+      const dirInfo = await FileSystem.getInfoAsync(this.PERMANENT_IMAGES_DIR);
+      if (!dirInfo.exists) {
+        await FileSystem.makeDirectoryAsync(this.PERMANENT_IMAGES_DIR, { intermediates: true });
+        console.log('🖼️ [ImageOptimization] Created permanent images directory');
+      }
+
+      // Charger la liste des images échouées
+      const failedImagesData = await AsyncStorage.getItem(this.FAILED_IMAGES_KEY);
+      if (failedImagesData) {
+        const failedArray = JSON.parse(failedImagesData);
+        this.failedImages = new Set(failedArray);
+        console.log(`🖼️ [ImageOptimization] Loaded ${this.failedImages.size} failed images from storage`);
+      }
+    } catch (error) {
+      console.error('🖼️ [ImageOptimization] Error during initialization:', error);
+    }
+  }
+
+  /**
+   * Vérifie si une image a déjà échoué récemment
+   */
+  private static hasRecentlyFailed(imageUri: string): boolean {
+    return this.failedImages.has(imageUri);
+  }
+
+  /**
+   * Marque une image comme ayant échoué
+   */
+  private static async markAsFailed(imageUri: string): Promise<void> {
+    this.failedImages.add(imageUri);
+    try {
+      await AsyncStorage.setItem(this.FAILED_IMAGES_KEY, JSON.stringify([...this.failedImages]));
+    } catch (error) {
+      console.error('🖼️ [ImageOptimization] Error saving failed images:', error);
+    }
+  }
+
+  /**
+   * Valide si l'URI d'image est correct
+   */
+  private static isValidImageUri(uri: string): boolean {
+    if (!uri || typeof uri !== 'string') {
+      return false;
+    }
+    
+    // Vérifier si c'est un URI de fichier valide
+    if (uri.startsWith('file://') || uri.startsWith('content://') || uri.startsWith('ph://')) {
+      return true;
+    }
+    
+    // Vérifier si c'est une URL HTTP/HTTPS
+    if (uri.startsWith('http://') || uri.startsWith('https://')) {
+      return true;
+    }
+    
+    // Vérifier si c'est un chemin local
+    if (uri.startsWith('/')) {
+      return true;
+    }
+    
+    return false;
+  }
+
+  /**
+   * Génère un nom de fichier pour le stockage permanent
+   */
+  private static generatePermanentFileName(originalUri: string, options: any): string {
+    const hash = originalUri.split('').reduce((a, b) => {
+      a = ((a << 5) - a) + b.charCodeAt(0);
+      return a & a;
+    }, 0);
+    const optionsHash = JSON.stringify(options).split('').reduce((a, b) => {
+      a = ((a << 5) - a) + b.charCodeAt(0);
+      return a & a;
+    }, 0);
+    return `${Math.abs(hash)}_${Math.abs(optionsHash)}.jpg`;
+  }
 
   /**
    * Optimise une image avec compression, redimensionnement et correction d'orientation
@@ -49,14 +136,56 @@ class ImageOptimizationService {
     }
 
     try {
+      // Valider l'URI d'entrée
+      if (!this.isValidImageUri(imageUri)) {
+        console.log(`🖼️ [ImageOptimization] ⚠️ Invalid image URI: ${imageUri}`);
+        await this.markAsFailed(imageUri);
+        return imageUri;
+      }
+
+      // Vérifier si cette image a déjà échoué récemment
+      if (this.hasRecentlyFailed(imageUri)) {
+        console.log(`🖼️ [ImageOptimization] ⏭️ Skipping recently failed image: ${imageUri}`);
+        return imageUri; // Retourner l'URI original sans tenter d'optimiser
+      }
+
       console.log(`🖼️ [ImageOptimization] Starting optimization for: ${imageUri}`);
       
-      // Vérifier le cache d'abord
+      // Vérifier que le fichier source existe
+      const sourceFileInfo = await FileSystem.getInfoAsync(imageUri);
+      if (!sourceFileInfo.exists) {
+        console.log(`🖼️ [ImageOptimization] ⚠️ Source file does not exist, marking as failed: ${imageUri}`);
+        await this.markAsFailed(imageUri);
+        throw new Error(`Source file not found: ${imageUri}`);
+      }
+      
+      // Vérifier le stockage permanent d'abord
+      const permanentFileName = this.generatePermanentFileName(imageUri, finalOptions);
+      const permanentPath = `${this.PERMANENT_IMAGES_DIR}${permanentFileName}`;
+      
+      const permanentFileInfo = await FileSystem.getInfoAsync(permanentPath);
+      if (permanentFileInfo.exists) {
+        console.log(`🖼️ [ImageOptimization] ✅ Found permanent image: ${permanentPath}`);
+        return permanentPath;
+      }
+      
+      // Vérifier le cache temporaire en second lieu
       if (finalOptions.shouldCache) {
         const cachedUri = await this.getCachedImage(imageUri);
         if (cachedUri) {
           console.log(`🖼️ [ImageOptimization] ✅ Found cached image: ${cachedUri}`);
-          return cachedUri;
+          // Copier vers le stockage permanent pour la prochaine fois
+          try {
+            await FileSystem.copyAsync({
+              from: cachedUri,
+              to: permanentPath
+            });
+            console.log(`🖼️ [ImageOptimization] 📁 Moved to permanent storage: ${permanentPath}`);
+            return permanentPath;
+          } catch (copyError) {
+            console.warn(`🖼️ [ImageOptimization] Could not copy to permanent storage, using cache: ${copyError}`);
+            return cachedUri;
+          }
         }
       }
 
@@ -100,14 +229,37 @@ class ImageOptimizationService {
       console.log(`🖼️ [ImageOptimization] Original size: ${await this.getImageSize(imageUri)} bytes`);
       console.log(`🖼️ [ImageOptimization] Optimized size: ${await this.getImageSize(manipulatedImage.uri)} bytes`);
 
-      // Mettre en cache l'image optimisée
-      if (finalOptions.shouldCache) {
-        await this.cacheImage(imageUri, manipulatedImage.uri);
+      // Sauvegarder dans le stockage permanent
+      try {
+        await FileSystem.copyAsync({
+          from: manipulatedImage.uri,
+          to: permanentPath
+        });
+        console.log(`🖼️ [ImageOptimization] 📁 Saved to permanent storage: ${permanentPath}`);
+        
+        // Mettre en cache également pour compatibilité
+        if (finalOptions.shouldCache) {
+          await this.cacheImage(imageUri, permanentPath);
+        }
+        
+        return permanentPath;
+      } catch (saveError) {
+        console.warn(`🖼️ [ImageOptimization] Could not save to permanent storage: ${saveError}`);
+        
+        // Fallback vers le cache temporaire
+        if (finalOptions.shouldCache) {
+          await this.cacheImage(imageUri, manipulatedImage.uri);
+        }
+        
+        return manipulatedImage.uri;
       }
-
-      return manipulatedImage.uri;
     } catch (error) {
-      console.error('🖼️ [ImageOptimization] ❌ Error optimizing image:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.warn(`🖼️ [ImageOptimization] ⚠️ Failed to optimize image: ${errorMessage}`);
+      
+      // Marquer comme échoué pour éviter les tentatives répétées
+      await this.markAsFailed(imageUri);
+      
       // En cas d'erreur, retourner l'URI original
       return imageUri;
     }
@@ -259,6 +411,95 @@ class ImageOptimizationService {
   }
 
   /**
+   * Remet à zéro la liste des images échouées
+   */
+  static async clearFailedImages(): Promise<void> {
+    try {
+      this.failedImages.clear();
+      await AsyncStorage.removeItem(this.FAILED_IMAGES_KEY);
+      console.log('🖼️ [ImageOptimization] ✅ Cleared failed images list');
+    } catch (error) {
+      console.error('🖼️ [ImageOptimization] Error clearing failed images:', error);
+    }
+  }
+
+  /**
+   * Nettoie le stockage permanent des images obsolètes
+   */
+  static async cleanupPermanentStorage(): Promise<void> {
+    try {
+      console.log('🖼️ [ImageOptimization] 🧹 Cleaning up permanent storage...');
+      
+      const dirInfo = await FileSystem.getInfoAsync(this.PERMANENT_IMAGES_DIR);
+      if (!dirInfo.exists) {
+        return;
+      }
+
+      const files = await FileSystem.readDirectoryAsync(this.PERMANENT_IMAGES_DIR);
+      let removedCount = 0;
+      
+      for (const file of files) {
+        const filePath = `${this.PERMANENT_IMAGES_DIR}${file}`;
+        const fileInfo = await FileSystem.getInfoAsync(filePath);
+        
+        // Supprimer les fichiers de plus de 30 jours
+        if (fileInfo.exists && fileInfo.modificationTime) {
+          const fileAge = Date.now() - fileInfo.modificationTime * 1000;
+          if (fileAge > this.MAX_CACHE_AGE) {
+            await FileSystem.deleteAsync(filePath);
+            removedCount++;
+          }
+        }
+      }
+      
+      console.log(`🖼️ [ImageOptimization] ✅ Cleaned up ${removedCount} old files from permanent storage`);
+    } catch (error) {
+      console.error('🖼️ [ImageOptimization] Error during permanent storage cleanup:', error);
+    }
+  }
+
+  /**
+   * Nettoie le cache en supprimant les références aux fichiers qui n'existent plus
+   */
+  static async cleanupMissingFiles(): Promise<void> {
+    try {
+      console.log('🖼️ [ImageOptimization] 🧹 Cleaning up missing files from cache...');
+      
+      const metadataString = await AsyncStorage.getItem(this.CACHE_METADATA_KEY);
+      const metadata = metadataString ? JSON.parse(metadataString) : {};
+      
+      const newMetadata: Record<string, any> = {};
+      let removedCount = 0;
+      
+      // Vérifier chaque fichier du cache
+      for (const [cacheKey, data] of Object.entries(metadata)) {
+        const cachedData = await AsyncStorage.getItem(cacheKey);
+        if (cachedData) {
+          const cached: CachedImage = JSON.parse(cachedData);
+          
+          // Vérifier si le fichier optimisé existe toujours
+          const fileExists = await FileSystem.getInfoAsync(cached.uri);
+          if (fileExists.exists) {
+            newMetadata[cacheKey] = data;
+          } else {
+            // Supprimer la référence du cache
+            await AsyncStorage.removeItem(cacheKey);
+            removedCount++;
+            console.log(`🖼️ [ImageOptimization] 🗑️ Removed missing file from cache: ${cached.uri}`);
+          }
+        }
+      }
+      
+      // Mettre à jour les métadonnées
+      await AsyncStorage.setItem(this.CACHE_METADATA_KEY, JSON.stringify(newMetadata));
+      
+      console.log(`🖼️ [ImageOptimization] ✅ Cache cleanup completed. Removed ${removedCount} missing files.`);
+    } catch (error) {
+      console.error('🖼️ [ImageOptimization] Error during missing files cleanup:', error);
+    }
+  }
+
+  /**
    * Efface tout le cache d'images
    */
   static async clearCache(): Promise<void> {
@@ -345,6 +586,76 @@ class ImageOptimizationService {
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
+  }
+
+  /**
+   * Vide complètement tous les caches et données d'images (reset complet)
+   */
+  static async resetAllImageData(): Promise<void> {
+    try {
+      console.log('🖼️ [ImageOptimization] 🧹 Performing complete reset of all image data...');
+      
+      // Vider la liste des images échouées
+      await this.clearFailedImages();
+      
+      // Vider le cache AsyncStorage
+      await this.clearCache();
+      
+      // Supprimer tout le dossier permanent et le recréer
+      const dirInfo = await FileSystem.getInfoAsync(this.PERMANENT_IMAGES_DIR);
+      if (dirInfo.exists) {
+        await FileSystem.deleteAsync(this.PERMANENT_IMAGES_DIR);
+      }
+      await FileSystem.makeDirectoryAsync(this.PERMANENT_IMAGES_DIR, { intermediates: true });
+      
+      console.log('🖼️ [ImageOptimization] ✅ Complete reset completed successfully');
+    } catch (error) {
+      console.error('🖼️ [ImageOptimization] Error during complete reset:', error);
+    }
+  }
+
+  /**
+   * Fonction de diagnostic pour déboguer les problèmes de cache
+   */
+  static async diagnoseCache(): Promise<{
+    stats: any;
+    missingFiles: string[];
+    totalItems: number;
+  }> {
+    try {
+      const stats = await this.getCacheStats();
+      const metadataString = await AsyncStorage.getItem(this.CACHE_METADATA_KEY);
+      const metadata = metadataString ? JSON.parse(metadataString) : {};
+      
+      const missingFiles: string[] = [];
+      
+      // Vérifier chaque fichier du cache
+      for (const [cacheKey] of Object.entries(metadata)) {
+        const cachedData = await AsyncStorage.getItem(cacheKey);
+        if (cachedData) {
+          const cached: CachedImage = JSON.parse(cachedData);
+          const fileExists = await FileSystem.getInfoAsync(cached.uri);
+          if (!fileExists.exists) {
+            missingFiles.push(cached.uri);
+          }
+        }
+      }
+      
+      console.log(`🖼️ [ImageOptimization] 📊 Cache diagnosis:`, {
+        stats,
+        missingFilesCount: missingFiles.length,
+        totalItems: Object.keys(metadata).length
+      });
+      
+      return {
+        stats,
+        missingFiles,
+        totalItems: Object.keys(metadata).length
+      };
+    } catch (error) {
+      console.error('🖼️ [ImageOptimization] Error during cache diagnosis:', error);
+      return { stats: null, missingFiles: [], totalItems: 0 };
+    }
   }
 }
 
