@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { usePersonalRecords } from '../hooks/usePersonalRecords';
 import { PersonalRecord } from '../types/workout';
 import { ProfileStackParamList } from '../types/navigation';
+import { PRDeleteModal } from '../components/common/PRDeleteModal';
 
 type ExerciseDetailRouteProp = RouteProp<ProfileStackParamList, 'ExerciseDetail'>;
 
@@ -12,8 +13,14 @@ export const ExerciseDetailScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute<ExerciseDetailRouteProp>();
   const { exerciseName } = route.params;
-  const { records, loadRecords, loading } = usePersonalRecords();
+  const { records, loadRecords, loading, deleteRepRecord } = usePersonalRecords();
   const [exerciseRecord, setExerciseRecord] = useState<PersonalRecord | null>(null);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [deleteModalData, setDeleteModalData] = useState<{
+    weight?: string;
+    reps?: number;
+    isAllRecords: boolean;
+  }>({ isAllRecords: false });
 
   useEffect(() => {
     if (records && exerciseName) {
@@ -53,6 +60,45 @@ export const ExerciseDetailScreen: React.FC = () => {
       loadRecords();
     }, [loadRecords])
   );
+
+  // Gestion du long press sur un record spécifique
+  const handleLongPressRecord = (weight: string, reps: number) => {
+    setDeleteModalData({
+      weight,
+      reps,
+      isAllRecords: false
+    });
+    setDeleteModalVisible(true);
+  };
+
+
+
+  // Confirmation de suppression
+  const handleConfirmDelete = async () => {
+    try {
+      if (deleteModalData.weight) {
+        // Supprimer un record spécifique
+        await deleteRepRecord(exerciseName, deleteModalData.weight);
+        Alert.alert('Success', 'Record deleted successfully.');
+      }
+    } catch (error) {
+      console.error('Error deleting record:', error);
+      Alert.alert(
+        'Error',
+        'Failed to delete record. Please try again.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setDeleteModalVisible(false);
+      setDeleteModalData({ isAllRecords: false });
+    }
+  };
+
+  // Fermer la modale
+  const handleCloseModal = () => {
+    setDeleteModalVisible(false);
+    setDeleteModalData({ isAllRecords: false });
+  };
 
   // Afficher un état de chargement
   if (loading) {
@@ -115,7 +161,7 @@ export const ExerciseDetailScreen: React.FC = () => {
             </View>
 
             {/* Repetition Records by Weight */}
-            <Text style={styles.sectionTitle}>Repetition Records by Weight</Text>
+            <Text style={styles.sectionTitle}>Repetition records by weight</Text>
             
             {Object.entries(exerciseRecord.repsPerWeight)
               .sort((a, b) => parseFloat(b[0]) - parseFloat(a[0]))
@@ -123,6 +169,13 @@ export const ExerciseDetailScreen: React.FC = () => {
                 <View key={weight} style={styles.repRecordCard}>
                   <View style={styles.repRecordHeader}>
                     <Text style={styles.repRecordWeight}>{weight} kg</Text>
+                    <TouchableOpacity 
+                      style={styles.deleteButton}
+                      onPress={() => handleLongPressRecord(weight, repRecord.reps)}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="close" size={18} color="#888888" />
+                    </TouchableOpacity>
                   </View>
                   
                   <View style={styles.repRecordInfo}>
@@ -154,6 +207,15 @@ export const ExerciseDetailScreen: React.FC = () => {
           </View>
         )}
       </ScrollView>
+
+      <PRDeleteModal
+        visible={deleteModalVisible}
+        onClose={handleCloseModal}
+        onConfirm={handleConfirmDelete}
+        exerciseName={exerciseName}
+        weight={deleteModalData.weight}
+        reps={deleteModalData.reps}
+      />
     </View>
   );
 };
@@ -233,12 +295,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#888888',
   },
+
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#FFFFFF',
+    marginTop: 32,
     marginBottom: 16,
-    marginTop: 8,
+    marginLeft: 16,
   },
   repRecordCard: {
     backgroundColor: '#1A1A1D',
@@ -247,6 +311,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   repRecordHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 12,
   },
   repRecordWeight: {
@@ -305,5 +372,10 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#FFFFFF',
     fontWeight: '600',
+  },
+  deleteButton: {
+    padding: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 }); 

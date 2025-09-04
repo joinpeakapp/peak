@@ -8,8 +8,7 @@ import {
   ScrollView,
   Platform,
   TouchableWithoutFeedback,
-  Keyboard,
-  KeyboardAvoidingView
+  Keyboard
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useWorkout } from '../../hooks/useWorkout';
@@ -103,12 +102,8 @@ export const WorkoutEditScreen: React.FC<WorkoutEditScreenProps> = ({
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.keyboardAvoidView}
-    >
-      <TouchableWithoutFeedback onPress={dismissKeyboard}>
-        <View style={styles.container}>
+    <TouchableWithoutFeedback onPress={dismissKeyboard}>
+      <View style={styles.container}>
           <TouchableOpacity 
             testID="close-button"
             style={styles.closeButton} 
@@ -122,44 +117,53 @@ export const WorkoutEditScreen: React.FC<WorkoutEditScreenProps> = ({
             <Text style={styles.subtitle}>Update your workout details</Text>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <Text style={styles.sectionTitle}>Workout name</Text>
-            <View>
-              <TextInput
-                style={[styles.input, error ? styles.inputError : null]}
-                placeholder="e.g. Upper Body, Cardio..."
-                placeholderTextColor="#5B5B5C"
-                value={name}
-                onChangeText={handleNameChange}
-                autoCapitalize="words"
-                returnKeyType="done"
-                testID="workout-name-input"
-              />
+          {/* Contenu scrollable */}
+          <View style={styles.scrollContainer}>
+            <ScrollView 
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.scrollContent}
+            >
+              <Text style={styles.sectionTitle}>Workout name</Text>
+              <View>
+                <TextInput
+                  style={[styles.input, error ? styles.inputError : null]}
+                  placeholder="e.g. Upper Body, Cardio..."
+                  placeholderTextColor="#5B5B5C"
+                  value={name}
+                  onChangeText={handleNameChange}
+                  autoCapitalize="words"
+                  returnKeyType="done"
+                  testID="workout-name-input"
+                />
 
-              {error ? <Text style={styles.errorText}>{error}</Text> : null}
-            </View>
+                {error ? <Text style={styles.errorText}>{error}</Text> : null}
+              </View>
 
-            <Text style={styles.sectionTitle}>Workout schedule</Text>
-            <View style={styles.daysContainer}>
-              {DAYS_OF_WEEK.map((day) => (
-                <TouchableOpacity
-                  key={day.value}
-                  style={[
-                    styles.dayOption,
-                    selectedDay === day.value && styles.dayOptionSelected
-                  ]}
-                  onPress={() => handleDaySelect(day.value)}
-                >
-                  <Text style={[
-                    styles.dayText,
-                    selectedDay === day.value && styles.dayTextSelected
-                  ]}>
-                    {day.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+              <Text style={styles.sectionTitle}>Workout schedule</Text>
+              <View style={styles.daysContainer}>
+                {DAYS_OF_WEEK.map((day) => (
+                  <TouchableOpacity
+                    key={day.value}
+                    style={[
+                      styles.dayOption,
+                      selectedDay === day.value && styles.dayOptionSelected
+                    ]}
+                    onPress={() => handleDaySelect(day.value)}
+                  >
+                    <Text style={[
+                      styles.dayText,
+                      selectedDay === day.value && styles.dayTextSelected
+                    ]}>
+                      {day.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+          </View>
 
+          {/* Bouton fixe en bas */}
+          <View style={styles.bottomButtonContainer}>
             <TouchableOpacity 
               style={[styles.saveButton, (!name.trim() || error) && styles.saveButtonDisabled]} 
               onPress={handleSave}
@@ -168,23 +172,29 @@ export const WorkoutEditScreen: React.FC<WorkoutEditScreenProps> = ({
             >
               <Text style={styles.saveButtonText}>Save changes</Text>
             </TouchableOpacity>
-          </ScrollView>
+          </View>
         </View>
       </TouchableWithoutFeedback>
-    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
-  keyboardAvoidView: {
-    flex: 1,
-  },
   container: {
     flex: 1,
     backgroundColor: '#0D0D0F',
     paddingHorizontal: 24,
     paddingTop: 0,
-    paddingBottom: 48,
+  },
+  scrollContainer: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 16, // Espace pour éviter que le contenu soit coupé
+  },
+  bottomButtonContainer: {
+    paddingVertical: 16,
+    paddingBottom: 32, // Safe area
+    backgroundColor: '#0D0D0F',
   },
   closeButton: {
     alignSelf: 'flex-start',

@@ -307,6 +307,69 @@ export class PersonalRecordService {
       throw error;
     }
   }
+
+  /**
+   * Supprime un record de répétitions spécifique pour un poids donné.
+   */
+  static async deleteRepRecord(
+    exerciseName: string, 
+    weight: string
+  ): Promise<void> {
+    try {
+      const records = await this.loadRecords();
+      const exerciseRecord = records[exerciseName];
+      
+      if (!exerciseRecord || !exerciseRecord.repsPerWeight) {
+        throw new Error(`No records found for exercise: ${exerciseName}`);
+      }
+
+      if (!exerciseRecord.repsPerWeight[weight]) {
+        throw new Error(`No record found for ${weight}kg in ${exerciseName}`);
+      }
+
+      // Supprimer le record spécifique
+      delete exerciseRecord.repsPerWeight[weight];
+      
+      // Si c'était le record de poids max, recalculer
+      if (parseFloat(weight) === exerciseRecord.maxWeight) {
+        const remainingWeights = Object.keys(exerciseRecord.repsPerWeight).map(w => parseFloat(w));
+        if (remainingWeights.length > 0) {
+          const newMaxWeight = Math.max(...remainingWeights);
+          exerciseRecord.maxWeight = newMaxWeight;
+          exerciseRecord.maxWeightDate = exerciseRecord.repsPerWeight[newMaxWeight.toString()].date;
+        } else {
+          // Plus aucun record, supprimer l'exercice complètement
+          delete records[exerciseName];
+        }
+      }
+
+      await this.saveRecords(records);
+      console.log(`[PersonalRecordService] Deleted rep record: ${weight}kg for ${exerciseName}`);
+    } catch (error) {
+      console.error('[PersonalRecordService] Failed to delete rep record:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Supprime tous les records pour un exercice donné.
+   */
+  static async deleteAllRecordsForExercise(exerciseName: string): Promise<void> {
+    try {
+      const records = await this.loadRecords();
+      
+      if (!records[exerciseName]) {
+        throw new Error(`No records found for exercise: ${exerciseName}`);
+      }
+
+      delete records[exerciseName];
+      await this.saveRecords(records);
+      console.log(`[PersonalRecordService] Deleted all records for ${exerciseName}`);
+    } catch (error) {
+      console.error('[PersonalRecordService] Failed to delete all records:', error);
+      throw error;
+    }
+  }
 }
 
 export default PersonalRecordService;

@@ -5,7 +5,7 @@ import { RobustStorageService } from '../../services/storage';
 // État initial
 const initialState: WorkoutState = {
   workouts: [],
-  loading: false,
+  loading: true, // Commencer avec loading: true pour éviter le flash d'empty state
   error: null,
   personalRecords: {},
 };

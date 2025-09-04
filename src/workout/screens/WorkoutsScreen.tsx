@@ -17,6 +17,17 @@ export const WorkoutsScreen: React.FC = () => {
   const [isDetailModalVisible, setIsDetailModalVisible] = useState(false);
   const [selectedWorkout, setSelectedWorkout] = useState<Workout | null>(null);
 
+  // Synchroniser selectedWorkout avec les changements dans le store
+  useEffect(() => {
+    if (selectedWorkout && workouts.length > 0) {
+      const updatedWorkout = workouts.find(w => w.id === selectedWorkout.id);
+      if (updatedWorkout && updatedWorkout.updatedAt !== selectedWorkout.updatedAt) {
+        console.log('Updating selectedWorkout with latest data:', updatedWorkout.name);
+        setSelectedWorkout(updatedWorkout);
+      }
+    }
+  }, [workouts, selectedWorkout]);
+
   const handleWorkoutPress = (workout: Workout) => {
     // Si une séance est en cours pour ce workout, continuer avec ce workout
     if (activeWorkout && activeWorkout.workoutId === workout.id) {

@@ -104,12 +104,15 @@ export const useWorkoutAnimations = (): UseWorkoutAnimationsReturn => {
   
   // Animer la progression d'un exercice
   const animateExerciseProgress = useCallback((exerciseId: string, progress: number) => {
-    console.log(`[useWorkoutAnimations] Animating exercise progress: ${exerciseId} -> ${progress}%`);
+    console.log(`[useWorkoutAnimations] Animating exercise progress: ${exerciseId} -> ${progress}`);
     
     const animation = exerciseProgressAnimations[exerciseId];
     if (animation) {
+      // Normaliser la valeur de progression : si > 1, c'est un pourcentage, sinon c'est déjà 0-1
+      const normalizedProgress = progress > 1 ? progress / 100 : progress;
+      
       Animated.timing(animation, {
-        toValue: progress / 100, // Convertir en valeur 0-1
+        toValue: normalizedProgress,
         duration: 500,
         useNativeDriver: false, // Nécessaire pour les transformations de layout
       }).start();
@@ -122,10 +125,7 @@ export const useWorkoutAnimations = (): UseWorkoutAnimationsReturn => {
     
     const animation = exerciseBounceAnimations[exerciseId];
     if (animation) {
-      // Vibration légère pour feedback
-      Vibration.vibrate(50);
-      
-      // Animation de rebond
+      // Animation de rebond (sans vibration)
       Animated.sequence([
         Animated.timing(animation, {
           toValue: 1.1,

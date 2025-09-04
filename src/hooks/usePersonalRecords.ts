@@ -238,6 +238,50 @@ export const usePersonalRecords = () => {
     [loadRecords, instanceId]
   );
 
+  // Supprimer un record de répétitions spécifique
+  const deleteRepRecord = useCallback(
+    async (exerciseName: string, weight: string): Promise<void> => {
+      try {
+        console.log(`[usePersonalRecords:${instanceId}] Deleting rep record: ${weight}kg for ${exerciseName}`);
+        await PersonalRecordService.deleteRepRecord(exerciseName, weight);
+        
+        // Recharger les records après suppression
+        await loadRecords();
+        
+        // Notifier les autres instances
+        recordsEventManager.notify();
+        
+        console.log(`[usePersonalRecords:${instanceId}] Rep record deleted successfully`);
+      } catch (error) {
+        console.error(`[usePersonalRecords:${instanceId}] Error deleting rep record:`, error);
+        throw error;
+      }
+    },
+    [loadRecords, instanceId]
+  );
+
+  // Supprimer tous les records pour un exercice
+  const deleteAllRecordsForExercise = useCallback(
+    async (exerciseName: string): Promise<void> => {
+      try {
+        console.log(`[usePersonalRecords:${instanceId}] Deleting all records for ${exerciseName}`);
+        await PersonalRecordService.deleteAllRecordsForExercise(exerciseName);
+        
+        // Recharger les records après suppression
+        await loadRecords();
+        
+        // Notifier les autres instances
+        recordsEventManager.notify();
+        
+        console.log(`[usePersonalRecords:${instanceId}] All records deleted successfully`);
+      } catch (error) {
+        console.error(`[usePersonalRecords:${instanceId}] Error deleting all records:`, error);
+        throw error;
+      }
+    },
+    [loadRecords, instanceId]
+  );
+
   return {
     records,
     loading,
@@ -250,7 +294,9 @@ export const usePersonalRecords = () => {
     saveRecords,
     updateRecordsFromCompletedWorkout,
     getRecordsForExercise,
-    migrateFromWorkoutHistory
+    migrateFromWorkoutHistory,
+    deleteRepRecord,
+    deleteAllRecordsForExercise
   };
 };
 

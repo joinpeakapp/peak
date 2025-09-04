@@ -6,7 +6,8 @@ import {
   ScrollView,
   Dimensions,
   TouchableOpacity,
-  Alert
+  Alert,
+  ActivityIndicator
 } from 'react-native';
 import { useWorkout } from '../hooks/useWorkout';
 import { useWorkoutHistory } from '../workout/contexts/WorkoutHistoryContext';
@@ -23,6 +24,7 @@ export const ProfileScreen: React.FC = () => {
   const { records, loadRecords, migrateFromWorkoutHistory } = usePersonalRecords();
   const navigation = useNavigation<ProfileScreenProps['navigation']>();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   // Charger le profil utilisateur
   const loadUserProfile = useCallback(async () => {
@@ -53,6 +55,9 @@ export const ProfileScreen: React.FC = () => {
           
         } catch (error) {
           console.error('[ProfileScreen] Error refreshing data:', error);
+        } finally {
+          // Marquer le chargement initial comme terminé
+          setIsInitialLoad(false);
         }
       };
       
@@ -166,6 +171,20 @@ export const ProfileScreen: React.FC = () => {
   const navigateToExerciseDetail = (exerciseName: string) => {
     navigation.navigate('ExerciseDetail', { exerciseName });
   };
+
+  // Afficher le loading pendant le chargement initial
+  if (isInitialLoad) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Profile</Text>
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#FFFFFF" />
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -417,5 +436,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#888888',
     textAlign: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

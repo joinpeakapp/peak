@@ -7,8 +7,6 @@ import {
   Animated, 
   Dimensions, 
   StatusBar,
-  KeyboardAvoidingView,
-  Platform,
   TouchableWithoutFeedback,
   Keyboard,
   BackHandler
@@ -180,13 +178,10 @@ export const FullScreenModal: React.FC<FullScreenModalProps> = ({
           ]}
         >
           <TouchableWithoutFeedback onPress={dismissKeyboard}>
-            <KeyboardAvoidingView
-              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-              style={styles.contentContainer}
-            >
+            <View style={styles.contentContainer}>
               <View style={styles.handle} />
               {children}
-            </KeyboardAvoidingView>
+            </View>
           </TouchableWithoutFeedback>
         </Animated.View>
       </View>

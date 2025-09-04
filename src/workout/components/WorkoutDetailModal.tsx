@@ -9,9 +9,6 @@ import {
   Platform,
   Pressable,
   TextInput,
-  KeyboardAvoidingView,
-  TouchableWithoutFeedback,
-  Keyboard,
   Animated,
   Modal,
   Image,
@@ -92,7 +89,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   
-  const { updateWorkout } = useWorkout();
+  const { updateWorkout, workouts } = useWorkout();
   const { 
     activeWorkout, 
     startWorkout, 
@@ -640,10 +637,15 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
         const isCompleted = completedCount === exercise.sets;
         const progress = completedCount / exercise.sets;
         
-        // 🔧 FIX: Mise à jour immédiate de l'état visuel sans délai
-        // Créer ou mettre à jour l'animation de progression avec la valeur correcte immédiatement
+        // 🔧 FIX: Mise à jour de l'animation de progression avec un court délai pour s'assurer que les animations sont initialisées
         if (modalManagement.selectedExerciseId) {
-          animations.animateExerciseProgress(modalManagement.selectedExerciseId, progress);
+          // Délai court pour s'assurer que les animations sont bien initialisées
+          setTimeout(() => {
+            if (modalManagement.selectedExerciseId) {
+              console.log(`[handleBackToWorkout] Animating progress: ${progress} for ${modalManagement.selectedExerciseId}`);
+              animations.animateExerciseProgress(modalManagement.selectedExerciseId, progress);
+            }
+          }, 100);
         }
         
         // Animer le rebond si l'exercice vient d'être complété
@@ -776,6 +778,16 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
             }
           }
         }
+      }
+    }
+    
+    // Mettre à jour l'animation de progression de l'exercice
+    if (modalManagement.selectedExerciseId) {
+      const exercise = currentExercises.find(ex => ex.id === modalManagement.selectedExerciseId);
+      if (exercise) {
+        const progress = completedCount / newSets.length;
+        console.log(`[handleSetToggle] Updating progress animation: ${completedCount}/${newSets.length} = ${progress}`);
+        animations.animateExerciseProgress(modalManagement.selectedExerciseId, progress);
       }
     }
   };
@@ -983,18 +995,20 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
 
   // Initialiser les animations des exercices une seule fois au chargement
   useEffect(() => {
-    if (isTrackingWorkout && exercises.length > 0 && visible) {
-      // Initialiser les animations pour tous les exercices
+    if (exercises.length > 0 && visible) {
+      // Initialiser les animations pour tous les exercices (toujours, pas seulement en mode tracking)
       animations.initializeExerciseAnimations(exercises);
       
-      // Animer immédiatement jusqu'aux valeurs actuelles
-      exercises.forEach(exercise => {
-        const completedSets = activeWorkout?.trackingData[exercise.id]?.completedSets || 0;
-        const progress = (completedSets / exercise.sets) * 100;
-        animations.animateExerciseProgress(exercise.id, progress);
-      });
+      // Si on est en mode tracking, animer immédiatement jusqu'aux valeurs actuelles
+      if (isTrackingWorkout && activeWorkout) {
+        exercises.forEach(exercise => {
+          const completedSets = activeWorkout.trackingData[exercise.id]?.completedSets || 0;
+          const progress = (completedSets / exercise.sets) * 100;
+          animations.animateExerciseProgress(exercise.id, progress);
+        });
+      }
     }
-  }, [isTrackingWorkout, exercises.length, visible, activeWorkout?.workoutId]);
+  }, [exercises.length, visible, isTrackingWorkout, activeWorkout?.workoutId]);
 
 
 
@@ -1009,7 +1023,21 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   // Fonction pour obtenir le texte de progression pour un exercice
   const getExerciseProgressText = (exercise: Exercise) => {
     if (!isTrackingWorkout) {
-      return exercise.tracking === 'trackedOnSets' ? 'Tracked on sets' : 'Tracked on time';
+      // Logique améliorée pour déterminer le type de tracking
+      if (exercise.tracking === 'trackedOnSets') {
+        return 'Tracked on sets';
+      } else if (exercise.tracking === 'trackedOnTime') {
+        return 'Tracked on time';
+      } else {
+        // Fallback basé sur les propriétés de l'exercice
+        if (exercise.sets > 0 && (exercise.reps > 0 || exercise.weight)) {
+          return 'Tracked on sets';
+        } else if (exercise.duration && exercise.duration > 0) {
+          return 'Tracked on time';
+        } else {
+          return 'Tracked on sets'; // Défaut pour les exercices avec sets/reps
+        }
+      }
     }
     const trackingData = activeWorkout?.trackingData[exercise.id];
     const completedSets = trackingData?.completedSets || 0;
@@ -1065,12 +1093,19 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
 
   // Fonction pour obtenir le texte de tracking en fonction du type d'exercice
   const getTrackingText = (exercise: Exercise) => {
-    if (exercise.tracking === "trackedOnTime" || exercise.duration) {
+    if (exercise.tracking === "trackedOnTime") {
       return "Tracked on time";
-    } else if (exercise.tracking === "trackedOnSets" || exercise.sets > 1) {
+    } else if (exercise.tracking === "trackedOnSets") {
       return "Tracked on sets";
     } else {
-      return "Tracked on rounds";
+      // Fallback basé sur les propriétés de l'exercice
+      if (exercise.sets > 0 && (exercise.reps > 0 || exercise.weight)) {
+        return "Tracked on sets";
+      } else if (exercise.duration && exercise.duration > 0) {
+        return "Tracked on time";
+      } else {
+        return "Tracked on sets"; // Défaut pour les exercices avec sets/reps
+      }
     }
   };
 
@@ -1206,10 +1241,20 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     console.log('Saving workout edit changes');
     modalManagement.hideWorkoutEditModal();
     
-    // Recharger le workout après les modifications
+    // Recharger le workout après les modifications depuis le store Redux
     if (workout) {
-      // Rafraîchir les exercices
-      setExercises(workout.exercises || []);
+      // Récupérer le workout mis à jour depuis le store
+      const updatedWorkout = workouts.find(w => w.id === workout.id);
+      
+      if (updatedWorkout) {
+        // Rafraîchir les exercices avec les nouvelles données
+        setExercises(updatedWorkout.exercises || []);
+        
+        // Mettre à jour les données locales pour refléter les changements
+        console.log('Updated workout found:', updatedWorkout.name);
+      } else {
+        console.warn('Updated workout not found in store');
+      }
     }
   };
 
@@ -1243,13 +1288,8 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       visible={visible}
       onClose={onClose}
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardAvoidingView}
-      >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={[styles.container, { overflow: 'visible' }]}>
-            {exerciseSelection.modalMode === 'workout' ? (
+      <View style={[styles.container, { overflow: 'visible' }]}>
+        {exerciseSelection.modalMode === 'workout' ? (
               // Mode affichage du workout
               <>
                 <View style={styles.header}>
@@ -1402,8 +1442,8 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                 </View>
               </>
             ) : exerciseSelection.modalMode === 'exercise-selection' ? (
-              // Mode sélection d'exercices
-              <>
+              // Mode sélection d'exercices avec layout flex
+              <View style={styles.flexContainer}>
                 {/* Header */}
                 <View style={styles.header}>
                   <TouchableOpacity 
@@ -1454,9 +1494,12 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                   )}
                 </TouchableOpacity>
                 
-                {/* Exercise List */}
-                <View style={styles.exerciseListContainer}>
-                  <ScrollView style={styles.scrollView}>
+                {/* Exercise List - Flex Layout */}
+                <View style={styles.exerciseListContainerFlex}>
+                  <ScrollView 
+                    style={styles.scrollView}
+                    contentContainerStyle={styles.scrollViewContent}
+                  >
                     {exerciseSelection.groupedExercises.map((section) => (
                       <View key={section.letter}>
                         {renderSectionHeader({ letter: section.letter })}
@@ -1467,18 +1510,17 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                         ))}
                       </View>
                     ))}
-                    <View style={styles.bottomPadding} />
                   </ScrollView>
                   
-                  {/* Fade Out Gradient */}
+                  {/* Fade Out Gradient - Réduit */}
                   <LinearGradient
                     colors={['rgba(13, 13, 15, 0)', 'rgba(13, 13, 15, 0.8)', 'rgba(13, 13, 15, 1)']}
-                    style={styles.fadeGradient}
+                    style={styles.fadeGradientSmall}
                   />
                 </View>
                 
-                {/* Bottom Add Button */}
-                <View style={styles.bottomButtonContainer}>
+                {/* Bottom Add Button - Layout normal */}
+                <View style={styles.bottomButtonContainerFlex}>
                   <TouchableOpacity 
                     style={[
                       styles.addExercisesButton,
@@ -1494,7 +1536,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                     </Text>
                   </TouchableOpacity>
                 </View>
-              </>
+              </View>
             ) : exerciseSelection.modalMode === 'exercise-tracking' ? (
               // Mode tracking d'un exercice spécifique
               <>
@@ -1580,8 +1622,8 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                 </View>
               </>
             ) : (
-              // Mode sélection d'exercices ou remplacement d'exercice
-              <>
+              // Mode remplacement d'exercice avec layout flex
+              <View style={styles.flexContainer}>
                 {/* Header */}
                 <View style={styles.header}>
                   <TouchableOpacity 
@@ -1632,9 +1674,12 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                   )}
                 </TouchableOpacity>
                 
-                {/* Exercise List */}
-                <View style={styles.exerciseListContainer}>
-                  <ScrollView style={styles.scrollView}>
+                {/* Exercise List - Flex Layout */}
+                <View style={styles.exerciseListContainerFlex}>
+                  <ScrollView 
+                    style={styles.scrollView}
+                    contentContainerStyle={styles.scrollViewContent}
+                  >
                     {exerciseSelection.groupedExercises.map((section) => (
                       <View key={section.letter}>
                         {renderSectionHeader({ letter: section.letter })}
@@ -1645,18 +1690,17 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                         ))}
                       </View>
                     ))}
-                    <View style={styles.bottomPadding} />
                   </ScrollView>
                   
-                  {/* Fade Out Gradient */}
+                  {/* Fade Out Gradient - Réduit */}
                   <LinearGradient
                     colors={['rgba(13, 13, 15, 0)', 'rgba(13, 13, 15, 0.8)', 'rgba(13, 13, 15, 1)']}
-                    style={styles.fadeGradient}
+                    style={styles.fadeGradientSmall}
                   />
                 </View>
                 
-                {/* Bottom Add Button */}
-                <View style={styles.bottomButtonContainer}>
+                {/* Bottom Add Button - Layout normal */}
+                <View style={styles.bottomButtonContainerFlex}>
                   <TouchableOpacity 
                     style={[
                       styles.addExercisesButton,
@@ -1677,11 +1721,9 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                     </Text>
                   </TouchableOpacity>
                 </View>
-              </>
+              </View>
             )}
-          </View>
-        </TouchableWithoutFeedback>
-      </KeyboardAvoidingView>
+                </View>
       
       {/* Modale des paramètres d'exercice */}
       <ExerciseSettingsModal
@@ -2059,6 +2101,31 @@ const styles = StyleSheet.create({
     right: 0,
     paddingHorizontal: 16,
     zIndex: 2,
+  },
+  // Nouveaux styles pour layout flex (sans position absolute)
+  flexContainer: {
+    flex: 1,
+  },
+  exerciseListContainerFlex: {
+    flex: 1,
+    position: 'relative',
+  },
+  bottomButtonContainerFlex: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    paddingBottom: 32, // Espace supplémentaire pour la safe area
+    backgroundColor: '#0D0D0F',
+  },
+  scrollViewContent: {
+    paddingBottom: 16, // Espace pour éviter que le contenu soit coupé par le bouton
+  },
+  fadeGradientSmall: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 80, // Réduit car on n'a plus le bouton absolu qui nécessitait plus d'espace
+    zIndex: 1,
   },
   addExercisesButton: {
     backgroundColor: '#FFFFFF',
