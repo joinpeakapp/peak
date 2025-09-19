@@ -16,7 +16,6 @@ import { CameraView, CameraType, FlashMode, Camera } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { NavigationProp, RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { RootStackParamList, SummaryStackParamList } from '../../types/navigation';
-import ImageOptimizationService from '../../services/imageOptimizationService';
 import { useActiveWorkout } from '../contexts/ActiveWorkoutContext';
 
 type WorkoutPhotoRouteProp = RouteProp<SummaryStackParamList, 'WorkoutPhoto'>;
@@ -118,33 +117,22 @@ export const WorkoutPhotoScreen: React.FC = () => {
         };
         const photo = await cameraRef.current.takePictureAsync(options);
         
-        console.log('🖼️ [WorkoutPhoto] Photo taken, starting optimization...');
-        setIsOptimizing(true);
+        console.log('🖼️ [WorkoutPhoto] Photo taken, saving directly...');
         
-        // 2. Optimiser la photo avec le service d'optimisation
-        const optimizedPhotoUri = await ImageOptimizationService.optimizeWorkoutPhoto(
-          photo.uri,
-          cameraType // Passer le type de caméra pour correction automatique du miroir
-        );
+        // Sauvegarder l'URI de la photo directement (pas d'optimisation)
+        updatePhotoUri(photo.uri);
         
-        console.log('🖼️ [WorkoutPhoto] Photo optimization completed');
-        
-        // Sauvegarder l'URI de la photo dans le contexte ActiveWorkout
-        updatePhotoUri(optimizedPhotoUri);
-        
-        setIsOptimizing(false);
-        
-        // 3. Naviguer vers l'écran de prévisualisation avec l'URI optimisée
+        // 3. Naviguer vers l'écran de prévisualisation avec l'URI de la photo
         navigation.navigate('SummaryFlow', {
           screen: 'WorkoutOverview',
           params: {
-            workout: { ...workout, photo: optimizedPhotoUri },
-            photoUri: optimizedPhotoUri,
+            workout: { ...workout, photo: photo.uri },
+            photoUri: photo.uri,
             sourceType: 'tracking'
           }
         });
       } catch (error) {
-        console.error('🖼️ [WorkoutPhoto] Error taking or optimizing picture:', error);
+        console.error('🖼️ [WorkoutPhoto] Error taking picture:', error);
         setIsOptimizing(false);
         Alert.alert("Erreur", "Impossible de prendre une photo. Veuillez réessayer.");
       } finally {

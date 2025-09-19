@@ -27,7 +27,7 @@ import {
 import { RootStackParamList, SummaryStackParamList } from '../../types/navigation';
 import { CompletedWorkout } from '../../types/workout';
 import { useWorkoutHistory } from '../contexts/WorkoutHistoryContext';
-import { OptimizedImage } from '../../components/common/OptimizedImage';
+import { CachedImage } from '../../components/common/CachedImage';
 
 type WorkoutOverviewRouteProp = RouteProp<SummaryStackParamList, 'WorkoutOverview'>;
 
@@ -187,7 +187,7 @@ export const WorkoutOverviewScreen: React.FC = () => {
         >
           {/* Photo container */}
           <View style={styles.photoContainer}>
-            <OptimizedImage
+            <CachedImage
               uri={currentWorkout.photo || 'https://via.placeholder.com/400x600/242526/FFFFFF?text=Workout'}
               style={styles.photo}
               resizeMode="cover"
@@ -398,7 +398,7 @@ export const WorkoutOverviewScreen: React.FC = () => {
       >
         {/* Photo container */}
         <View style={styles.photoContainer}>
-          <OptimizedImage
+          <CachedImage
             uri={photoUri}
             style={styles.photo}
             resizeMode="cover"

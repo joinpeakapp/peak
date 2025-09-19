@@ -20,7 +20,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { RootStackParamList } from '../../types/navigation';
 import { CompletedWorkout } from '../../types/workout';
 import { useWorkoutHistory } from '../contexts/WorkoutHistoryContext';
-import { OptimizedImage } from '../../components/common/OptimizedImage';
+import { CachedImageBackground } from '../../components/common/CachedImageBackground';
+import { ImageCacheUtils } from '../../components/common/CachedImage';
 
 // Type pour les paramètres de route
 type JournalScreenParams = {
@@ -44,6 +45,7 @@ export const JournalScreen: React.FC = () => {
   
   // Utiliser le contexte WorkoutHistory au lieu d'un état local
   const { completedWorkouts, isLoading: loading, error, refreshWorkoutHistory } = useWorkoutHistory();
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Référence pour stocker les animations des cartes
   const cardAnimations = useRef<{[key: string]: Animated.Value}>({});
@@ -86,11 +88,40 @@ export const JournalScreen: React.FC = () => {
     }
   }, [newWorkoutId, shouldAnimateWorkout, sortedWorkouts]);
 
-  // Recharger les données quand l'écran devient visible
+  // État pour éviter les rechargements inutiles
+  const [hasInitialized, setHasInitialized] = useState(false);
+
+  // Précharger les images quand les workouts changent
+  useEffect(() => {
+    if (sortedWorkouts.length > 0) {
+      const imageUris = sortedWorkouts
+        .filter(workout => workout.photo)
+        .map(workout => workout.photo!);
+      
+      if (imageUris.length > 0) {
+        ImageCacheUtils.preloadImages(imageUris).catch(console.warn);
+      }
+    }
+  }, [sortedWorkouts]);
+
+  // Fonction de refresh intelligente pour le pull-to-refresh
+  const handlePullRefresh = React.useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshWorkoutHistory();
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [refreshWorkoutHistory]);
+
+  // Recharger les données seulement si pas encore initialisé ou si explicitement demandé
   useFocusEffect(
     React.useCallback(() => {
-      refreshWorkoutHistory();
-    }, [refreshWorkoutHistory])
+      if (!hasInitialized || !completedWorkouts || completedWorkouts.length === 0) {
+        refreshWorkoutHistory();
+        setHasInitialized(true);
+      }
+    }, [refreshWorkoutHistory, hasInitialized, completedWorkouts])
   );
 
   // Gestionnaire pour l'effet d'animation du nouvel entraînement
@@ -225,10 +256,11 @@ export const JournalScreen: React.FC = () => {
 
     // Memo pour optimiser les re-rendus uniquement lorsque nécessaire
     const cardContent = (
-      <ImageBackground 
-        source={{ uri: imageUri }} 
+      <CachedImageBackground 
+        uri={imageUri}
         style={styles.cardImage}
         imageStyle={styles.cardImageStyle}
+        showLoader={false}
       >
         <LinearGradient
           colors={['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0.5)']}
@@ -258,7 +290,7 @@ export const JournalScreen: React.FC = () => {
             </Text>
           </View>
         </LinearGradient>
-      </ImageBackground>
+      </CachedImageBackground>
     );
 
     return (
@@ -346,8 +378,8 @@ export const JournalScreen: React.FC = () => {
         columnWrapperStyle={styles.row}
         contentContainerStyle={styles.workoutsList}
         showsVerticalScrollIndicator={true}
-        onRefresh={handleRefresh}
-        refreshing={loading}
+        onRefresh={handlePullRefresh}
+        refreshing={isRefreshing}
         key={sortedWorkouts.length} // Force re-render when data changes
       />
     </View>

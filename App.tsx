@@ -15,7 +15,6 @@ import { ErrorBoundary } from './src/components/common/ErrorBoundary';
 import { RobustStorageService } from './src/services/storage';
 import { OnboardingNavigator } from './src/screens/onboarding/OnboardingNavigator';
 import UserProfileService, { UserProfile } from './src/services/userProfileService';
-import ImageOptimizationService from './src/services/imageOptimizationService';
 
 // Composant pour valider les streaks au démarrage
 const StreakValidator: React.FC = () => {
@@ -107,13 +106,7 @@ export default function App() {
       console.log('[App] Initializing storage service...');
       await RobustStorageService.initialize();
       
-      // Initialiser et nettoyer le service d'optimisation d'images
-      console.log('[App] Initializing image optimization service...');
-      await ImageOptimizationService.initialize();
-      
-      // Nettoyer seulement les images manquantes du cache
-      console.log('[App] Cleaning up missing images...');
-      await ImageOptimizationService.cleanupMissingFiles();
+      // Service d'optimisation d'images supprimé - utilisation d'images natives
       
       // Charger les données initiales après l'initialisation du stockage
       console.log('[App] Loading initial data...');
