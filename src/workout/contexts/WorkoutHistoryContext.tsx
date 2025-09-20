@@ -53,7 +53,7 @@ const WorkoutHistoryContext = createContext<WorkoutHistoryContextType | undefine
 
 export const WorkoutHistoryProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [completedWorkouts, setCompletedWorkouts] = useState<CompletedWorkout[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false); // Commencer à false car préchargé
   const [error, setError] = useState<string | null>(null);
   const { updateStreakOnCompletion } = useStreak();
 
@@ -61,7 +61,7 @@ export const WorkoutHistoryProvider: React.FC<{ children: ReactNode }> = ({ chil
   useEffect(() => {
     const loadCompletedWorkouts = async () => {
       try {
-        setIsLoading(true);
+        // Ne pas afficher de loading car les données sont préchargées
         setError(null);
         
         console.log('[WorkoutHistory] Loading workout history from robust storage...');
@@ -80,8 +80,6 @@ export const WorkoutHistoryProvider: React.FC<{ children: ReactNode }> = ({ chil
         console.error('[WorkoutHistory] Unexpected error loading completed workouts:', error);
         setError('An unexpected error occurred while loading your workout history');
         setCompletedWorkouts([]);
-      } finally {
-        setIsLoading(false);
       }
     };
 

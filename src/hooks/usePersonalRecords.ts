@@ -27,7 +27,7 @@ const recordsEventManager = new RecordsEventManager();
  */
 export const usePersonalRecords = () => {
   const [records, setRecords] = useState<PersonalRecords>({});
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // Commencer à false car préchargé
   const [error, setError] = useState<string | null>(null);
   
   // Identifiant unique pour cette instance (pour debug)
@@ -52,10 +52,10 @@ export const usePersonalRecords = () => {
     }
   }, [instanceId]);
 
-  // Charger les records au montage du composant
+  // Ne plus charger automatiquement - les données sont préchargées
   useEffect(() => {
-    loadRecords();
-  }, [loadRecords]);
+    // loadRecords(); // Supprimé - les données sont préchargées
+  }, []);
 
   // S'abonner aux événements de mise à jour des records
   useEffect(() => {

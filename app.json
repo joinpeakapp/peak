@@ -5,12 +5,17 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
+    "sdkVersion": "54.0.0",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#0D0D0F"
+    },
+    "notification": {
+      "icon": "./assets/icon.png",
+      "color": "#FFFFFF"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -18,22 +23,35 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.yourcompany.peak",
+      "splash": {
+        "image": "./assets/splash-icon.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#0D0D0F"
+      },
       "infoPlist": {
         "NSCameraUsageDescription": "This app needs access to camera to take photos of your workouts.",
         "NSPhotoLibraryUsageDescription": "This app needs access to photos to save workout photos.",
-        "NSPhotoLibraryAddUsageDescription": "This app needs access to photos to save workout photos."
+        "NSPhotoLibraryAddUsageDescription": "This app needs access to photos to save workout photos.",
+        "NSUserNotificationsUsageDescription": "This app uses notifications to remind you about workouts and help maintain your fitness streak."
       }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#0D0D0F"
+      },
+      "splash": {
+        "image": "./assets/splash-icon.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#0D0D0F"
       },
       "package": "com.yourcompany.peak",
       "permissions": [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE"
+        "WRITE_EXTERNAL_STORAGE",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
       ]
     },
     "web": {

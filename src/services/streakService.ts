@@ -246,6 +246,22 @@ export const StreakService = {
       } else {
         console.error(`[StreakService] ❌ Streak verification failed: expected ${streakData.current}, got ${verifiedData?.current}`);
       }
+
+      // Planifier un rappel de streak si la streak est active
+      if (streakData.current > 0 && workout.frequency) {
+        try {
+          const NotificationService = (await import('./notificationService')).default;
+          await NotificationService.scheduleStreakReminder(
+            workout.id,
+            workout.name,
+            formattedDate,
+            workout.frequency
+          );
+          console.log(`[StreakService] 🔔 Scheduled streak reminder for ${workout.name}`);
+        } catch (error) {
+          console.warn(`[StreakService] Failed to schedule streak reminder:`, error);
+        }
+      }
       
       return streakData;
     } catch (error) {

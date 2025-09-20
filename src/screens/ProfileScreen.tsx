@@ -17,6 +17,8 @@ import { ProfileScreenProps } from '../types/navigation';
 import { usePersonalRecords } from '../hooks/usePersonalRecords';
 import UserProfileService, { UserProfile } from '../services/userProfileService';
 import { PersonalRecordService } from '../services/personalRecordService';
+import { NotificationSettingsModal } from '../components/common/NotificationSettingsModal';
+import { NotificationTestModal } from '../components/common/NotificationTestModal';
 
 export const ProfileScreen: React.FC = () => {
   const { personalRecords } = useWorkout();
@@ -24,7 +26,14 @@ export const ProfileScreen: React.FC = () => {
   const { records, loadRecords, migrateFromWorkoutHistory } = usePersonalRecords();
   const navigation = useNavigation<ProfileScreenProps['navigation']>();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  
+  // Charger le profil au montage - une seule fois
+  useEffect(() => {
+    loadUserProfile();
+  }, [loadUserProfile]);
+  const [isInitialLoad, setIsInitialLoad] = useState(false);
+  const [isNotificationModalVisible, setIsNotificationModalVisible] = useState(false);
+  const [isNotificationTestModalVisible, setIsNotificationTestModalVisible] = useState(false);
 
   // Charger le profil utilisateur
   const loadUserProfile = useCallback(async () => {
@@ -36,33 +45,12 @@ export const ProfileScreen: React.FC = () => {
     }
   }, []);
 
-  // Recharger les records et l'historique lorsque l'écran Profile est focalisé
+  // Plus de rechargement automatique - les données sont préchargées
   useFocusEffect(
     useCallback(() => {
-      const refreshData = async () => {
-        try {
-          // Rafraîchir l'historique des workouts
-          await refreshWorkoutHistory();
-          
-          // Migrer/synchroniser les records depuis l'historique
-          await migrateFromWorkoutHistory(completedWorkouts);
-          
-          // Recharger les records personnels
-          await loadRecords();
-
-          // Charger le profil utilisateur
-          await loadUserProfile();
-          
-        } catch (error) {
-          console.error('[ProfileScreen] Error refreshing data:', error);
-        } finally {
-          // Marquer le chargement initial comme terminé
-          setIsInitialLoad(false);
-        }
-      };
-      
-      refreshData();
-    }, [refreshWorkoutHistory, loadRecords, loadUserProfile])
+      // Ne plus recharger automatiquement, les données sont préchargées au démarrage
+      // Les données seront rechargées seulement si nécessaire (pull-to-refresh par exemple)
+    }, [])
   );
 
   // Fonction pour réinitialiser l'onboarding (développement uniquement)
@@ -172,35 +160,41 @@ export const ProfileScreen: React.FC = () => {
     navigation.navigate('ExerciseDetail', { exerciseName });
   };
 
-  // Afficher le loading pendant le chargement initial
-  if (isInitialLoad) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Profile</Text>
-        </View>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#FFFFFF" />
-        </View>
-      </View>
-    );
-  }
+  // Ne plus afficher de loading, les données sont préchargées
 
   return (
     <View style={styles.container}>
       <ScrollView style={styles.scrollView}>
         <View style={styles.header}>
           <Text style={styles.title}>Profile</Text>
-          {/* Development-only reset onboarding button */}
-          {__DEV__ && (
+          <View style={styles.headerButtons}>
+            {/* Settings button */}
             <TouchableOpacity
-              style={styles.testButton}
-              onPress={handleResetOnboarding}
+              style={styles.settingsButton}
+              onPress={() => setIsNotificationModalVisible(true)}
             >
-              <Ionicons name="refresh" size={18} color="#F59E0B" />
-              <Text style={[styles.testButtonText, { color: '#F59E0B' }]}>Reset</Text>
+              <Ionicons name="notifications" size={20} color="#FFFFFF" />
             </TouchableOpacity>
-          )}
+            {/* Development-only buttons */}
+            {__DEV__ && (
+              <>
+                <TouchableOpacity
+                  style={styles.testButton}
+                  onPress={() => setIsNotificationTestModalVisible(true)}
+                >
+                  <Ionicons name="flask" size={18} color="#34C759" />
+                  <Text style={[styles.testButtonText, { color: '#34C759' }]}>Test</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.testButton}
+                  onPress={handleResetOnboarding}
+                >
+                  <Ionicons name="refresh" size={18} color="#F59E0B" />
+                  <Text style={[styles.testButtonText, { color: '#F59E0B' }]}>Reset</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
         </View>
 
         {/* User Profile Information */}
@@ -282,6 +276,18 @@ export const ProfileScreen: React.FC = () => {
           )}
         </View>
       </ScrollView>
+
+      {/* Notification Settings Modal */}
+      <NotificationSettingsModal
+        visible={isNotificationModalVisible}
+        onClose={() => setIsNotificationModalVisible(false)}
+      />
+
+      {/* Notification Test Modal */}
+      <NotificationTestModal
+        visible={isNotificationTestModalVisible}
+        onClose={() => setIsNotificationTestModalVisible(false)}
+      />
     </View>
   );
 };
@@ -303,6 +309,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 80,
     paddingBottom: 24,
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  settingsButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#1A1A1D',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   title: {
     fontSize: 32,

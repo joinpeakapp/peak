@@ -44,7 +44,7 @@ export const JournalScreen: React.FC = () => {
   const [newWorkoutIndex, setNewWorkoutIndex] = useState<number>(-1);
   
   // Utiliser le contexte WorkoutHistory au lieu d'un état local
-  const { completedWorkouts, isLoading: loading, error, refreshWorkoutHistory } = useWorkoutHistory();
+  const { completedWorkouts, error, refreshWorkoutHistory } = useWorkoutHistory();
   const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Référence pour stocker les animations des cartes
@@ -88,8 +88,8 @@ export const JournalScreen: React.FC = () => {
     }
   }, [newWorkoutId, shouldAnimateWorkout, sortedWorkouts]);
 
-  // État pour éviter les rechargements inutiles
-  const [hasInitialized, setHasInitialized] = useState(false);
+  // État pour éviter les rechargements inutiles - initialisé à true car préchargé
+  const [hasInitialized, setHasInitialized] = useState(true);
 
   // Précharger les images quand les workouts changent
   useEffect(() => {
@@ -114,14 +114,13 @@ export const JournalScreen: React.FC = () => {
     }
   }, [refreshWorkoutHistory]);
 
-  // Recharger les données seulement si pas encore initialisé ou si explicitement demandé
+  // Recharger les données seulement si explicitement demandé (pull-to-refresh)
+  // Les données sont maintenant préchargées au démarrage
   useFocusEffect(
     React.useCallback(() => {
-      if (!hasInitialized || !completedWorkouts || completedWorkouts.length === 0) {
-        refreshWorkoutHistory();
-        setHasInitialized(true);
-      }
-    }, [refreshWorkoutHistory, hasInitialized, completedWorkouts])
+      // Ne plus recharger automatiquement, les données sont préchargées
+      // refreshWorkoutHistory() sera appelé seulement via pull-to-refresh
+    }, [])
   );
 
   // Gestionnaire pour l'effet d'animation du nouvel entraînement
@@ -330,14 +329,7 @@ export const JournalScreen: React.FC = () => {
     refreshWorkoutHistory();
   };
 
-  // Afficher un état de chargement
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#FFFFFF" />
-      </View>
-    );
-  }
+  // Plus d'état de chargement - les données sont préchargées
 
   // Afficher un message d'erreur
   if (error) {
@@ -505,9 +497,4 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     paddingHorizontal: 0,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  }
 }); 
