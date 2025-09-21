@@ -4,6 +4,7 @@ import { Workout, CompletedWorkout, CompletedSet } from '../../types/workout';
 import { useStreak } from './StreakContext';
 import { RobustStorageService } from '../../services/storage';
 import { PersonalRecordService } from '../../services/personalRecordService';
+import { usePersonalRecords } from '../../hooks/usePersonalRecords';
 
 interface ExerciseWithTracking {
   id: string;
@@ -56,6 +57,7 @@ export const WorkoutHistoryProvider: React.FC<{ children: ReactNode }> = ({ chil
   const [isLoading, setIsLoading] = useState(false); // Commencer à false car préchargé
   const [error, setError] = useState<string | null>(null);
   const { updateStreakOnCompletion } = useStreak();
+  const personalRecords = usePersonalRecords();
 
   // Charger l'historique des entraînements depuis le nouveau service robuste
   useEffect(() => {
@@ -243,58 +245,15 @@ export const WorkoutHistoryProvider: React.FC<{ children: ReactNode }> = ({ chil
     try {
       console.log('[WorkoutHistory] Updating Personal Records for workout:', workout.name);
       
-      // Charger les records actuels
-      const currentRecords = await PersonalRecordService.loadRecords();
-      let updatedRecords = { ...currentRecords };
-      let hasUpdates = false;
-      
-      // Traiter chaque exercice du workout
-      for (const exercise of workout.exercises) {
-        console.log(`[WorkoutHistory] Processing exercise: ${exercise.name}`);
-        
-        // Traiter chaque set complété
-        for (const set of exercise.sets) {
-          if (set.completed && set.weight > 0 && set.reps > 0) {
-            console.log(`[WorkoutHistory] Processing set: ${set.weight}kg x ${set.reps} reps`);
-            
-            // Mettre à jour les records pour ce set
-            const result = PersonalRecordService.updateRecords(
-              exercise.name,
-              set.weight,
-              set.reps,
-              workout.date,
-              updatedRecords
-            );
-            
-            if (result.weightPR || result.repsPR) {
-              hasUpdates = true;
-              updatedRecords = result.updatedRecords;
-              
-              if (result.weightPR) {
-                console.log(`[WorkoutHistory] ✅ New weight PR for ${exercise.name}: ${result.weightPR.weight}kg`);
-              }
-              if (result.repsPR) {
-                console.log(`[WorkoutHistory] ✅ New reps PR for ${exercise.name}: ${result.repsPR.reps} reps at ${result.repsPR.weight}kg`);
-              }
-            }
-          }
-        }
-      }
-      
-      // Sauvegarder seulement si il y a des mises à jour
-      if (hasUpdates) {
-        console.log('[WorkoutHistory] Saving updated Personal Records');
-        await PersonalRecordService.saveRecords(updatedRecords);
-        console.log('[WorkoutHistory] ✅ Personal Records saved successfully');
-      } else {
-        console.log('[WorkoutHistory] No Personal Records updates needed');
-      }
+      // Utiliser le hook unifié pour mettre à jour les records
+      await personalRecords.updateRecordsFromCompletedWorkout(workout);
+      console.log('[WorkoutHistory] ✅ Personal Records updated via unified system');
       
     } catch (error) {
       console.error('[WorkoutHistory] Error updating Personal Records:', error);
       // Ne pas faire échouer la sauvegarde du workout pour une erreur de PR
     }
-  }, []);
+  }, [personalRecords]);
 
   // Récupérer les records personnels pour un exercice spécifique
   const getPersonalRecords = useMemo(() => {

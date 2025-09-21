@@ -38,6 +38,7 @@ interface ActiveWorkoutContextValue {
   activeWorkout: ActiveWorkout | null;
   startWorkout: (workoutId: string, workoutName: string, exercises: Exercise[]) => void;
   finishWorkout: (updateStreak?: boolean) => Promise<void>;
+  forceCleanupSession: () => Promise<void>; // Nouvelle fonction de nettoyage d'urgence
   updateTrackingData: (exerciseId: string, sets: TrackingSet[], completedSets: number) => void;
   updateElapsedTime: (newElapsedTime: number) => void;
   updatePhotoUri: (photoUri: string) => void; // Nouvelle fonction pour mettre à jour la photo
@@ -51,6 +52,7 @@ const defaultContextValue: ActiveWorkoutContextValue = {
   activeWorkout: null,
   startWorkout: () => {},
   finishWorkout: async () => {},
+  forceCleanupSession: async () => {}, // Ajout de la nouvelle fonction
   updateTrackingData: () => {},
   updateElapsedTime: () => {},
   updatePhotoUri: () => {}, // Ajout de la nouvelle fonction
@@ -291,30 +293,80 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
   // Terminer une séance
   const finishWorkout = useCallback(async (updateStreak: boolean = false) => {
     console.log("[ActiveWorkout] Finishing workout");
-    if (!activeWorkout) return;
+    if (!activeWorkout) {
+      console.log("[ActiveWorkout] No active workout to finish");
+      return;
+    }
 
     try {
-        // Arrêter le timer
-        stopGlobalTimer();
-        
-        // Ici, on pourrait sauvegarder l'historique de la séance dans une autre partie de l'application
-        // Pour le moment, on se contente de réinitialiser l'état
-        setActiveWorkout(null);
-        setIsTrackingWorkout(false);
-        await RobustStorageService.clearActiveSession();
-
+      // Arrêter le timer
+      console.log("[ActiveWorkout] Stopping global timer...");
+      stopGlobalTimer();
+      
       // Récupérer le workout original pour mettre à jour la streak
       // Uniquement si updateStreak est true (uniquement quand on clique sur "Log Workout")
       if (updateStreak) {
+        console.log("[ActiveWorkout] Updating streak...");
         const originalWorkout = workouts.find(w => w.id === activeWorkout.workoutId);
         if (originalWorkout) {
           await updateStreakOnCompletion(originalWorkout);
+          console.log("[ActiveWorkout] Streak updated successfully");
+        } else {
+          console.warn("[ActiveWorkout] Original workout not found for streak update");
         }
       }
+      
+      // Nettoyer la session active
+      console.log("[ActiveWorkout] Clearing active session...");
+      const clearResult = await RobustStorageService.clearActiveSession();
+      if (!clearResult.success) {
+        console.error("[ActiveWorkout] Failed to clear active session:", clearResult.error?.userMessage);
+        // Continuer quand même le nettoyage local
+      }
+      
+      // Réinitialiser l'état local
+      console.log("[ActiveWorkout] Resetting local state...");
+      setActiveWorkout(null);
+      setIsTrackingWorkout(false);
+      
+      console.log("[ActiveWorkout] Workout finished successfully");
     } catch (error) {
       console.error("[ActiveWorkout] Error finishing workout:", error);
+      // En cas d'erreur, forcer le nettoyage local au minimum
+      try {
+        setActiveWorkout(null);
+        setIsTrackingWorkout(false);
+        console.log("[ActiveWorkout] Local state reset after error");
+      } catch (localError) {
+        console.error("[ActiveWorkout] Failed to reset local state:", localError);
+      }
+      throw error; // Re-throw pour que l'appelant puisse gérer l'erreur
     }
   }, [activeWorkout, workouts, updateStreakOnCompletion]);
+
+  // Fonction de nettoyage d'urgence pour les sessions bloquées
+  const forceCleanupSession = useCallback(async () => {
+    console.log("[ActiveWorkout] Force cleanup session requested");
+    
+    try {
+      // Arrêter le timer
+      stopGlobalTimer();
+      
+      // Nettoyer le stockage
+      await RobustStorageService.clearActiveSession();
+      
+      // Réinitialiser l'état local
+      setActiveWorkout(null);
+      setIsTrackingWorkout(false);
+      
+      console.log("[ActiveWorkout] Force cleanup completed successfully");
+    } catch (error) {
+      console.error("[ActiveWorkout] Error during force cleanup:", error);
+      // Forcer le nettoyage local même en cas d'erreur
+      setActiveWorkout(null);
+      setIsTrackingWorkout(false);
+    }
+  }, []);
 
   // Mettre à jour les données de tracking pour un exercice
   const updateTrackingData = (exerciseId: string, sets: TrackingSet[], completedSets: number) => {
@@ -409,6 +461,7 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
         activeWorkout,
         startWorkout,
         finishWorkout,
+        forceCleanupSession,
         updateTrackingData,
         updateElapsedTime,
         updatePhotoUri,
@@ -420,4 +473,4 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
       {children}
     </ActiveWorkoutContext.Provider>
   );
-}; 
+};

@@ -509,26 +509,50 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       await addCompletedWorkout(newCompletedWorkout, workout);
       console.log("Completed workout saved successfully via context");
       
+      // Terminer la séance active AVANT la navigation pour éviter les race conditions
+      // (sans mettre à jour la streak car c'est déjà fait dans addCompletedWorkout)
+      console.log("Finishing active workout session...");
+      try {
+        await finishWorkout(false); // Passer false car la streak est déjà mise à jour par addCompletedWorkout
+        console.log("Active workout session finished successfully");
+      } catch (finishError) {
+        console.error("Error finishing workout session:", finishError);
+        // Le workout est déjà sauvé, on continue malgré l'erreur de nettoyage
+        // L'utilisateur pourra manuellement nettoyer la session si nécessaire
+      }
+      
       // Fermer la modale de confirmation
       modalManagement.hideFinishModal();
       
       // Fermer la modale principale
       onClose();
       
-      // Terminer la séance active (sans mettre à jour la streak car c'est déjà fait dans addCompletedWorkout)
-      await finishWorkout(false); // Passer false car la streak est déjà mise à jour par addCompletedWorkout
+      // Petite attente pour s'assurer que le nettoyage est terminé
+      await new Promise(resolve => setTimeout(resolve, 100));
       
       // Naviguer vers l'écran de récapitulatif indépendant
       console.log('WorkoutDetailModal - handleLogWorkout - Navigating with workout:', JSON.stringify(newCompletedWorkout));
       
-      // Utiliser CommonActions pour une navigation plus prévisible
-      // Naviguer vers la pile indépendante SummaryFlow qui cachera la barre d'onglets
-      navigation.dispatch(
-        CommonActions.navigate('SummaryFlow', { 
-          screen: 'WorkoutSummary',
-          params: { workout: newCompletedWorkout }
-        })
-      );
+      try {
+        // Utiliser CommonActions pour une navigation plus prévisible
+        // Naviguer vers la pile indépendante SummaryFlow qui cachera la barre d'onglets
+        navigation.dispatch(
+          CommonActions.navigate('SummaryFlow', { 
+            screen: 'WorkoutSummary',
+            params: { workout: newCompletedWorkout }
+          })
+        );
+        console.log('Navigation to WorkoutSummary successful');
+      } catch (navigationError) {
+        console.error('Navigation error:', navigationError);
+        // En cas d'erreur de navigation, au moins le workout est sauvé
+        // On peut essayer une navigation alternative ou afficher un message
+        Alert.alert(
+          "Navigation Error",
+          "Your workout has been saved successfully, but there was an issue opening the summary. You can view it in your journal.",
+          [{ text: "OK" }]
+        );
+      }
       
     } catch (error) {
       console.error('Error saving completed workout:', error);

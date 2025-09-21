@@ -52,10 +52,10 @@ export const usePersonalRecords = () => {
     }
   }, [instanceId]);
 
-  // Ne plus charger automatiquement - les données sont préchargées
+  // Charger les records au montage du hook
   useEffect(() => {
-    // loadRecords(); // Supprimé - les données sont préchargées
-  }, []);
+    loadRecords();
+  }, [loadRecords]);
 
   // S'abonner aux événements de mise à jour des records
   useEffect(() => {

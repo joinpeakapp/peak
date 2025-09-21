@@ -255,7 +255,7 @@ export const StreakService = {
             workout.id,
             workout.name,
             formattedDate,
-            workout.frequency
+            workout.frequency.value
           );
           console.log(`[StreakService] 🔔 Scheduled streak reminder for ${workout.name}`);
         } catch (error) {
