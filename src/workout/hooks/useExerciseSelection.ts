@@ -1,9 +1,10 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Exercise } from '../../types/workout';
 import { SAMPLE_EXERCISES } from '../components/ExerciseSelectionModal';
+import CustomExerciseService from '../../services/customExerciseService';
 
 // Interface pour les modes de sélection
-export type ExerciseSelectionMode = 'workout' | 'exercise-selection' | 'exercise-tracking' | 'exercise-replacement';
+export type ExerciseSelectionMode = 'workout' | 'exercise-selection' | 'exercise-tracking' | 'exercise-replacement' | 'exercise-creation';
 
 // Interface pour le retour du hook
 export interface UseExerciseSelectionReturn {
@@ -29,12 +30,14 @@ export interface UseExerciseSelectionReturn {
   // Actions pour les modes
   startExerciseSelection: () => void;
   startExerciseReplacement: (exerciseId: string) => void;
+  startExerciseCreation: () => void;
   resetToWorkoutMode: () => void;
   
   // Helpers
   hasSelectedExercises: boolean;
   getFilterButtonText: () => string;
   canConfirmSelection: boolean;
+  reloadCustomExercises: () => Promise<void>;
 }
 
 /**
@@ -53,14 +56,35 @@ export const useExerciseSelection = (): UseExerciseSelectionReturn => {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [exerciseToReplaceId, setExerciseToReplaceId] = useState<string | null>(null);
   const [modalMode, setModalMode] = useState<ExerciseSelectionMode>('workout');
+  const [customExercises, setCustomExercises] = useState<Exercise[]>([]);
+  
+  // Charger les exercices personnalisés au montage
+  useEffect(() => {
+    loadCustomExercises();
+  }, []);
+
+  const loadCustomExercises = async () => {
+    try {
+      const customs = await CustomExerciseService.getCustomExercises();
+      const exercises = customs.map(custom => CustomExerciseService.convertToExercise(custom));
+      setCustomExercises(exercises);
+    } catch (error) {
+      console.error('[useExerciseSelection] Error loading custom exercises:', error);
+    }
+  };
+
+  // Fusionner les exercices par défaut et personnalisés
+  const allExercises = useMemo(() => {
+    return [...SAMPLE_EXERCISES, ...customExercises];
+  }, [customExercises]);
   
   // Filtrage des exercices par recherche et tags
   const filteredExercises = useMemo(() => {
     if (!searchQuery.trim() && selectedTags.length === 0) {
-      return SAMPLE_EXERCISES;
+      return allExercises;
     }
     
-    return SAMPLE_EXERCISES.filter(exercise => {
+    return allExercises.filter(exercise => {
       // Filtre par texte de recherche
       const matchesQuery = !searchQuery.trim() || 
         exercise.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -71,7 +95,7 @@ export const useExerciseSelection = (): UseExerciseSelectionReturn => {
       
       return matchesQuery && matchesTags;
     });
-  }, [searchQuery, selectedTags]);
+  }, [allExercises, searchQuery, selectedTags]);
   
   // Groupement alphabétique des exercices
   const groupedExercises = useMemo(() => {
@@ -163,6 +187,14 @@ export const useExerciseSelection = (): UseExerciseSelectionReturn => {
     setSelectedTags([]);
   }, []);
   
+  // Démarrer la création d'exercice
+  const startExerciseCreation = useCallback(() => {
+    setModalMode('exercise-creation');
+    setSearchQuery('');
+    setSelectedExercises([]);
+    setSelectedTags([]);
+  }, []);
+  
   // Retourner au mode workout
   const resetToWorkoutMode = useCallback(() => {
     setModalMode('workout');
@@ -207,11 +239,13 @@ export const useExerciseSelection = (): UseExerciseSelectionReturn => {
     // Actions pour les modes
     startExerciseSelection,
     startExerciseReplacement,
+    startExerciseCreation,
     resetToWorkoutMode,
     
     // Helpers
     hasSelectedExercises,
     getFilterButtonText,
-    canConfirmSelection
+    canConfirmSelection,
+    reloadCustomExercises: loadCustomExercises
   };
 };
