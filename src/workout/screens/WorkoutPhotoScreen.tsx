@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { NavigationProp, RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { RootStackParamList, SummaryStackParamList } from '../../types/navigation';
 import { useActiveWorkout } from '../contexts/ActiveWorkoutContext';
+import { PhotoStorageService } from '../../services/photoStorageService';
 
 type WorkoutPhotoRouteProp = RouteProp<SummaryStackParamList, 'WorkoutPhoto'>;
 
@@ -24,7 +25,7 @@ export const WorkoutPhotoScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const route = useRoute<WorkoutPhotoRouteProp>();
   const { workout } = route.params;
-  const { updatePhotoUri } = useActiveWorkout();
+  const { updatePhotoInfo } = useActiveWorkout();
   
   // Référence à la caméra
   const cameraRef = useRef<any>(null);
@@ -107,8 +108,6 @@ export const WorkoutPhotoScreen: React.FC = () => {
       setIsCapturing(true);
       
       try {
-        console.log('🖼️ [WorkoutPhoto] Taking picture...');
-        
         // 1. Prendre la photo avec qualité maximale
         const options = {
           quality: 1, // Qualité maximale pour la photo originale
@@ -117,17 +116,17 @@ export const WorkoutPhotoScreen: React.FC = () => {
         };
         const photo = await cameraRef.current.takePictureAsync(options);
         
-        console.log('🖼️ [WorkoutPhoto] Photo taken, saving directly...');
+        // Sauvegarder la photo de manière permanente
+        const permanentUri = await PhotoStorageService.saveWorkoutPhoto(photo.uri, workout.id);
+        // Mettre à jour l'URI de la photo et l'info de la caméra avec l'URI permanent
+        updatePhotoInfo(permanentUri, cameraType === 'front');
         
-        // Sauvegarder l'URI de la photo directement (pas d'optimisation)
-        updatePhotoUri(photo.uri);
-        
-        // 3. Naviguer vers l'écran de prévisualisation avec l'URI de la photo
+        // 3. Naviguer vers l'écran de prévisualisation avec l'URI permanent
         navigation.navigate('SummaryFlow', {
           screen: 'WorkoutOverview',
           params: {
-            workout: { ...workout, photo: photo.uri },
-            photoUri: photo.uri,
+            workout: { ...workout, photo: permanentUri, isFrontCamera: cameraType === 'front' },
+            photoUri: permanentUri,
             sourceType: 'tracking'
           }
         });

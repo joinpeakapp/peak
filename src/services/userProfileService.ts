@@ -38,8 +38,7 @@ class UserProfileService {
   static async saveUserProfile(profile: UserProfile): Promise<void> {
     try {
       await AsyncStorage.setItem(this.USER_PROFILE_KEY, JSON.stringify(profile));
-      console.log('✅ User profile saved successfully');
-    } catch (error) {
+      } catch (error) {
       console.error('Error saving user profile:', error);
       throw error;
     }
@@ -74,7 +73,6 @@ class UserProfileService {
       };
 
       await this.saveUserProfile(profile);
-      console.log('✅ Onboarding completed for:', profile.firstName);
       return profile;
     } catch (error) {
       console.error('Error completing onboarding:', error);
@@ -101,8 +99,7 @@ class UserProfileService {
   static async resetUserProfile(): Promise<void> {
     try {
       await AsyncStorage.removeItem(this.USER_PROFILE_KEY);
-      console.log('🔄 User profile reset');
-    } catch (error) {
+      } catch (error) {
       console.error('Error resetting user profile:', error);
       throw error;
     }
@@ -156,8 +153,7 @@ class UserProfileService {
       };
 
       await this.saveUserProfile(updatedProfile);
-      console.log('✅ Personal records updated in profile');
-    } catch (error) {
+      } catch (error) {
       console.error('Error updating personal records:', error);
       throw error;
     }

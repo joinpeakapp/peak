@@ -36,11 +36,9 @@ export const useNotifications = () => {
   // Écouter les notifications reçues
   useEffect(() => {
     const subscription = Notifications.addNotificationReceivedListener(notification => {
-      console.log('🔔 [useNotifications] Notification received:', notification);
-    });
+      });
 
     const responseSubscription = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log('🔔 [useNotifications] Notification response:', response);
       // Ici on peut ajouter la navigation ou autres actions
     });
 

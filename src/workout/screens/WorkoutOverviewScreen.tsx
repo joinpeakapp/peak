@@ -28,6 +28,9 @@ import { RootStackParamList, SummaryStackParamList } from '../../types/navigatio
 import { CompletedWorkout } from '../../types/workout';
 import { useWorkoutHistory } from '../contexts/WorkoutHistoryContext';
 import { CachedImage } from '../../components/common/CachedImage';
+import { StickerService } from '../../services/stickerService';
+import { StickerBadge } from '../../components/common/StickerBadge';
+import { Sticker } from '../../types/stickers';
 
 type WorkoutOverviewRouteProp = RouteProp<SummaryStackParamList, 'WorkoutOverview'>;
 
@@ -35,6 +38,9 @@ export const WorkoutOverviewScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const route = useRoute<WorkoutOverviewRouteProp>();
   const { workout, photoUri, sourceType = 'tracking', workouts = [], currentIndex = 0 } = route.params;
+  
+  // Déterminer si on est en mode carousel (plusieurs workouts)
+  const isCarouselMode = workouts.length > 1;
   
   // Utiliser le contexte WorkoutHistory
   const { updateCompletedWorkout } = useWorkoutHistory();
@@ -74,51 +80,23 @@ export const WorkoutOverviewScreen: React.FC = () => {
     return `${minutes} min`;
   };
 
-  // Determine which stickers to display
-  const getStickers = (currentWorkout = workout) => {
-    const stickers = [];
-    
-    // Check if total time is greater than 45 minutes
-    if (currentWorkout.duration > 45 * 60) {
-      stickers.push({
-        name: "Endurance",
-        icon: "fitness-outline" as any,
-        color: "#3498db"
-      });
-    }
-    
-    // Check if at least 5 different exercises were performed
-    if (currentWorkout.exercises.length >= 5) {
-      stickers.push({
-        name: "Variety",
-        icon: "grid-outline" as any,
-        color: "#9b59b6"
-      });
-    }
-    
-    // Check personal records
-    const prExercises = currentWorkout.exercises.filter(ex => ex.personalRecord);
-    if (prExercises.length > 0) {
-      stickers.push({
-        name: "New Record",
-        icon: "trophy-outline" as any,
-        color: "#f39c12"
-      });
-    }
-    
-    // Default sticker if no other
-    if (stickers.length === 0) {
-      stickers.push({
-        name: "Complete",
-        icon: "checkmark-circle-outline" as any,
-        color: "#2ecc71"
-      });
-    }
-    
-    return stickers.slice(0, 3); // Limit to a maximum of 3 stickers
-  };
+  // État pour les stickers du workout principal
+  const [stickers, setStickers] = useState<Sticker[]>([]);
 
-  const stickers = useMemo(() => getStickers(), [workout]);
+  // Charger les stickers pour le workout principal (utilise le cache si disponible)
+  useEffect(() => {
+    const loadStickers = async () => {
+      try {
+        const workoutStickers = await StickerService.generateWorkoutStickers(workout, true);
+        setStickers(workoutStickers);
+      } catch (error) {
+        console.error('[WorkoutOverviewScreen] Error loading stickers:', error);
+        setStickers([]);
+      }
+    };
+
+    loadStickers();
+  }, [workout]);
 
   // Handle returning to the photo capture screen
   const handleGoBack = () => {
@@ -173,10 +151,36 @@ export const WorkoutOverviewScreen: React.FC = () => {
     }
   }, [navigation, workout, photoUri, updateCompletedWorkout]);
 
+  // État pour les stickers du carousel
+  const [carouselStickers, setCarouselStickers] = useState<Record<string, Sticker[]>>({});
+
+  // Charger les stickers pour tous les workouts du carousel
+  useEffect(() => {
+    if (isCarouselMode && workouts) {
+      const loadCarouselStickers = async () => {
+        const stickersMap: Record<string, Sticker[]> = {};
+        
+        for (const workout of workouts) {
+          try {
+            const workoutStickers = await StickerService.generateWorkoutStickers(workout, true);
+            stickersMap[workout.id] = workoutStickers;
+          } catch (error) {
+            console.error('[WorkoutOverviewScreen] Error loading carousel stickers:', error);
+            stickersMap[workout.id] = [];
+          }
+        }
+        
+        setCarouselStickers(stickersMap);
+      };
+
+      loadCarouselStickers();
+    }
+  }, [isCarouselMode, workouts]);
+
   // Rendu d'un workout dans le carousel (pour le mode journal)
   const renderWorkoutItem = useCallback(({ item }: { item: CompletedWorkout }) => {
     const currentWorkout = item;
-    const workoutStickers = getStickers(currentWorkout);
+    const workoutStickers = carouselStickers[currentWorkout.id] || [];
     
     return (
       <View style={[styles.container, { width: screenWidth }]}>
@@ -190,6 +194,7 @@ export const WorkoutOverviewScreen: React.FC = () => {
             <CachedImage
               uri={currentWorkout.photo || 'https://via.placeholder.com/400x600/242526/FFFFFF?text=Workout'}
               style={styles.photo}
+              workout={currentWorkout} // Passer l'objet workout pour déterminer le flip automatiquement
               resizeMode="cover"
               fallbackUri="https://via.placeholder.com/400x600/242526/FFFFFF?text=Workout"
             />
@@ -217,16 +222,12 @@ export const WorkoutOverviewScreen: React.FC = () => {
             {/* Badges */}
             <View style={styles.badgesContainer}>
               {workoutStickers.map((sticker, index) => (
-                <View
+                <StickerBadge
                   key={`sticker-${index}`}
-                  style={[
-                    styles.stickerBadge,
-                    { backgroundColor: sticker.color }
-                  ]}
-                >
-                  <Ionicons name={sticker.icon} size={18} color="#FFFFFF" />
-                  <Text style={styles.stickerText}>{sticker.name}</Text>
-                </View>
+                  sticker={sticker}
+                  size="xlarge"
+                  showText={true}
+                />
               ))}
             </View>
             
@@ -337,7 +338,7 @@ export const WorkoutOverviewScreen: React.FC = () => {
         </View>
       </View>
     );
-  }, [screenWidth, handleGoBack, getStickers]);
+  }, [screenWidth, handleGoBack]);
 
   // Rendre la barre d'état transparente
   useEffect(() => {
@@ -401,6 +402,7 @@ export const WorkoutOverviewScreen: React.FC = () => {
           <CachedImage
             uri={photoUri}
             style={styles.photo}
+            workout={workout} // Passer l'objet workout pour déterminer le flip automatiquement
             resizeMode="cover"
             fallbackUri="https://via.placeholder.com/400x600/242526/FFFFFF?text=Workout"
           />
@@ -428,16 +430,12 @@ export const WorkoutOverviewScreen: React.FC = () => {
           {/* Badges */}
           <View style={styles.badgesContainer}>
             {stickers.map((sticker, index) => (
-              <View
+              <StickerBadge
                 key={`sticker-${index}`}
-                style={[
-                  styles.stickerBadge,
-                  { backgroundColor: sticker.color }
-                ]}
-              >
-                <Ionicons name={sticker.icon} size={18} color="#FFFFFF" />
-                <Text style={styles.stickerText}>{sticker.name}</Text>
-              </View>
+                sticker={sticker}
+                size="xlarge"
+                showText={true}
+              />
             ))}
           </View>
           
@@ -622,31 +620,6 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     marginBottom: 20,
     gap: 16,
-  },
-  stickerBadge: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.3,
-        shadowRadius: 5,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
-  },
-  stickerText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '600',
-    marginTop: 2,
-    textAlign: 'center',
   },
   titleContainer: {
     alignItems: 'center',

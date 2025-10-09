@@ -36,19 +36,15 @@ export const ExerciseDetailScreen: React.FC = () => {
         );
         
         if (matchingKey) {
-          console.log('[ExerciseDetailScreen] Found fuzzy match:', matchingKey, 'for', exerciseName);
           record = records[matchingKey];
         }
       }
       
       // En mode développement, afficher toutes les clés disponibles pour diagnostic
       if (__DEV__ && !record) {
-        console.log('[ExerciseDetailScreen] DEBUG - All available exercise names:');
         Object.keys(records).forEach(key => {
-          console.log(`  - "${key}"`);
-        });
-        console.log(`[ExerciseDetailScreen] DEBUG - Looking for: "${exerciseName}"`);
-      }
+          });
+        }
       
       setExerciseRecord(record || null);
     }
@@ -70,8 +66,6 @@ export const ExerciseDetailScreen: React.FC = () => {
     });
     setDeleteModalVisible(true);
   };
-
-
 
   // Confirmation de suppression
   const handleConfirmDelete = async () => {

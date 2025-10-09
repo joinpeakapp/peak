@@ -69,7 +69,6 @@ export const StreakProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       const result = await StreakService.updateStreakOnCompletion(workout);
       
       // Notifier tous les composants StreakDisplay de la mise à jour
-      console.log('[StreakContext] Notifying all streak listeners of update...');
       streakEventManager.notify();
       
       return result;

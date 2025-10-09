@@ -72,7 +72,6 @@ export const OnboardingNavigator: React.FC<OnboardingNavigatorProps> = ({
       const updatedData = { ...onboardingData, primaryGoal };
       const profile = await UserProfileService.completeOnboarding(updatedData);
       
-      console.log('✅ Onboarding completed successfully:', profile);
       onComplete(profile);
     } catch (error) {
       console.error('❌ Error completing onboarding:', error);

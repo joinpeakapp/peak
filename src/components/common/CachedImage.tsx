@@ -6,6 +6,8 @@ interface CachedImageProps extends Omit<ImageProps, 'source'> {
   placeholder?: React.ReactNode;
   fallbackUri?: string;
   showLoader?: boolean;
+  horizontalFlip?: boolean; // Appliquer une symétrie horizontale à l'image
+  workout?: { isFrontCamera?: boolean }; // Objet workout pour déterminer le flip automatiquement
 }
 
 // Cache global pour les images
@@ -36,6 +38,8 @@ export const CachedImage: React.FC<CachedImageProps> = ({
   placeholder,
   fallbackUri,
   showLoader = true,
+  horizontalFlip = false, // Par défaut pas de flip
+  workout,
   style,
   ...imageProps
 }) => {
@@ -124,6 +128,8 @@ export const CachedImage: React.FC<CachedImageProps> = ({
         uri={fallbackUri}
         style={style}
         showLoader={showLoader}
+        horizontalFlip={horizontalFlip}
+        workout={workout}
       />
     );
   }
@@ -137,12 +143,21 @@ export const CachedImage: React.FC<CachedImageProps> = ({
     );
   }
 
+  // Déterminer si le flip doit être appliqué
+  const shouldFlip = horizontalFlip || (workout?.isFrontCamera === true);
+
+  // Créer le style avec flip horizontal si nécessaire
+  const imageStyle = [
+    style,
+    shouldFlip && { transform: [{ scaleX: -1 }] }
+  ];
+
   return (
     <View style={style}>
       <Image
         {...imageProps}
         source={{ uri }}
-        style={style}
+        style={imageStyle}
         onLoad={handleImageLoad}
         onError={handleImageError}
       />

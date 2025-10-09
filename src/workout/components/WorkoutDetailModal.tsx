@@ -18,7 +18,7 @@ import {
   StatusBar
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Workout, Exercise, CompletedWorkout, PersonalRecords } from '../../types/workout';
+import { Workout, Exercise, CompletedWorkout, PersonalRecords, StickerHistoricalData } from '../../types/workout';
 import { FullScreenModal } from '../../components/common/FullScreenModal';
 import { useWorkout } from '../../hooks/useWorkout';
 import { ExerciseSettingsModal } from './ExerciseSettingsModal';
@@ -42,6 +42,7 @@ import { PRBadge } from './PRBadge';
 import { SetRow } from './SetRow';
 import { WorkoutEditModal } from './WorkoutEditModal';
 import { PersonalRecordService } from '../../services/personalRecordService';
+import { RobustStorageService } from '../../services/storage';
 import { RootStackParamList, WorkoutStackParamList } from '../../types/navigation';
 import { useWorkoutHistory } from '../contexts/WorkoutHistoryContext';
 
@@ -121,8 +122,6 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   // Hook unifié pour gérer la session d'entraînement et les PRs
   const workoutSession = useWorkoutSession();
 
-
-
   // Fonction pour animer le badge PR
   const animatePrBadge = animations.animatePrBadge;
   
@@ -186,7 +185,6 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
           updatedAt: new Date().toISOString()
         };
         updateWorkout(updatedWorkout);
-        console.log(`[handleExercisesSelected] Workout saved with ${newExercises.length} new exercises`);
       }
       
       // Les changements sont maintenant sauvegardés (gérés automatiquement par le hook) // Les changements sont maintenant sauvegardés
@@ -209,7 +207,6 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
         updatedAt: new Date().toISOString()
       };
       updateWorkout(updatedWorkout);
-      console.log(`[handleRemoveExercise] Workout saved after removing exercise`);
     }
     
     // Les changements sont maintenant sauvegardés (gérés automatiquement par le hook) // Les changements sont maintenant sauvegardés
@@ -251,7 +248,6 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
           updatedAt: new Date().toISOString()
         };
         updateWorkout(updatedWorkout);
-        console.log(`[handleExerciseReplaced] Workout saved after replacing exercise`);
       }
       
       // Les changements sont maintenant sauvegardés (gérés automatiquement par le hook) // Les changements sont maintenant sauvegardés
@@ -271,10 +267,8 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     // Capturer les records actuels qui serviront de référence pour toute la séance
     // Utiliser une copie profonde pour éviter toute référence partagée
     const capturedRecords = JSON.parse(JSON.stringify(personalRecords.records));
-    console.log('[handleStartWorkout] Capturing original records:', Object.keys(capturedRecords));
-    Object.entries(capturedRecords).forEach(([exerciseName, record]: [string, any]) => {
-      console.log(`[handleStartWorkout] ${exerciseName}: maxWeight=${record.maxWeight}kg`);
-    });
+    // Capturer les records originaux pour comparaison
+    // Records capturés pour la session
     
     // Initialiser la session avec les records capturés
     workoutSession.initializeSession(capturedRecords);
@@ -283,7 +277,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     // Le contexte gère maintenant le timer
     // IMPORTANT: Utiliser l'état local 'exercises' et non 'workout.exercises'
     // pour inclure les exercices ajoutés récemment
-    console.log('[handleStartWorkout] Starting workout with', exercises.length, 'exercises');
+    // Démarrer le workout avec les exercices sélectionnés
     startWorkout(workout.id, workout.name, exercises);
     updateElapsedTime(0);
   };
@@ -313,7 +307,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
               
               // Pas besoin de recharger les records, il suffit de réinitialiser l'UI
               // Les records permanents n'ont jamais été sauvegardés, donc rien à annuler côté stockage
-              console.log("Personal record UI display reset")
+              // Reset PR display
             }
             
             // Nettoyer complètement la session
@@ -336,9 +330,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   };
 
   const handleLogWorkout = async () => {
-    console.log("handleLogWorkout called", { activeWorkout, workout });
     if (!activeWorkout || !workout) {
-      console.log("No activeWorkout or workout", { activeWorkout, workout });
       return;
     }
     
@@ -347,19 +339,22 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       stopTimer();
     }
     
+    // Désactiver le bouton pour éviter les double-clics
+    modalManagement.hideFinishModal();
+    
     try {
       // 🔧 FIX: S'assurer que toutes les données de tracking sont sauvegardées avant de terminer
       // Sauvegarder une dernière fois les données de l'exercice actuellement sélectionné
       if (modalManagement.selectedExerciseId && exerciseTracking.exerciseSets.length > 0) {
         const completedCount = exerciseTracking.exerciseSets.filter(set => set.completed).length;
-        if (ENABLE_DIAGNOSTIC_LOGS) console.log(`🔧 [FIX] Final save of tracking data for current exercise ${modalManagement.selectedExerciseId}: ${completedCount} completed sets`);
+        // Final save of tracking data
         updateTrackingData(modalManagement.selectedExerciseId, exerciseTracking.exerciseSets, completedCount);
       }
       
       // 🔧 FIX: Vérifier et initialiser trackingData pour tous les exercices du workout
       exercises.forEach(exercise => {
         if (!activeWorkout.trackingData[exercise.id]) {
-          if (ENABLE_DIAGNOSTIC_LOGS) console.log(`🔧 [FIX] Initializing missing trackingData for exercise ${exercise.name} (${exercise.id})`);
+          // Initialize missing trackingData
           const initialSets = Array(exercise.sets || 1).fill(0).map(() => ({
             completed: false,
             weight: '',
@@ -389,7 +384,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       
       // Maintenant utiliser le nouveau système unifié pour sauvegarder tous les PRs
       // Le nouveau système traite automatiquement tous les PRs du workout complété
-      console.log(`[WorkoutDetailModal] Using unified PR system to save all records...`);
+      // Using unified PR system to save all records
       
       // Créer un objet workout temporaire pour la mise à jour des PRs
       const tempWorkout = {
@@ -412,11 +407,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       // Utiliser le nouveau système pour mettre à jour et sauvegarder les PRs
       const prUpdateResult = await personalRecords.updateRecordsFromCompletedWorkout(tempWorkout);
       
-      if (prUpdateResult.hasUpdates) {
-        console.log(`[WorkoutDetailModal] ✅ Personal records updated and saved via unified system`);
-      } else {
-        console.log(`[WorkoutDetailModal] No personal records to save`);
-      }
+      // Personal records updated via unified system
       
       // Nettoyer complètement la session après sauvegarde
       workoutSession.clearSession();
@@ -424,14 +415,13 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       // On supprime l'appel à updateStreakOnCompletion ici car il est déjà fait dans finishWorkout
       // via ActiveWorkoutContext
       
-      // Création de l'objet CompletedWorkout
-      console.log("Creating CompletedWorkout");
+      // Calculer les données historiques des stickers avant la création du workout
+      const stickerData = await calculateStickerHistoricalData(workout.id, workout.name);
       
-      // 🔧 DIAGNOSTIC: Vérifier l'état de trackingData avant création
-      if (ENABLE_DIAGNOSTIC_LOGS) {
-        console.log('🔍 [DIAGNOSTIC] activeWorkout.trackingData:', activeWorkout.trackingData);
-        console.log('🔍 [DIAGNOSTIC] exercises to process:', exercises.map(ex => ({ id: ex.id, name: ex.name })));
-      }
+      // Création de l'objet CompletedWorkout
+      // Creating CompletedWorkout
+      
+      // Verify trackingData state before creation
       
       const newCompletedWorkout: CompletedWorkout = {
         id: generateId(),
@@ -440,18 +430,12 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
         date: new Date().toISOString(),
         duration: activeWorkout.elapsedTime,
         photo: activeWorkout.photoUri || 'https://via.placeholder.com/114x192/242526/FFFFFF?text=Workout',
+        isFrontCamera: activeWorkout.isFrontCamera,
         exercises: exercises.map(exercise => {
           const trackingData = activeWorkout.trackingData[exercise.id];
           const sets = trackingData?.sets || [];
           
-          // 🔧 DIAGNOSTIC: Logger les données de chaque exercice
-          if (ENABLE_DIAGNOSTIC_LOGS) {
-            console.log(`🔍 [DIAGNOSTIC] Processing exercise "${exercise.name}" (${exercise.id}):`);
-            console.log(`🔍 [DIAGNOSTIC] - trackingData exists: ${!!trackingData}`);
-            console.log(`🔍 [DIAGNOSTIC] - sets count: ${sets.length}`);
-            console.log(`🔍 [DIAGNOSTIC] - completed sets: ${sets.filter(s => s.completed).length}`);
-            console.log(`🔍 [DIAGNOSTIC] - sets data:`, sets);
-          }
+          // Process exercise data
           
           // 🔧 FIX: S'assurer qu'il y a au moins des sets par défaut même si trackingData manque
           const finalSets = sets.length > 0 ? sets : Array(exercise.sets || 1).fill(0).map(() => ({
@@ -476,59 +460,68 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
             personalRecord
           };
           
-          if (ENABLE_DIAGNOSTIC_LOGS) {
-            console.log(`🔍 [DIAGNOSTIC] - Final exercise result for "${exercise.name}":`, {
-              setsCount: exerciseResult.sets.length,
-              completedSetsCount: exerciseResult.sets.filter(s => s.completed).length,
-              hasPersonalRecord: !!personalRecord
-            });
-          }
+          // Exercise result processed
           
           return exerciseResult;
         }),
-        notes: workout.notes
+        notes: workout.notes,
+        stickerData // Données historiques des stickers au moment de la séance
         // La streak sera récupérée et affichée directement dans WorkoutSummaryScreen
       };
       
-      // 🔧 DIAGNOSTIC: Vérifier le workout final avant sauvegarde
-      if (ENABLE_DIAGNOSTIC_LOGS) {
-        console.log('🔍 [DIAGNOSTIC] Final CompletedWorkout before save:');
-        console.log('🔍 [DIAGNOSTIC] - Total exercises:', newCompletedWorkout.exercises.length);
-        console.log('🔍 [DIAGNOSTIC] - Exercises with completed sets:', 
-          newCompletedWorkout.exercises.filter(ex => ex.sets.some(s => s.completed)).length);
-        console.log('🔍 [DIAGNOSTIC] - Exercises details:', 
-          newCompletedWorkout.exercises.map(ex => ({ 
-            name: ex.name, 
-            totalSets: ex.sets.length, 
-            completedSets: ex.sets.filter(s => s.completed).length 
-          })));
+      // Final workout verification before save
+      
+      // Sauvegarder le workout et nettoyer la session en séquence sécurisée
+      
+      // 1. Sauvegarder le workout terminé (gère automatiquement les streaks)
+      await addCompletedWorkout(newCompletedWorkout, workout);
+      
+      // 2. Nettoyer la session active (sans mettre à jour la streak car déjà fait)
+      try {
+        await finishWorkout(false); // false = pas de mise à jour streak
+        // Active workout session cleaned successfully
+      } catch (finishError) {
+        console.error("Error cleaning workout session:", finishError);
+        // Continuer malgré l'erreur de nettoyage - le workout est sauvé
       }
       
-      // Utiliser le contexte pour sauvegarder le workout terminé (cela gère automatiquement les streaks)
-      console.log("Saving completed workout via WorkoutHistoryContext");
-      await addCompletedWorkout(newCompletedWorkout, workout);
-      console.log("Completed workout saved successfully via context");
-      
-      // Fermer la modale de confirmation
-      modalManagement.hideFinishModal();
-      
-      // Fermer la modale principale
+      // 3. Fermer les modales
       onClose();
       
-      // Terminer la séance active (sans mettre à jour la streak car c'est déjà fait dans addCompletedWorkout)
-      await finishWorkout(false); // Passer false car la streak est déjà mise à jour par addCompletedWorkout
+      // 4. Attendre que les opérations se terminent avant navigation
+      await new Promise(resolve => setTimeout(resolve, 200));
       
-      // Naviguer vers l'écran de récapitulatif indépendant
-      console.log('WorkoutDetailModal - handleLogWorkout - Navigating with workout:', JSON.stringify(newCompletedWorkout));
+      // 5. Pré-calculer les stickers pour éviter les appels async dans les écrans suivants
+      let preCalculatedStickers: any[] = [];
+      try {
+        const { StickerService } = await import('../../services/stickerService');
+        preCalculatedStickers = await StickerService.generateWorkoutStickers(newCompletedWorkout, true);
+      } catch (stickerError) {
+        console.error("Error pre-calculating stickers:", stickerError);
+        // Continuer sans stickers si erreur
+      }
       
-      // Utiliser CommonActions pour une navigation plus prévisible
-      // Naviguer vers la pile indépendante SummaryFlow qui cachera la barre d'onglets
-      navigation.dispatch(
-        CommonActions.navigate('SummaryFlow', { 
-          screen: 'WorkoutSummary',
-          params: { workout: newCompletedWorkout }
-        })
-      );
+      // 6. Naviguer vers l'écran de récapitulatif avec les stickers pré-calculés
+      try {
+        // Utiliser CommonActions pour une navigation plus prévisible
+        navigation.dispatch(
+          CommonActions.navigate('SummaryFlow', { 
+            screen: 'WorkoutSummary',
+            params: { 
+              workout: newCompletedWorkout,
+              preCalculatedStickers: preCalculatedStickers // Passer les stickers pré-calculés
+            }
+          })
+        );
+      } catch (navigationError) {
+        console.error('Navigation error:', navigationError);
+        // En cas d'erreur de navigation, au moins le workout est sauvé
+        Alert.alert(
+          "Navigation Error",
+          "Your workout has been saved successfully, but there was an issue opening the summary. You can view it in your journal.",
+          [{ text: "OK" }]
+        );
+      }
       
     } catch (error) {
       console.error('Error saving completed workout:', error);
@@ -579,6 +572,49 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     
     // Retourner le PR seulement si c'est vraiment un nouveau record
     return isNewRecord ? { maxWeight, maxReps } : undefined;
+  };
+
+  // Fonction pour calculer les données historiques des stickers
+  const calculateStickerHistoricalData = async (workoutId: string, workoutName: string) => {
+    try {
+      // Charger l'historique des workouts
+      const historyResult = await RobustStorageService.loadWorkoutHistory();
+      if (!historyResult.success) {
+        console.warn('[WorkoutDetailModal] Failed to load workout history');
+        return { starCount: 1, streakCount: 1, completionCount: 1 };
+      }
+
+      const workoutHistory = historyResult.data;
+      
+      // 1. Calculer starCount : nombre de fois que ce workout spécifique a été complété
+      const starCount = workoutHistory.filter(w => 
+        w.workoutId === workoutId || w.name === workoutName
+      ).length + 1; // +1 pour inclure la séance actuelle
+      
+      // 2. Calculer streakCount : streak APRÈS completion du workout
+      const { StreakService } = await import('../../services/streakService');
+      const currentStreakData = await StreakService.getWorkoutStreak(workoutId);
+      const currentStreak = currentStreakData?.current || 0;
+      // La streak après completion sera current + 1 (car on vient de compléter une séance)
+      const streakCount = currentStreak + 1;
+      
+      // 3. Calculer completionCount : nombre total de séances complétées
+      const completionCount = workoutHistory.length + 1; // +1 pour inclure la séance actuelle
+      
+      return {
+        starCount,
+        streakCount,
+        completionCount
+      };
+    } catch (error) {
+      console.error('[WorkoutDetailModal] Error calculating sticker historical data:', error);
+      // Valeurs par défaut en cas d'erreur
+      return {
+        starCount: 1,
+        streakCount: 1,
+        completionCount: 1
+      };
+    }
   };
 
   // Fonction pour naviguer vers le tracking d'un exercice
@@ -642,7 +678,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
           // Délai court pour s'assurer que les animations sont bien initialisées
           setTimeout(() => {
             if (modalManagement.selectedExerciseId) {
-              console.log(`[handleBackToWorkout] Animating progress: ${progress} for ${modalManagement.selectedExerciseId}`);
+              // Animating progress
               animations.animateExerciseProgress(modalManagement.selectedExerciseId, progress);
             }
           }, 100);
@@ -708,7 +744,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
         const weight = parseInt(newSets[index].weight) || 0;
         const reps = parseInt(newSets[index].reps) || 0;
         
-        console.log(`🔍 [PR_DETECTION] ${exercise.name} set ${index}: weight=${weight}kg, reps=${reps}`);
+        // PR detection check
         
         if (weight > 0 && reps > 0) {
           // Utiliser les fonctions du hook pour vérifier les PRs
@@ -717,7 +753,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
           // Vérifier les repetitions PR par rapport aux records originaux
           const repsPR = workoutSession.checkOriginalRepsPR(exercise.name, weight, reps);
           
-          console.log(`🔍 [PR_DETECTION] ${exercise.name}: weightPR=${!!weightPR}, repsPR=${!!repsPR}`);
+          // PR detection result
           
           // Si nous avons un nouveau PR de poids pour la session, mettre à jour et supprimer les anciens PR
           if (weightPR) {
@@ -786,7 +822,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       const exercise = currentExercises.find(ex => ex.id === modalManagement.selectedExerciseId);
       if (exercise) {
         const progress = completedCount / newSets.length;
-        console.log(`[handleSetToggle] Updating progress animation: ${completedCount}/${newSets.length} = ${progress}`);
+        // Update progress animation
         animations.animateExerciseProgress(modalManagement.selectedExerciseId, progress);
       }
     }
@@ -814,7 +850,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
         updatedAt: new Date().toISOString()
       };
       updateWorkout(updatedWorkout);
-      console.log(`[handleRestTimeUpdate] Workout saved after updating rest time`);
+      // Workout saved after updating rest time
     }
     
     // Les changements sont maintenant sauvegardés (gérés automatiquement par le hook) // Les changements sont maintenant sauvegardés
@@ -839,10 +875,6 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       </TouchableOpacity>
     </View>
   );
-
-
-
-
 
   const renderSectionHeader = ({ letter }: { letter: string }) => (
     <View style={styles.sectionHeader}>
@@ -875,8 +907,6 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     );
   };
 
-
-
   // Fonction pour mettre à jour les tags sélectionnés
   const handleTagsSelected = (tags: string[]) => {
     exerciseSelection.setSelectedTags(tags);
@@ -892,8 +922,6 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     event.stopPropagation(); // Empêcher l'ouverture de la modale
     exerciseSelection.setSelectedTags([]);
   };
-
-
 
   // Ajouter une fonction pour supprimer une série
   const handleRemoveSet = (index: number) => {
@@ -948,7 +976,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
             updatedAt: new Date().toISOString()
           };
           updateWorkout(updatedWorkout);
-          console.log(`[handleRemoveSet] Workout saved after removing set`);
+          // Workout saved after removing set
         }
         
         // Mettre à jour les données de tracking avec les sets restants
@@ -1010,8 +1038,6 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     }
   }, [exercises.length, visible, isTrackingWorkout, activeWorkout?.workoutId]);
 
-
-
   useEffect(() => {
     if (modalManagement.isFinishModalVisible) {
       animations.animateSlideIn();
@@ -1061,15 +1087,9 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     const isCompleted = completedSets === totalSets && totalSets > 0; // Simplifié : juste basé sur les sets
     const progressPercentage = totalSets > 0 ? (completedSets / totalSets) * 100 : 0;
     
-    // 🔍 DEBUG temporaire pour vérifier la cohérence
-    if (__DEV__ && exercise.name === "Push-ups") { // Remplacer par le nom de l'exercice testé
-      console.log(`🔍 [CHECKBOX] ${exercise.name}:`, {
-        completedSets,
-        totalSets,
-        isCompleted,
-        progressPercentage: progressPercentage.toFixed(1) + '%',
-        text: `${completedSets} of ${totalSets} sets completed`
-      });
+    // Debug check for exercise consistency
+    if (__DEV__ && exercise.name === "Push-ups") {
+      console.log(`Exercise ${exercise.name}: ${completedSets}/${totalSets} sets completed`);
     }
     
     return {
@@ -1110,7 +1130,6 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   };
 
   // États pour les modales d'exercice
-
 
   // Utiliser les exercices de activeWorkout quand on est en mode tracking, sinon utiliser l'état local
   const currentExercises = isTrackingWorkout && activeWorkout?.exercises 
@@ -1186,7 +1205,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
             updatedAt: new Date().toISOString()
           };
           updateWorkout(updatedWorkout);
-          console.log(`[handleAddSet] Workout saved after adding set`);
+          // Workout saved after adding set
         }
         
         // Mettre à jour les données de tracking
@@ -1229,16 +1248,15 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
 
   // État pour la modal d'édition du workout
 
-
   // Fonction pour gérer la fermeture du modal d'édition du workout
   const handleWorkoutEditClose = () => {
-    console.log('Closing workout edit modal');
+    // Closing workout edit modal
     modalManagement.hideWorkoutEditModal();
   };
 
   // Fonction pour gérer la sauvegarde après l'édition du workout
   const handleWorkoutEditSave = () => {
-    console.log('Saving workout edit changes');
+    // Saving workout edit changes
     modalManagement.hideWorkoutEditModal();
     
     // Recharger le workout après les modifications depuis le store Redux
@@ -1251,7 +1269,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
         setExercises(updatedWorkout.exercises || []);
         
         // Mettre à jour les données locales pour refléter les changements
-        console.log('Updated workout found:', updatedWorkout.name);
+        // Updated workout found
       } else {
         console.warn('Updated workout not found in store');
       }
@@ -1782,25 +1800,27 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
             ]}
           >
             <View style={styles.modalIndicator} />
-            <Text style={styles.modalTitle}>Finish Workout</Text>
-            <Text style={styles.modalSubtitle}>What would you like to do with this workout?</Text>
             
-            <View style={styles.modalButtonsContainer}>
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.discardButton]}
-                onPress={handleDiscardWorkout}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.discardButtonText}>Discard</Text>
-              </TouchableOpacity>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Finish workout</Text>
               
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.logButton]}
-                onPress={handleLogWorkout}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.logButtonText}>Log Workout</Text>
-              </TouchableOpacity>
+              <View style={styles.modalOptionsContainer}>
+                <TouchableOpacity 
+                  style={[styles.modalOption, styles.discardOption]}
+                  onPress={handleDiscardWorkout}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.modalOptionText}>Discard</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[styles.modalOption, styles.logOption]}
+                  onPress={handleLogWorkout}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.modalOptionText, styles.logOptionText]}>Log workout</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </Animated.View>
         </View>
@@ -2363,56 +2383,57 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContainer: {
-    backgroundColor: '#242526',
+    backgroundColor: '#1C1C1E',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    padding: 20,
-    paddingBottom: 40,
+    paddingBottom: 34, // Safe area
+    minHeight: 280,
   },
   modalIndicator: {
     width: 40,
-    height: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 2,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
     alignSelf: 'center',
-    marginBottom: 20,
+    marginTop: 8,
+    marginBottom: 24,
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  modalSubtitle: {
-    fontSize: 14,
-    color: '#AAAAAA',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  modalButtonsContainer: {
-    gap: 12,
-  },
-  modalButton: {
-    padding: 12,
-    borderRadius: 8,
+  modalContent: {
+    paddingHorizontal: 24,
     alignItems: 'center',
   },
-  discardButton: {
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 32,
+    textAlign: 'center',
+  },
+  modalOptionsContainer: {
+    width: '100%',
+    gap: 12,
+  },
+  modalOption: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+  },
+  discardOption: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
-  logButton: {
+  logOption: {
     backgroundColor: '#FFFFFF',
   },
-  discardButtonText: {
+  modalOptionText: {
+    fontSize: 16,
+    fontWeight: '600',
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '500',
+    textAlign: 'center',
   },
-  logButtonText: {
+  logOptionText: {
     color: '#000000',
-    fontSize: 16,
-    fontWeight: '500',
   },
   workoutHeaderContainer: {
     flexDirection: 'row',

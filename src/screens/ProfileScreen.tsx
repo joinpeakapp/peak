@@ -19,11 +19,13 @@ import UserProfileService, { UserProfile } from '../services/userProfileService'
 import { PersonalRecordService } from '../services/personalRecordService';
 import { NotificationSettingsModal } from '../components/common/NotificationSettingsModal';
 import { NotificationTestModal } from '../components/common/NotificationTestModal';
+import { useActiveWorkout } from '../workout/contexts/ActiveWorkoutContext';
 
 export const ProfileScreen: React.FC = () => {
   const { personalRecords } = useWorkout();
   const { completedWorkouts, refreshWorkoutHistory } = useWorkoutHistory();
   const { records, loadRecords, migrateFromWorkoutHistory } = usePersonalRecords();
+  const { activeWorkout, forceCleanupSession } = useActiveWorkout();
   const navigation = useNavigation<ProfileScreenProps['navigation']>();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   
@@ -160,6 +162,29 @@ export const ProfileScreen: React.FC = () => {
     navigation.navigate('ExerciseDetail', { exerciseName });
   };
 
+  // Fonction pour nettoyer les sessions bloquées
+  const handleCleanupSession = () => {
+    Alert.alert(
+      "Clean Blocked Session",
+      `Active workout detected: ${activeWorkout?.workoutName || 'Unknown'}\n\nThis will clear the active workout session. Are you sure?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Clean", 
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await forceCleanupSession();
+              Alert.alert("Success", "Session cleaned successfully!");
+            } catch (error) {
+              Alert.alert("Error", "Failed to clean session. Please restart the app.");
+            }
+          }
+        }
+      ]
+    );
+  };
+
   // Ne plus afficher de loading, les données sont préchargées
 
   return (
@@ -192,6 +217,16 @@ export const ProfileScreen: React.FC = () => {
                   <Ionicons name="refresh" size={18} color="#F59E0B" />
                   <Text style={[styles.testButtonText, { color: '#F59E0B' }]}>Reset</Text>
                 </TouchableOpacity>
+                {/* Session cleanup button - only show if there's an active workout */}
+                {activeWorkout && (
+                  <TouchableOpacity
+                    style={[styles.testButton, { backgroundColor: 'rgba(255, 59, 48, 0.1)' }]}
+                    onPress={handleCleanupSession}
+                  >
+                    <Ionicons name="warning" size={18} color="#FF3B30" />
+                    <Text style={[styles.testButtonText, { color: '#FF3B30' }]}>Clean</Text>
+                  </TouchableOpacity>
+                )}
               </>
             )}
           </View>

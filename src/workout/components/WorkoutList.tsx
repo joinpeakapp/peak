@@ -44,8 +44,6 @@ export const WorkoutList: React.FC<WorkoutListProps> = ({
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
 
   const handleEdit = (workout: Workout) => {
-    console.log('handleEdit called with workout:', workout.name);
-    
     // Force update to trigger a clean render
     setEditingWorkout(null);
     
@@ -61,7 +59,6 @@ export const WorkoutList: React.FC<WorkoutListProps> = ({
   };
 
   const handleEditClose = () => {
-    console.log('handleEditClose called');
     setIsEditModalVisible(false);
     // Clear the editing workout after modal animation
     setTimeout(() => {
@@ -70,7 +67,6 @@ export const WorkoutList: React.FC<WorkoutListProps> = ({
   };
 
   const handleEditSave = () => {
-    console.log('handleEditSave called');
     handleEditClose();
   };
 

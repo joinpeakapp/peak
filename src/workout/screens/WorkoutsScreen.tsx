@@ -22,7 +22,6 @@ export const WorkoutsScreen: React.FC = () => {
     if (selectedWorkout && workouts.length > 0) {
       const updatedWorkout = workouts.find(w => w.id === selectedWorkout.id);
       if (updatedWorkout && updatedWorkout.updatedAt !== selectedWorkout.updatedAt) {
-        console.log('Updating selectedWorkout with latest data:', updatedWorkout.name);
         setSelectedWorkout(updatedWorkout);
       }
     }
@@ -51,8 +50,7 @@ export const WorkoutsScreen: React.FC = () => {
 
   const handleWorkoutSettingsPress = (workout: Workout) => {
     // TODO: Afficher le menu de paramètres du workout
-    console.log('Workout settings pressed:', workout.id);
-  };
+    };
 
   const handleAddPress = () => {
     // Ouvrir la modale de création

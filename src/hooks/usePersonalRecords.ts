@@ -37,9 +37,7 @@ export const usePersonalRecords = () => {
   const loadRecords = useCallback(async () => {
     setLoading(true);
     try {
-      console.log(`[usePersonalRecords:${instanceId}] Loading records from profile...`);
       const data = await PersonalRecordService.loadRecords();
-      console.log(`[usePersonalRecords:${instanceId}] Records loaded:`, Object.keys(data));
       setRecords(data);
       setError(null);
       return data;
@@ -52,15 +50,14 @@ export const usePersonalRecords = () => {
     }
   }, [instanceId]);
 
-  // Ne plus charger automatiquement - les données sont préchargées
+  // Charger les records au montage du hook
   useEffect(() => {
-    // loadRecords(); // Supprimé - les données sont préchargées
-  }, []);
+    loadRecords();
+  }, [loadRecords]);
 
   // S'abonner aux événements de mise à jour des records
   useEffect(() => {
     const unsubscribe = recordsEventManager.subscribe(() => {
-      console.log(`[usePersonalRecords:${instanceId}] Records updated globally, reloading...`);
       loadRecords();
     });
 
@@ -73,7 +70,6 @@ export const usePersonalRecords = () => {
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (nextAppState === 'active') {
-        console.log(`[usePersonalRecords:${instanceId}] App became active, reloading records...`);
         loadRecords();
       }
     });
@@ -118,8 +114,6 @@ export const usePersonalRecords = () => {
    */
   const updateRecordsTemporary = useCallback(
     (exerciseName: string, weight: number, reps: number, date: string): PRUpdateResult => {
-      console.log(`[usePersonalRecords:${instanceId}] Temporary update for ${exerciseName}: ${weight}kg x ${reps}`);
-      
       const result = PersonalRecordService.updateRecords(
         exerciseName,
         weight,
@@ -143,14 +137,11 @@ export const usePersonalRecords = () => {
   const saveRecords = useCallback(
     async (recordsToSave: PersonalRecords): Promise<void> => {
       try {
-        console.log(`[usePersonalRecords:${instanceId}] Saving records to profile...`);
-        
         await PersonalRecordService.saveRecords(recordsToSave);
         
         // Mettre à jour l'état local
         setRecords(recordsToSave);
         
-        console.log(`[usePersonalRecords:${instanceId}] Records saved, notifying all listeners...`);
         // Notifier tous les autres hooks qu'il y a eu une mise à jour
         recordsEventManager.notify();
         
@@ -179,8 +170,6 @@ export const usePersonalRecords = () => {
       }>;
     }): Promise<{ hasUpdates: boolean; updatedRecords: PersonalRecords }> => {
       try {
-        console.log(`[usePersonalRecords:${instanceId}] Processing completed workout for PR updates...`);
-        
         // Utiliser les records actuels comme base
         const result = PersonalRecordService.updateRecordsFromCompletedWorkout(
           completedWorkout,
@@ -190,10 +179,8 @@ export const usePersonalRecords = () => {
         if (result.hasUpdates) {
           // Sauvegarder les nouveaux records dans le profil
           await saveRecords(result.updatedRecords);
-          console.log(`[usePersonalRecords:${instanceId}] ✅ Records updated and saved from completed workout`);
-        } else {
-          console.log(`[usePersonalRecords:${instanceId}] No PR updates from completed workout`);
-        }
+          } else {
+          }
         
         return result;
       } catch (error) {
@@ -220,7 +207,6 @@ export const usePersonalRecords = () => {
   const migrateFromWorkoutHistory = useCallback(
     async (completedWorkouts: Array<any>): Promise<void> => {
       try {
-        console.log(`[usePersonalRecords:${instanceId}] Starting migration...`);
         await PersonalRecordService.migrateFromWorkoutHistory(completedWorkouts);
         
         // Recharger les records après migration
@@ -229,8 +215,7 @@ export const usePersonalRecords = () => {
         // Notifier les autres instances
         recordsEventManager.notify();
         
-        console.log(`[usePersonalRecords:${instanceId}] Migration completed`);
-      } catch (error) {
+        } catch (error) {
         console.error(`[usePersonalRecords:${instanceId}] Migration error:`, error);
         throw error;
       }
@@ -242,7 +227,6 @@ export const usePersonalRecords = () => {
   const deleteRepRecord = useCallback(
     async (exerciseName: string, weight: string): Promise<void> => {
       try {
-        console.log(`[usePersonalRecords:${instanceId}] Deleting rep record: ${weight}kg for ${exerciseName}`);
         await PersonalRecordService.deleteRepRecord(exerciseName, weight);
         
         // Recharger les records après suppression
@@ -251,8 +235,7 @@ export const usePersonalRecords = () => {
         // Notifier les autres instances
         recordsEventManager.notify();
         
-        console.log(`[usePersonalRecords:${instanceId}] Rep record deleted successfully`);
-      } catch (error) {
+        } catch (error) {
         console.error(`[usePersonalRecords:${instanceId}] Error deleting rep record:`, error);
         throw error;
       }
@@ -264,7 +247,6 @@ export const usePersonalRecords = () => {
   const deleteAllRecordsForExercise = useCallback(
     async (exerciseName: string): Promise<void> => {
       try {
-        console.log(`[usePersonalRecords:${instanceId}] Deleting all records for ${exerciseName}`);
         await PersonalRecordService.deleteAllRecordsForExercise(exerciseName);
         
         // Recharger les records après suppression
@@ -273,8 +255,7 @@ export const usePersonalRecords = () => {
         // Notifier les autres instances
         recordsEventManager.notify();
         
-        console.log(`[usePersonalRecords:${instanceId}] All records deleted successfully`);
-      } catch (error) {
+        } catch (error) {
         console.error(`[usePersonalRecords:${instanceId}] Error deleting all records:`, error);
         throw error;
       }

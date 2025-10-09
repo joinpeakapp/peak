@@ -50,8 +50,6 @@ export interface UseModalManagementReturn {
  * - Coordination entre les différentes modales
  */
 export const useModalManagement = (): UseModalManagementReturn => {
-  console.log('[useModalManagement] Hook initialized');
-  
   // États des modales principales
   const [isExerciseSettingsVisible, setIsExerciseSettingsVisible] = useState(false);
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
@@ -68,55 +66,45 @@ export const useModalManagement = (): UseModalManagementReturn => {
   
   // Actions pour les modales principales
   const showExerciseSettings = useCallback(() => {
-    console.log('[useModalManagement] Showing exercise settings');
     setIsExerciseSettingsVisible(true);
   }, []);
   
   const hideExerciseSettings = useCallback(() => {
-    console.log('[useModalManagement] Hiding exercise settings');
     setIsExerciseSettingsVisible(false);
   }, []);
   
   const showFilterModal = useCallback(() => {
-    console.log('[useModalManagement] Showing filter modal');
     setIsFilterModalVisible(true);
   }, []);
   
   const hideFilterModal = useCallback(() => {
-    console.log('[useModalManagement] Hiding filter modal');
     setIsFilterModalVisible(false);
   }, []);
   
   const showFinishModal = useCallback(() => {
-    console.log('[useModalManagement] Showing finish modal');
     setIsFinishModalVisible(true);
   }, []);
   
   const hideFinishModal = useCallback(() => {
-    console.log('[useModalManagement] Hiding finish modal');
     setIsFinishModalVisible(false);
   }, []);
   
   const showWorkoutEditModal = useCallback(() => {
-    console.log('[useModalManagement] Showing workout edit modal');
     setIsWorkoutEditModalVisible(true);
   }, []);
   
   const hideWorkoutEditModal = useCallback(() => {
-    console.log('[useModalManagement] Hiding workout edit modal');
     setIsWorkoutEditModalVisible(false);
   }, []);
   
   // Actions pour la modale de paramètres d'exercice avec exercice et timer
   const showExerciseSettingsModal = useCallback((exercise: Exercise, openTimer: boolean = false) => {
-    console.log(`[useModalManagement] Showing exercise settings modal for: ${exercise?.name || 'undefined'}, openTimer: ${openTimer}`);
     setCurrentExercise(exercise);
     setOpenTimerDirectly(openTimer);
     setSettingsModalVisible(true);
   }, []);
   
   const hideExerciseSettingsModal = useCallback(() => {
-    console.log('[useModalManagement] Hiding exercise settings modal');
     setSettingsModalVisible(false);
     setCurrentExercise(undefined);
     setOpenTimerDirectly(false);
@@ -124,18 +112,15 @@ export const useModalManagement = (): UseModalManagementReturn => {
   
   // Actions pour la sélection d'exercice
   const selectExercise = useCallback((exerciseId: string) => {
-    console.log(`[useModalManagement] Selecting exercise: ${exerciseId}`);
     setSelectedExerciseId(exerciseId);
   }, []);
   
   const clearSelectedExercise = useCallback(() => {
-    console.log('[useModalManagement] Clearing selected exercise');
     setSelectedExerciseId(null);
   }, []);
   
   // Fermer toutes les modales
   const closeAllModals = useCallback(() => {
-    console.log('[useModalManagement] Closing all modals');
     setIsExerciseSettingsVisible(false);
     setIsFilterModalVisible(false);
     setIsFinishModalVisible(false);
@@ -147,7 +132,6 @@ export const useModalManagement = (): UseModalManagementReturn => {
   
   // Réinitialiser tous les états
   const resetModalStates = useCallback(() => {
-    console.log('[useModalManagement] Resetting all modal states');
     closeAllModals();
     setSelectedExerciseId(null);
   }, [closeAllModals]);
