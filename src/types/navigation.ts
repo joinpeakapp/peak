@@ -21,10 +21,8 @@ export type JournalStackParamList = {
 // Types pour le stack ProfileTab
 export type ProfileStackParamList = {
   Profile: undefined;
-  RecordsDebug: undefined;
   ExerciseDetail: { exerciseName: string };
   NotificationSettings: undefined;
-  NotificationTest: undefined;
 };
 
 // Types pour le stack WorkoutSummary (séparé du Tab Navigator)

@@ -9,10 +9,8 @@ import { WorkoutSummaryScreen } from '../workout/screens/WorkoutSummaryScreen';
 import { WorkoutPhotoScreen } from '../workout/screens/WorkoutPhotoScreen';
 import { WorkoutOverviewScreen } from '../workout/screens/WorkoutOverviewScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
-import { RecordsDebugScreen } from '../screens/DebugScreen/RecordsDebugScreen';
 import { ExerciseDetailScreen } from '../screens/ExerciseDetailScreen';
 import { NotificationSettingsScreen } from '../screens/NotificationSettingsScreen';
-import { NotificationTestScreen } from '../screens/NotificationTestScreen';
 import {
   WorkoutStackParamList,
   JournalStackParamList,
@@ -68,10 +66,8 @@ const ProfileNavigator = () => (
     }}
   >
     <ProfileStack.Screen name="Profile" component={ProfileScreen} />
-    <ProfileStack.Screen name="RecordsDebug" component={RecordsDebugScreen} />
     <ProfileStack.Screen name="ExerciseDetail" component={ExerciseDetailScreen} />
     <ProfileStack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
-    <ProfileStack.Screen name="NotificationTest" component={NotificationTestScreen} />
   </ProfileStack.Navigator>
 );
 

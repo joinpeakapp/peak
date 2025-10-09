@@ -6,7 +6,6 @@ import {
   ScrollView,
   Dimensions,
   TouchableOpacity,
-  Alert,
   ActivityIndicator
 } from 'react-native';
 import { useWorkout } from '../hooks/useWorkout';
@@ -18,14 +17,11 @@ import { usePersonalRecords } from '../hooks/usePersonalRecords';
 import UserProfileService, { UserProfile } from '../services/userProfileService';
 import { PersonalRecordService } from '../services/personalRecordService';
 import { NotificationSettingsModal } from '../components/common/NotificationSettingsModal';
-import { NotificationTestModal } from '../components/common/NotificationTestModal';
-import { useActiveWorkout } from '../workout/contexts/ActiveWorkoutContext';
 
 export const ProfileScreen: React.FC = () => {
   const { personalRecords } = useWorkout();
   const { completedWorkouts, refreshWorkoutHistory } = useWorkoutHistory();
   const { records, loadRecords, migrateFromWorkoutHistory } = usePersonalRecords();
-  const { activeWorkout, forceCleanupSession } = useActiveWorkout();
   const navigation = useNavigation<ProfileScreenProps['navigation']>();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   
@@ -35,7 +31,6 @@ export const ProfileScreen: React.FC = () => {
   }, [loadUserProfile]);
   const [isInitialLoad, setIsInitialLoad] = useState(false);
   const [isNotificationModalVisible, setIsNotificationModalVisible] = useState(false);
-  const [isNotificationTestModalVisible, setIsNotificationTestModalVisible] = useState(false);
 
   // Charger le profil utilisateur
   const loadUserProfile = useCallback(async () => {
@@ -54,32 +49,6 @@ export const ProfileScreen: React.FC = () => {
       // Les données seront rechargées seulement si nécessaire (pull-to-refresh par exemple)
     }, [])
   );
-
-  // Fonction pour réinitialiser l'onboarding (développement uniquement)
-  const handleResetOnboarding = () => {
-    Alert.alert(
-      'Reset Onboarding',
-      'This will reset your profile and show the onboarding again. Continue?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Reset',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await UserProfileService.resetUserProfile();
-              setUserProfile(null);
-              // L'app va redétecter que l'onboarding n'est pas fait
-              Alert.alert('Success', 'Onboarding reset. Restart the app to see the onboarding flow.');
-            } catch (error) {
-              console.error('[ProfileScreen] Error resetting onboarding:', error);
-              Alert.alert('Error', 'Failed to reset onboarding');
-            }
-          },
-        },
-      ]
-    );
-  };
 
   // Calculate workout statistics
   const workoutStats = useMemo(() => {
@@ -162,29 +131,6 @@ export const ProfileScreen: React.FC = () => {
     navigation.navigate('ExerciseDetail', { exerciseName });
   };
 
-  // Fonction pour nettoyer les sessions bloquées
-  const handleCleanupSession = () => {
-    Alert.alert(
-      "Clean Blocked Session",
-      `Active workout detected: ${activeWorkout?.workoutName || 'Unknown'}\n\nThis will clear the active workout session. Are you sure?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        { 
-          text: "Clean", 
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await forceCleanupSession();
-              Alert.alert("Success", "Session cleaned successfully!");
-            } catch (error) {
-              Alert.alert("Error", "Failed to clean session. Please restart the app.");
-            }
-          }
-        }
-      ]
-    );
-  };
-
   // Ne plus afficher de loading, les données sont préchargées
 
   return (
@@ -200,35 +146,6 @@ export const ProfileScreen: React.FC = () => {
             >
               <Ionicons name="notifications" size={20} color="#FFFFFF" />
             </TouchableOpacity>
-            {/* Development-only buttons */}
-            {__DEV__ && (
-              <>
-                <TouchableOpacity
-                  style={styles.testButton}
-                  onPress={() => setIsNotificationTestModalVisible(true)}
-                >
-                  <Ionicons name="flask" size={18} color="#34C759" />
-                  <Text style={[styles.testButtonText, { color: '#34C759' }]}>Test</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.testButton}
-                  onPress={handleResetOnboarding}
-                >
-                  <Ionicons name="refresh" size={18} color="#F59E0B" />
-                  <Text style={[styles.testButtonText, { color: '#F59E0B' }]}>Reset</Text>
-                </TouchableOpacity>
-                {/* Session cleanup button - only show if there's an active workout */}
-                {activeWorkout && (
-                  <TouchableOpacity
-                    style={[styles.testButton, { backgroundColor: 'rgba(255, 59, 48, 0.1)' }]}
-                    onPress={handleCleanupSession}
-                  >
-                    <Ionicons name="warning" size={18} color="#FF3B30" />
-                    <Text style={[styles.testButtonText, { color: '#FF3B30' }]}>Clean</Text>
-                  </TouchableOpacity>
-                )}
-              </>
-            )}
           </View>
         </View>
 
@@ -316,12 +233,6 @@ export const ProfileScreen: React.FC = () => {
       <NotificationSettingsModal
         visible={isNotificationModalVisible}
         onClose={() => setIsNotificationModalVisible(false)}
-      />
-
-      {/* Notification Test Modal */}
-      <NotificationTestModal
-        visible={isNotificationTestModalVisible}
-        onClose={() => setIsNotificationTestModalVisible(false)}
       />
     </View>
   );
@@ -437,19 +348,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginTop: 20,
     textAlign: 'center',
-  },
-  testButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#2A2A2D',
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-  },
-  testButtonText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    marginLeft: 5,
   },
   userProfileContainer: {
     paddingHorizontal: 20,
