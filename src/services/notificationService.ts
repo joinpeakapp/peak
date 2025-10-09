@@ -31,11 +31,8 @@ class NotificationService {
    */
   static async initialize(): Promise<boolean> {
     try {
-      console.log('🔔 [NotificationService] Initializing...');
-
       // Vérifier si c'est un appareil physique
       if (!Device.isDevice) {
-        console.log('🔔 [NotificationService] Must use physical device for Push Notifications');
         return false;
       }
 
@@ -49,7 +46,6 @@ class NotificationService {
       }
 
       if (finalStatus !== 'granted') {
-        console.log('🔔 [NotificationService] Permission not granted');
         return false;
       }
 
@@ -72,7 +68,6 @@ class NotificationService {
         });
       }
 
-      console.log('🔔 [NotificationService] ✅ Initialized successfully');
       return true;
     } catch (error) {
       console.error('🔔 [NotificationService] ❌ Initialization failed:', error);
@@ -88,7 +83,6 @@ class NotificationService {
       const settings = await this.getSettings();
       
       if (!settings.workoutReminders.enabled) {
-        console.log('🔔 [NotificationService] Workout reminders disabled');
         return;
       }
 
@@ -111,8 +105,7 @@ class NotificationService {
         });
       }
 
-      console.log(`🔔 [NotificationService] Scheduled workout reminders for ${days.length} days`);
-    } catch (error) {
+      } catch (error) {
       console.error('🔔 [NotificationService] Error scheduling workout reminders:', error);
     }
   }
@@ -125,7 +118,6 @@ class NotificationService {
       const settings = await this.getSettings();
       
       if (!settings.streakReminders.enabled) {
-        console.log('🔔 [NotificationService] Streak reminders disabled');
         return;
       }
 
@@ -147,7 +139,6 @@ class NotificationService {
 
       // Ne pas planifier si c'est dans le passé
       if (reminderDate <= new Date()) {
-        console.log('🔔 [NotificationService] Streak reminder date is in the past, skipping');
         return;
       }
 
@@ -160,8 +151,7 @@ class NotificationService {
         data: { type: 'streak_reminder' as NotificationType, workoutId, workoutName },
       });
 
-      console.log(`🔔 [NotificationService] Scheduled streak reminder for ${workoutName}`);
-    } catch (error) {
+      } catch (error) {
       console.error('🔔 [NotificationService] Error scheduling streak reminder:', error);
     }
   }
@@ -201,8 +191,7 @@ class NotificationService {
         }
       }
       
-      console.log(`🔔 [NotificationService] Cancelled ${type} notifications`);
-    } catch (error) {
+      } catch (error) {
       console.error(`🔔 [NotificationService] Error cancelling ${type} notifications:`, error);
     }
   }
@@ -240,7 +229,6 @@ class NotificationService {
         id: notificationId,
       });
 
-      console.log(`🔔 [NotificationService] ✅ Notification scheduled: ${notificationId}`);
       return notificationId;
     } catch (error) {
       console.error('🔔 [NotificationService] ❌ Failed to schedule notification:', error);
@@ -255,12 +243,10 @@ class NotificationService {
     try {
       await Notifications.cancelScheduledNotificationAsync(notificationId);
       await this.removeScheduledNotification(notificationId);
-      console.log(`🔔 [NotificationService] ✅ Notification cancelled: ${notificationId}`);
-    } catch (error) {
+      } catch (error) {
       console.error('🔔 [NotificationService] ❌ Failed to cancel notification:', error);
     }
   }
-
 
   /**
    * Annuler toutes les notifications
@@ -269,8 +255,7 @@ class NotificationService {
     try {
       await Notifications.cancelAllScheduledNotificationsAsync();
       await AsyncStorage.removeItem(this.SCHEDULED_KEY);
-      console.log('🔔 [NotificationService] ✅ All notifications cancelled');
-    } catch (error) {
+      } catch (error) {
       console.error('🔔 [NotificationService] ❌ Failed to cancel all notifications:', error);
     }
   }
@@ -333,8 +318,7 @@ class NotificationService {
   static async saveSettings(settings: NotificationSettings): Promise<void> {
     try {
       await AsyncStorage.setItem(this.SETTINGS_KEY, JSON.stringify(settings));
-      console.log('🔔 [NotificationService] ✅ Settings saved');
-    } catch (error) {
+      } catch (error) {
       console.error('🔔 [NotificationService] ❌ Failed to save settings:', error);
     }
   }
@@ -350,8 +334,7 @@ class NotificationService {
       
       if (active.length < scheduled.length) {
         await AsyncStorage.setItem(this.SCHEDULED_KEY, JSON.stringify(active));
-        console.log(`🔔 [NotificationService] ✅ Cleaned up ${scheduled.length - active.length} expired notifications`);
-      }
+        }
     } catch (error) {
       console.error('🔔 [NotificationService] ❌ Failed to cleanup expired notifications:', error);
     }

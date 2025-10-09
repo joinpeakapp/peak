@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ImageBackground, ImageBackgroundProps, ActivityIndicator, View, StyleSheet } from 'react-native';
+import { ImageBackground, ImageBackgroundProps, ActivityIndicator, View, StyleSheet, Image } from 'react-native';
 
 interface CachedImageBackgroundProps extends Omit<ImageBackgroundProps, 'source'> {
   uri: string;
   placeholder?: React.ReactNode;
   fallbackUri?: string;
   showLoader?: boolean;
+  horizontalFlip?: boolean; // Appliquer une symétrie horizontale à l'image
+  workout?: { isFrontCamera?: boolean }; // Objet workout pour déterminer le flip automatiquement
 }
 
 // Utiliser le même cache que CachedImage
@@ -22,6 +24,8 @@ export const CachedImageBackground: React.FC<CachedImageBackgroundProps> = ({
   placeholder,
   fallbackUri,
   showLoader = false, // Par défaut false pour les backgrounds
+  horizontalFlip = false, // Par défaut pas de flip
+  workout,
   style,
   children,
   ...imageProps
@@ -101,6 +105,9 @@ export const CachedImageBackground: React.FC<CachedImageBackgroundProps> = ({
     }
   };
 
+  // Déterminer si le flip doit être appliqué
+  const shouldFlip = horizontalFlip || (workout?.isFrontCamera === true);
+
   // En cas d'erreur et fallback disponible
   if (hasError && fallbackUri) {
     return (
@@ -109,6 +116,8 @@ export const CachedImageBackground: React.FC<CachedImageBackgroundProps> = ({
         uri={fallbackUri}
         style={style}
         showLoader={showLoader}
+        horizontalFlip={horizontalFlip}
+        workout={workout}
       >
         {children}
       </CachedImageBackground>
@@ -126,15 +135,22 @@ export const CachedImageBackground: React.FC<CachedImageBackgroundProps> = ({
 
   return (
     <View style={style}>
-      <ImageBackground
+      {/* Image de fond avec flip optionnel */}
+      <Image
         {...imageProps}
         source={{ uri }}
-        style={style}
+        style={[
+          StyleSheet.absoluteFillObject,
+          shouldFlip && { transform: [{ scaleX: -1 }] }
+        ]}
         onLoad={handleImageLoad}
         onError={handleImageError}
-      >
+        resizeMode={imageProps.resizeMode || 'cover'}
+      />
+      {/* Contenu par-dessus l'image, sans flip */}
+      <View style={StyleSheet.absoluteFillObject}>
         {children}
-      </ImageBackground>
+      </View>
       {isLoading && showLoader && (
         <View style={styles.loadingOverlay}>
           {placeholder || (

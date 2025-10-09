@@ -21,6 +21,9 @@ import {
 } from '@react-navigation/native';
 import { RootStackParamList, SummaryStackParamList } from '../../types/navigation';
 import { useStreak } from '../contexts/StreakContext';
+import { StickerService } from '../../services/stickerService';
+import { StickerBadge } from '../../components/common/StickerBadge';
+import { Sticker } from '../../types/stickers';
 
 interface StepInfo {
   title: string;
@@ -131,21 +134,25 @@ export const WorkoutSummaryScreen: React.FC = () => {
 
   // Textes spécifiques pour chaque type de badge
   const badgeInfo: Record<string, StepInfo> = {
-    "Endurance": {
-      title: "Endurance Master!",
-      subtitle: "You've pushed through a long session - your stamina is remarkable"
+    "100%": {
+      title: "Perfect Execution!",
+      subtitle: "You completed every single set - no shortcuts, just pure dedication"
     },
-    "Variety": {
-      title: "Exercise Explorer!",
-      subtitle: "Mixing up your routine with diverse exercises - that's how you grow"
+    "PR": {
+      title: "New Personal Record!",
+      subtitle: "You've broken through your limits - this is what progress looks like"
     },
-    "New Record": {
-      title: "New Personal Best!",
-      subtitle: "You just crushed your limits - and set a new one"
+    "Star": {
+      title: "Session Master!",
+      subtitle: "Another completion of this workout - your consistency is building strength"
     },
     "Streak": {
       title: `${currentStreak > 0 ? currentStreak : 1} Day Streak!`,
       subtitle: "You're building consistency - keep that momentum going!"
+    },
+    "Volume": {
+      title: "Volume Beast!",
+      subtitle: "You've pushed more weight than ever before - your strength is growing"
     },
     "Complete": {
       title: "Workout Complete",
@@ -187,60 +194,35 @@ export const WorkoutSummaryScreen: React.FC = () => {
     });
   };
 
-  // Déterminer quels stickers afficher
-  const getStickers = () => {
-    const stickers = [];
-    
-    // Vérifier si le temps total est supérieur à 45 minutes
-    if (workout.duration > 45 * 60) {
-      stickers.push({
-        name: "Endurance",
-        icon: "fitness-outline" as any,
-        color: "#3498db"
-      });
-    }
-    
-    // Vérifier si au moins 5 exercices différents ont été effectués
-    if (workout.exercises.length >= 5) {
-      stickers.push({
-        name: "Variety",
-        icon: "grid-outline" as any,
-        color: "#9b59b6"
-      });
-    }
-    
-    // Vérifier les records personnels
-    const prExercises = workout.exercises.filter(ex => ex.personalRecord);
-    if (prExercises.length > 0) {
-      stickers.push({
-        name: "New Record",
-        icon: "trophy-outline" as any,
-        color: "#f39c12"
-      });
-    }
-    
-    // Afficher le badge de streak même pour la première séance
-    // La valeur affichée sera au moins 1
-    stickers.push({
-      name: "Streak",
-      icon: "flame-outline" as any,
-      color: "#FF8A24"
-    });
-    
-    // Si aucun autre sticker n'est présent (ce qui n'arrivera plus puisque Streak est toujours ajouté)
-    // mais on garde ce code par sécurité
-    if (stickers.length === 0) {
-      stickers.push({
-        name: "Complete",
-        icon: "checkmark-circle-outline" as any,
-        color: "#2ecc71"
-      });
-    }
-    
-    return stickers.slice(0, 3); // Limiter à 3 stickers maximum
-  };
+  // État pour les stickers
+  const [stickers, setStickers] = useState<Sticker[]>([]);
+  const [stickersLoaded, setStickersLoaded] = useState(false);
+  const [initialAnimationComplete, setInitialAnimationComplete] = useState(false);
 
-  const stickers = getStickers();
+  // Charger les stickers (pré-calculés si disponibles, sinon calculer)
+  useEffect(() => {
+    const loadStickers = async () => {
+      try {
+        // Utiliser les stickers pré-calculés si disponibles
+        if (route.params?.preCalculatedStickers) {
+          setStickers(route.params.preCalculatedStickers.slice(0, 3));
+          setStickersLoaded(true);
+          return;
+        }
+
+        // Sinon, calculer les stickers (fallback)
+        const workoutStickers = await StickerService.generateWorkoutStickers(workout, true);
+        setStickers(workoutStickers.slice(0, 3)); // Limiter à 3 stickers pour l'animation
+        setStickersLoaded(true);
+      } catch (error) {
+        console.error('[WorkoutSummaryScreen] Error loading stickers:', error);
+        setStickers([]);
+        setStickersLoaded(true); // Marquer comme chargé même en cas d'erreur
+      }
+    };
+
+    loadStickers();
+  }, [workout, route.params?.preCalculatedStickers]);
   
   // Détermine l'information à afficher selon le sticker courant ou l'état de l'animation
   const getCurrentStepInfo = (): StepInfo => {
@@ -335,25 +317,27 @@ export const WorkoutSummaryScreen: React.FC = () => {
             style={[
               styles.stickerContentCircle,
               { 
-                backgroundColor: sticker.color,
-                opacity: index <= currentStickerIndex ? 1 : 0,
+                opacity: animationComplete ? 1 : (index <= currentStickerIndex ? 1 : 0),
                 transform: [
                   { 
-                    scale: index === currentStickerIndex 
+                    scale: animationComplete ? 1 : (index === currentStickerIndex 
                       ? stickerAnims[index] 
-                      : index < currentStickerIndex ? 1 : 0 
+                      : index < currentStickerIndex ? 1 : 0)
                   }
                 ]
               }
             ]}
           >
-            <Ionicons name={sticker.icon} size={32} color="#FFFFFF" />
-            <Text style={styles.stickerContentText}>{sticker.name}</Text>
+            <StickerBadge 
+              sticker={sticker}
+              size="large"
+              showText={true}
+            />
           </Animated.View>
         ))}
       </View>
     );
-  }, [stickers, currentStickerIndex, stickerAnims]);
+  }, [stickers, currentStickerIndex, stickerAnims, animationComplete]);
 
   // Animation d'entrée
   useEffect(() => {
@@ -370,6 +354,13 @@ export const WorkoutSummaryScreen: React.FC = () => {
         useNativeDriver: true,
       }),
     ]).start(() => {
+      setInitialAnimationComplete(true);
+    });
+  }, []);
+
+  // Démarrer l'animation des stickers une fois qu'ils sont chargés ET que l'animation d'entrée est terminée
+  useEffect(() => {
+    if (stickersLoaded && initialAnimationComplete) {
       // Commencer la séquence d'animation des stickers après 1 seconde
       addTimeout(() => {
         setShowInitialTitle(false);
@@ -379,8 +370,8 @@ export const WorkoutSummaryScreen: React.FC = () => {
           animateFinalContent();
         }
       }, 1000);
-    });
-  }, []);
+    }
+  }, [stickersLoaded, initialAnimationComplete, stickers.length]);
 
   // Observer les changements de sticker courant
   useEffect(() => {
@@ -521,7 +512,6 @@ export const WorkoutSummaryScreen: React.FC = () => {
                 style={[
                   styles.currentStickerCircle, 
                   { 
-                    backgroundColor: stickers[currentStickerIndex].color,
                     opacity: stickerOpacityAnims[currentStickerIndex],
                     transform: [
                       { translateY: stickerOffsetYAnims[currentStickerIndex] }
@@ -529,20 +519,12 @@ export const WorkoutSummaryScreen: React.FC = () => {
                   }
                 ]}
               >
-                <Ionicons 
-                  name={stickers[currentStickerIndex].icon} 
-                  size={48} 
-                  color="#FFFFFF" 
+                <StickerBadge 
+                  sticker={stickers[currentStickerIndex]}
+                  size="xxlarge"
+                  showText={true}
                 />
               </Animated.View>
-              <Animated.Text 
-                style={[
-                  styles.currentStickerText,
-                  { opacity: stickerTextOpacityAnims[currentStickerIndex] }
-                ]}
-              >
-                {stickers[currentStickerIndex].name}
-              </Animated.Text>
             </View>
           )}
           
@@ -720,22 +702,8 @@ const styles = StyleSheet.create({
     marginVertical: 40,
   },
   currentStickerCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
     alignItems: 'center',
     justifyContent: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.4,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
   },
   currentStickerText: {
     color: '#FFFFFF',
@@ -776,22 +744,8 @@ const styles = StyleSheet.create({
     minHeight: 112,
   },
   stickerContentCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 5,
-      },
-    }),
   },
   stickerContentText: {
     color: '#FFFFFF',

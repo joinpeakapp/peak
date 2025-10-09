@@ -9,24 +9,21 @@ export interface StickerBadge {
   textColor: string;          // Couleur du texte
 }
 
-// Interface enrichie pour un sticker (badge avec icône et informations supplémentaires)
+// Interface enrichie pour un sticker (badge avec SVG et informations supplémentaires)
 export interface Sticker {
-  name: string;               // Nom du sticker/badge (ex: "Endurance", "Variety", "New Record", "Complete")
-  icon: string;               // Nom de l'icône Ionicons à afficher
+  name: string;               // Nom du sticker/badge (ex: "Completion", "PR", "Star", "Streak", "Volume")
+  type: StickerType;          // Type du sticker pour identifier le composant SVG à utiliser
   color: string;              // Couleur principale du sticker
+  dynamicValue?: number;      // Valeur dynamique à afficher (streak count, completion count, volume %, etc.)
 }
 
-// Type pour les différentes catégories de stickers disponibles
+// Type pour les nouvelles catégories de stickers disponibles
 export type StickerType = 
-  | 'streak'                  // Série de séances consécutives
-  | 'endurance'               // Séances longues (durée élevée)
-  | 'variety'                 // Diversité d'exercices
-  | 'personal-record'         // Nouveau record personnel
-  | 'completion'              // Complétion de séance (basique)
-  | 'consistency'             // Assiduité sur une période
-  | 'intensity'               // Intensité de l'entraînement
-  | 'progress'                // Progression significative
-  | 'milestone';              // Jalon important (nombre de séances, etc.)
+  | 'completion'              // 100% - Toutes séries complétées sans séries vides
+  | 'personal-record'         // PR - Nouveau record personnel réalisé
+  | 'star'                    // Star - Nombre de fois que cette séance a été complétée
+  | 'streak'                  // Streak - Série de séances consécutives
+  | 'volume';                 // Volume - Volume 10%+ supérieur à la même séance précédente
 
 // Informations supplémentaires pour l'affichage des étapes d'animation
 export interface StepInfo {

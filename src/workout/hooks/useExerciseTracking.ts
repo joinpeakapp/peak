@@ -88,7 +88,6 @@ export const useExerciseTracking = (): UseExerciseTrackingReturn => {
   // Initialiser les sets d'un exercice
   const initializeSets = useCallback((sets: TrackingSet[]) => {
     if (isMounted.current) {
-      console.log('[useExerciseTracking] Initializing sets:', sets.length);
       setExerciseSets(sets);
       setHasUnsavedChanges(false);
       
@@ -104,8 +103,6 @@ export const useExerciseTracking = (): UseExerciseTrackingReturn => {
   // Mettre à jour un champ spécifique d'un set
   const updateSet = useCallback((index: number, field: 'weight' | 'reps', value: string) => {
     if (isMounted.current && index >= 0 && index < exerciseSets.length) {
-      console.log(`[useExerciseTracking] Updating set ${index} ${field}:`, value);
-      
       const newSets = [...exerciseSets];
       newSets[index] = {
         ...newSets[index],
@@ -141,7 +138,7 @@ export const useExerciseTracking = (): UseExerciseTrackingReturn => {
           }),
         ]).start();
       } catch (error) {
-        console.log('[useExerciseTracking] Animation error:', error);
+        // Animation error handled
       }
     }
   }, [setAnimations]);
@@ -149,8 +146,6 @@ export const useExerciseTracking = (): UseExerciseTrackingReturn => {
   // Basculer la complétion d'un set
   const toggleSetCompletion = useCallback((index: number) => {
     if (isMounted.current && index >= 0 && index < exerciseSets.length) {
-      console.log(`[useExerciseTracking] Toggling set ${index} completion`);
-      
       // Animer le set
       animateSet(index);
       
@@ -166,8 +161,6 @@ export const useExerciseTracking = (): UseExerciseTrackingReturn => {
       setExerciseSets(newSets);
       setHasUnsavedChanges(true);
       
-      console.log(`[useExerciseTracking] Set ${index} marked as ${isNowCompleted ? 'completed' : 'incomplete'}`);
-      
       return { newSets, wasCompleted, isNowCompleted };
     }
     return null;
@@ -176,8 +169,6 @@ export const useExerciseTracking = (): UseExerciseTrackingReturn => {
   // Ajouter un nouveau set
   const addSet = useCallback(() => {
     if (isMounted.current) {
-      console.log('[useExerciseTracking] Adding new set');
-      
       const newSet: TrackingSet = {
         completed: false,
         weight: '',
@@ -201,8 +192,6 @@ export const useExerciseTracking = (): UseExerciseTrackingReturn => {
   // Supprimer un set
   const removeSet = useCallback((index: number) => {
     if (isMounted.current && index >= 0 && index < exerciseSets.length && exerciseSets.length > 1) {
-      console.log(`[useExerciseTracking] Removing set ${index}`);
-      
       const newSets = exerciseSets.filter((_, i) => i !== index);
       setExerciseSets(newSets);
       setHasUnsavedChanges(true);
@@ -235,8 +224,6 @@ export const useExerciseTracking = (): UseExerciseTrackingReturn => {
   // Marquer un exercice comme complété ou non
   const markExerciseComplete = useCallback((exerciseId: string, isCompleted: boolean) => {
     if (isMounted.current) {
-      console.log(`[useExerciseTracking] Marking exercise ${exerciseId} as ${isCompleted ? 'completed' : 'incomplete'}`);
-      
       setCompletedCheckmarks(prev => ({
         ...prev,
         [exerciseId]: isCompleted
@@ -247,8 +234,6 @@ export const useExerciseTracking = (): UseExerciseTrackingReturn => {
   // Nettoyer le tracking
   const clearTracking = useCallback(() => {
     if (isMounted.current) {
-      console.log('[useExerciseTracking] Clearing tracking data');
-      
       setExerciseSets([]);
       setHasUnsavedChanges(false);
       setCompletedCheckmarks({});

@@ -21,14 +21,11 @@ export const StreakDisplay: React.FC<StreakDisplayProps> = ({
   const loadStreakData = useCallback(async () => {
     try {
       setLoading(true);
-      console.log(`[StreakDisplay] Loading streak data for workout ${workout.id} (${workout.name})`);
       const data = await getWorkoutStreak(workout.id, workout);
-      console.log(`[StreakDisplay] Loaded streak data for ${workout.id}:`, { current: data.current, lastDate: data.lastCompletedDate });
       setStreakData(data);
       
       if (showDaysRemaining && data.lastCompletedDate) {
         const days = await getDaysUntilStreakLoss(workout.id, workout);
-        console.log(`[StreakDisplay] Days remaining for ${workout.id}:`, days);
         setDaysRemaining(days);
       }
     } catch (error) {
@@ -44,9 +41,7 @@ export const StreakDisplay: React.FC<StreakDisplayProps> = ({
 
   // S'abonner aux mises à jour globales des streaks
   useEffect(() => {
-    console.log(`[StreakDisplay] Subscribing to streak updates for workout ${workout.id}`);
     const unsubscribe = subscribeToStreakUpdates(() => {
-      console.log(`[StreakDisplay] Received streak update notification for workout ${workout.id}, reloading...`);
       loadStreakData();
     });
 

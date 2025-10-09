@@ -3,6 +3,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { CompositeScreenProps } from '@react-navigation/native';
 import { CompletedWorkout, Exercise, WorkoutState } from './workout';
+import { Sticker } from './stickers';
 
 // Types pour le stack WorkoutTab
 export type WorkoutStackParamList = {
@@ -33,6 +34,7 @@ export type SummaryStackParamList = {
     sourceType?: 'journal' | 'completion';
     workouts?: CompletedWorkout[];
     currentIndex?: number;
+    preCalculatedStickers?: Sticker[]; // Stickers pré-calculés pour éviter les appels async
   };
   WorkoutPhoto: { 
     workout: CompletedWorkout;

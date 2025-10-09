@@ -116,8 +116,6 @@ export const RestTimerProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Gérer les changements d'état de l'app (premier plan, arrière-plan)
   useEffect(() => {
     const handleAppStateChange = async (nextAppState: AppStateStatus) => {
-      console.log('[REST TIMER] App state changing from', appStateRef.current, 'to', nextAppState);
-      
       // Si l'app passe en arrière-plan
       if (
         appStateRef.current.match(/active/) && 
@@ -147,8 +145,6 @@ export const RestTimerProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Gérer la mise en arrière-plan de l'app
   const handleAppInBackground = async () => {
-    console.log('[REST TIMER] App going to background');
-    
     // Si le timer est actif, sauvegarder son état
     if (isTimerActive) {
       // Arrêter le timer côté interface
@@ -174,8 +170,6 @@ export const RestTimerProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   
   // Gérer le retour au premier plan de l'app
   const handleAppInForeground = async () => {
-    console.log('[REST TIMER] App coming to foreground');
-    
     try {
       const storedData = await AsyncStorage.getItem(REST_TIMER_STORAGE_KEY);
       if (storedData && isTimerActive) {

@@ -22,6 +22,10 @@ import { CompletedWorkout } from '../../types/workout';
 import { useWorkoutHistory } from '../contexts/WorkoutHistoryContext';
 import { CachedImageBackground } from '../../components/common/CachedImageBackground';
 import { ImageCacheUtils } from '../../components/common/CachedImage';
+import { StickerService } from '../../services/stickerService';
+import { PhotoStorageService } from '../../services/photoStorageService';
+import { StickerBadge } from '../../components/common/StickerBadge';
+import { Sticker } from '../../types/stickers';
 
 // Type pour les paramètres de route
 type JournalScreenParams = {
@@ -180,51 +184,60 @@ export const JournalScreen: React.FC = () => {
     return `${minutes} min`;
   };
 
-  // Récupérer les stickers d'une séance (maximum 5)
-  const getWorkoutStickers = (workout: CompletedWorkout) => {
-    // Pour l'instant, simulons des stickers basés sur les exercices
-    // À terme, cela sera remplacé par les vrais stickers obtenus
-    const stickers = [];
-    
-    // Exemple : un sticker pour chaque record personnel
-    for (const exercise of workout.exercises) {
-      if (exercise.personalRecord) {
-        stickers.push({
-          id: `pr-${exercise.id}`,
-          type: 'personal-record',
-          icon: 'trophy-outline' as const
-        });
+  // État pour stocker les stickers de chaque workout
+  const [workoutStickers, setWorkoutStickers] = useState<Record<string, Sticker[]>>({});
+  
+  // État pour stocker les URIs de photos vérifiées
+  const [verifiedPhotoUris, setVerifiedPhotoUris] = useState<Record<string, string>>({});
+
+  // Charger les stickers et vérifier les photos pour tous les workouts
+  useEffect(() => {
+    const loadStickersAndPhotos = async () => {
+      const stickersMap: Record<string, Sticker[]> = {};
+      const photoUrisMap: Record<string, string> = {};
+      
+      for (const workout of completedWorkouts) {
+        try {
+          // Générer les stickers pour ce workout
+          const stickers = await StickerService.generateWorkoutStickers(workout, true);
+          stickersMap[workout.id] = stickers;
+          
+          // Vérifier et obtenir l'URI de photo accessible
+          const accessiblePhotoUri = await PhotoStorageService.getAccessiblePhotoUri(
+            workout.photo || '', 
+            workout.id
+          );
+          // Ne stocker que si ce n'est pas un placeholder ou si on n'a pas d'URI originale
+          if (!accessiblePhotoUri.includes('placeholder') || !workout.photo) {
+            photoUrisMap[workout.id] = accessiblePhotoUri;
+          }
+        } catch (error) {
+          console.error('[JournalScreen] Error loading data for workout:', workout.name, error);
+          stickersMap[workout.id] = [];
+          photoUrisMap[workout.id] = 'https://via.placeholder.com/114x192/242526/FFFFFF?text=Workout';
+        }
       }
+      
+      setWorkoutStickers(stickersMap);
+      setVerifiedPhotoUris(photoUrisMap);
+    };
+
+    if (completedWorkouts.length > 0) {
+      loadStickersAndPhotos();
     }
-    
-    // Exemple : sticker d'endurance si la séance a duré plus de 45 minutes
-    if (workout.duration > 45 * 60) {
-      stickers.push({
-        id: 'endurance',
-        type: 'endurance',
-        icon: 'fitness-outline' as const
-      });
-    }
-    
-    // Exemple : sticker de variété si plus de 5 exercices
-    if (workout.exercises.length > 5) {
-      stickers.push({
-        id: 'variety',
-        type: 'variety',
-        icon: 'grid-outline' as const
-      });
-    }
-    
-    // Limiter à 5 stickers maximum
-    return stickers.slice(0, 5);
+  }, [completedWorkouts]);
+
+  // Récupérer les stickers d'une séance via le cache
+  const getWorkoutStickers = (workout: CompletedWorkout): Sticker[] => {
+    return workoutStickers[workout.id] || [];
   };
 
   // Rendu d'une carte de séance terminée
   const renderWorkoutCard = ({ item, index }: { item: CompletedWorkout, index: number }) => {
     const stickers = getWorkoutStickers(item);
     
-    // Utiliser l'image réelle de l'entraînement ou un placeholder
-    const imageUri = item.photo || 'https://via.placeholder.com/114x192/242526/FFFFFF?text=Workout';
+    // Utiliser l'URI de photo vérifiée, sinon l'URI originale, sinon un placeholder
+    const imageUri = verifiedPhotoUris[item.id] || item.photo || 'https://via.placeholder.com/114x192/242526/FFFFFF?text=Workout';
     
     // Obtenir ou créer l'animation pour cette carte
     if (!cardAnimations.current[item.id]) {
@@ -260,6 +273,7 @@ export const JournalScreen: React.FC = () => {
         style={styles.cardImage}
         imageStyle={styles.cardImageStyle}
         showLoader={false}
+        workout={item} // Passer l'objet workout pour déterminer le flip automatiquement
       >
         <LinearGradient
           colors={['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0.5)']}
@@ -272,13 +286,13 @@ export const JournalScreen: React.FC = () => {
             {stickers.length > 0 && (
               <View style={styles.stickersContainer}>
                 {stickers.map((sticker, idx) => (
-                  <View key={sticker.id} style={styles.stickerCircle}>
-                    <Ionicons 
-                      name={sticker.icon} 
-                      size={12} 
-                      color="#FFFFFF" 
-                    />
-                  </View>
+                  <StickerBadge
+                    key={`sticker-${idx}`}
+                    sticker={sticker}
+                    size="small"
+                    showText={false}
+                    style={styles.stickerSpacing}
+                  />
                 ))}
               </View>
             )}
@@ -464,13 +478,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 4,
   },
-  stickerCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
+  stickerSpacing: {
     marginHorizontal: 2,
   },
   emptyContainer: {

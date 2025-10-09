@@ -146,6 +146,13 @@ export interface CompletedExercise {
   };
 }
 
+// Données historiques des stickers au moment de la séance
+export interface StickerHistoricalData {
+  starCount: number;    // Nombre de fois que ce workout spécifique a été complété
+  streakCount: number;  // Streak au moment de cette séance
+  completionCount: number; // Nombre total de séances complétées par l'utilisateur
+}
+
 export interface CompletedWorkout {
   id: string;
   workoutId: string;
@@ -155,5 +162,7 @@ export interface CompletedWorkout {
   exercises: CompletedExercise[];
   notes?: string;
   photo: string; // URI de la photo prise après la séance
+  isFrontCamera?: boolean; // Indique si la photo a été prise avec la caméra frontale
   streakData?: StreakData; // Données de streak au moment de l'achèvement du workout
+  stickerData?: StickerHistoricalData; // Valeurs historiques des stickers au moment de la séance
 } 

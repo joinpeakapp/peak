@@ -26,8 +26,7 @@ export class PersonalRecordService {
   static async saveRecords(records: PersonalRecords): Promise<void> {
     try {
       await UserProfileService.updatePersonalRecords(records);
-      console.log('[PersonalRecordService] Records saved successfully');
-    } catch (error) {
+      } catch (error) {
       console.error('[PersonalRecordService] Failed to save records:', error);
       throw error;
     }
@@ -245,11 +244,9 @@ export class PersonalRecordService {
             updatedRecords = result.updatedRecords;
             
             if (result.weightPR) {
-              console.log(`[PersonalRecordService] ✅ New weight PR for ${exercise.name}: ${result.weightPR.weight}kg`);
-            }
+              }
             if (result.repsPR) {
-              console.log(`[PersonalRecordService] ✅ New reps PR for ${exercise.name}: ${result.repsPR.reps} reps at ${result.repsPR.weight}kg`);
-            }
+              }
           }
         }
       }
@@ -276,8 +273,6 @@ export class PersonalRecordService {
     }>
   ): Promise<void> {
     try {
-      console.log('[PersonalRecordService] Starting migration from workout history...');
-      
       const currentRecords = await this.loadRecords();
       let updatedRecords = { ...currentRecords };
       let hasUpdates = false;
@@ -297,10 +292,8 @@ export class PersonalRecordService {
       
       if (hasUpdates) {
         await this.saveRecords(updatedRecords);
-        console.log('[PersonalRecordService] ✅ Migration completed successfully');
-      } else {
-        console.log('[PersonalRecordService] No migration needed');
-      }
+        } else {
+        }
       
     } catch (error) {
       console.error('[PersonalRecordService] Migration error:', error);
@@ -344,8 +337,7 @@ export class PersonalRecordService {
       }
 
       await this.saveRecords(records);
-      console.log(`[PersonalRecordService] Deleted rep record: ${weight}kg for ${exerciseName}`);
-    } catch (error) {
+      } catch (error) {
       console.error('[PersonalRecordService] Failed to delete rep record:', error);
       throw error;
     }
@@ -364,8 +356,7 @@ export class PersonalRecordService {
 
       delete records[exerciseName];
       await this.saveRecords(records);
-      console.log(`[PersonalRecordService] Deleted all records for ${exerciseName}`);
-    } catch (error) {
+      } catch (error) {
       console.error('[PersonalRecordService] Failed to delete all records:', error);
       throw error;
     }

@@ -87,7 +87,6 @@ export const useWorkout = () => {
    * @param workoutId - The ID of the workout to remove
    */
   const removeWorkout = (workoutId: string) => {
-    console.log('Removing workout with ID:', workoutId);
     dispatch(deleteWorkout(workoutId));
   };
 

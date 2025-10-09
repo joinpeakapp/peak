@@ -31,6 +31,7 @@ export interface ActiveWorkout {
   trackingData: TrackingData;
   isActive: boolean;
   photoUri?: string; // URI de la photo prise après le workout
+  isFrontCamera?: boolean; // Indique si la photo a été prise avec la caméra frontale
 }
 
 // Interface du contexte
@@ -42,6 +43,7 @@ interface ActiveWorkoutContextValue {
   updateTrackingData: (exerciseId: string, sets: TrackingSet[], completedSets: number) => void;
   updateElapsedTime: (newElapsedTime: number) => void;
   updatePhotoUri: (photoUri: string) => void; // Nouvelle fonction pour mettre à jour la photo
+  updatePhotoInfo: (photoUri: string, isFrontCamera: boolean) => void; // Fonction pour mettre à jour photo et caméra
   resumeWorkout: () => void;
   pauseWorkout: () => void; // Nouvelle fonction pour mettre en pause
   isTrackingWorkout: boolean;
@@ -56,6 +58,7 @@ const defaultContextValue: ActiveWorkoutContextValue = {
   updateTrackingData: () => {},
   updateElapsedTime: () => {},
   updatePhotoUri: () => {}, // Ajout de la nouvelle fonction
+  updatePhotoInfo: () => {}, // Ajout de la nouvelle fonction
   resumeWorkout: () => {},
   pauseWorkout: () => {}, // Ajout de la nouvelle fonction
   isTrackingWorkout: false,
@@ -82,7 +85,6 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     const loadActiveWorkout = async () => {
       try {
-        console.log('[ActiveWorkout] Loading active session from robust storage...');
         const result = await RobustStorageService.loadActiveSession();
         
         if (result.success && result.data?.activeWorkout) {
@@ -95,7 +97,6 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
           const maxInactiveTime = 24 * 60 * 60 * 1000; // 24 heures
           
           if (timeSinceLastUpdate < maxInactiveTime) {
-            console.log('[ActiveWorkout] Restoring active workout session');
             setActiveWorkout(parsedData);
             setIsTrackingWorkout(true);
             
@@ -104,7 +105,6 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
               startGlobalTimer();
             }
           } else {
-            console.log('[ActiveWorkout] Active workout session expired, clearing...');
             await RobustStorageService.clearActiveSession();
           }
         }
@@ -119,8 +119,6 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
   // Gérer les changements d'état de l'app (premier plan, arrière-plan)
   useEffect(() => {
     const handleAppStateChange = async (nextAppState: AppStateStatus) => {
-      console.log('[APP STATE] Change from', appStateRef.current, 'to', nextAppState);
-      
       // Si l'app passe en arrière-plan
       if (
         appStateRef.current.match(/active/) && 
@@ -154,8 +152,6 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Fonction pour mettre en pause l'état de workout quand l'app passe en arrière-plan
   const pauseWorkoutState = async () => {
-    console.log('[WORKOUT] Pausing workout due to app state change');
-    
     // Arrêter le timer
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -179,8 +175,6 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
   
   // Fonction pour reprendre l'état de workout quand l'app revient au premier plan
   const resumeWorkoutState = async () => {
-    console.log('[WORKOUT] Resuming workout due to app state change');
-    
     if (activeWorkout && activeWorkout.pausedAt) {
       const now = Date.now();
       const pausedDuration = Math.floor((now - activeWorkout.pausedAt) / 1000);
@@ -292,32 +286,26 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Terminer une séance
   const finishWorkout = useCallback(async (updateStreak: boolean = false) => {
-    console.log("[ActiveWorkout] Finishing workout");
     if (!activeWorkout) {
-      console.log("[ActiveWorkout] No active workout to finish");
       return;
     }
 
     try {
       // Arrêter le timer
-      console.log("[ActiveWorkout] Stopping global timer...");
       stopGlobalTimer();
       
       // Récupérer le workout original pour mettre à jour la streak
       // Uniquement si updateStreak est true (uniquement quand on clique sur "Log Workout")
       if (updateStreak) {
-        console.log("[ActiveWorkout] Updating streak...");
         const originalWorkout = workouts.find(w => w.id === activeWorkout.workoutId);
         if (originalWorkout) {
           await updateStreakOnCompletion(originalWorkout);
-          console.log("[ActiveWorkout] Streak updated successfully");
-        } else {
+          } else {
           console.warn("[ActiveWorkout] Original workout not found for streak update");
         }
       }
       
       // Nettoyer la session active
-      console.log("[ActiveWorkout] Clearing active session...");
       const clearResult = await RobustStorageService.clearActiveSession();
       if (!clearResult.success) {
         console.error("[ActiveWorkout] Failed to clear active session:", clearResult.error?.userMessage);
@@ -325,18 +313,16 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
       }
       
       // Réinitialiser l'état local
-      console.log("[ActiveWorkout] Resetting local state...");
       setActiveWorkout(null);
       setIsTrackingWorkout(false);
       
-      console.log("[ActiveWorkout] Workout finished successfully");
-    } catch (error) {
+      } catch (error) {
       console.error("[ActiveWorkout] Error finishing workout:", error);
       // En cas d'erreur, forcer le nettoyage local au minimum
       try {
         setActiveWorkout(null);
         setIsTrackingWorkout(false);
-        console.log("[ActiveWorkout] Local state reset after error");
+        // Local state reset after error
       } catch (localError) {
         console.error("[ActiveWorkout] Failed to reset local state:", localError);
       }
@@ -346,8 +332,6 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Fonction de nettoyage d'urgence pour les sessions bloquées
   const forceCleanupSession = useCallback(async () => {
-    console.log("[ActiveWorkout] Force cleanup session requested");
-    
     try {
       // Arrêter le timer
       stopGlobalTimer();
@@ -359,8 +343,7 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
       setActiveWorkout(null);
       setIsTrackingWorkout(false);
       
-      console.log("[ActiveWorkout] Force cleanup completed successfully");
-    } catch (error) {
+      } catch (error) {
       console.error("[ActiveWorkout] Error during force cleanup:", error);
       // Forcer le nettoyage local même en cas d'erreur
       setActiveWorkout(null);
@@ -416,6 +399,21 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
     });
   };
 
+  // Mettre à jour l'URI de la photo et l'info de la caméra
+  const updatePhotoInfo = (photoUri: string, isFrontCamera: boolean) => {
+    if (!activeWorkout) return;
+
+    setActiveWorkout(prev => {
+      if (!prev) return null;
+      
+      return {
+        ...prev,
+        photoUri,
+        isFrontCamera
+      };
+    });
+  };
+
   // Reprendre une séance mise en pause (manuellement)
   const resumeWorkout = () => {
     if (!activeWorkout) return;
@@ -465,6 +463,7 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
         updateTrackingData,
         updateElapsedTime,
         updatePhotoUri,
+    updatePhotoInfo,
         resumeWorkout,
         pauseWorkout,
         isTrackingWorkout

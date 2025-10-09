@@ -24,8 +24,7 @@ export const ErrorTestComponent: React.FC<ErrorTestComponentProps> = ({ onClose 
   if (shouldThrowPropertyError) {
     const obj: any = null;
     // This will throw: Cannot read property 'nonexistent' of null
-    console.log(obj.nonexistent.property);
-  }
+    }
 
   // Déclencher une erreur asynchrone (ne sera pas attrapée par ErrorBoundary)
   const triggerAsyncError = () => {

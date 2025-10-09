@@ -85,8 +85,6 @@ const workoutSlice = createSlice({
     // Supprimer une séance
     deleteWorkout: (state, action: PayloadAction<string>) => {
       const workoutIdToDelete = action.payload;
-      console.log('Deleting workout with ID:', workoutIdToDelete);
-      
       // Filtrer le workout à supprimer en se basant sur son ID exact
       state.workouts = state.workouts.filter(workout => workout.id !== workoutIdToDelete);
       
@@ -154,8 +152,7 @@ export const loadInitialData = () => async (dispatch: any) => {
     // Charger les records legacy si disponibles
     if (recordsResult.success && recordsResult.data.legacy) {
       // Les records legacy seront mis à jour via les actions Redux
-      console.log('[loadInitialData] Personal records loaded from storage');
-    }
+      }
     
     dispatch(setError(null));
   } catch (error) {

@@ -61,9 +61,9 @@ const formatFrequency = (frequency: any): string => {
  *     frequency: 'Monday',
  *     streak: 5
  *   }}
- *   onPress={() => console.log('Card pressed')}
- *   onEdit={() => console.log('Edit pressed')}
- *   onDelete={() => console.log('Delete pressed')}
+ *   onPress={() => }
+ *   onEdit={() => }
+ *   onDelete={() => }
  * />
  * ```
  */

@@ -32,8 +32,6 @@ export interface UseWorkoutAnimationsReturn {
  * - Coordination et réinitialisation des animations
  */
 export const useWorkoutAnimations = (): UseWorkoutAnimationsReturn => {
-  console.log('[useWorkoutAnimations] Hook initialized');
-  
   // Références d'animation principales
   const prBadgeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
@@ -44,8 +42,6 @@ export const useWorkoutAnimations = (): UseWorkoutAnimationsReturn => {
   
   // Animation du badge PR
   const animatePrBadge = useCallback(() => {
-    console.log('[useWorkoutAnimations] Animating PR badge');
-    
     // Vibration pour feedback tactile
     Vibration.vibrate(100);
     
@@ -66,7 +62,6 @@ export const useWorkoutAnimations = (): UseWorkoutAnimationsReturn => {
   
   // Animation de slide in (pour les modales)
   const animateSlideIn = useCallback(() => {
-    console.log('[useWorkoutAnimations] Animating slide in');
     Animated.timing(slideAnim, {
       toValue: 1,
       duration: 300,
@@ -76,7 +71,6 @@ export const useWorkoutAnimations = (): UseWorkoutAnimationsReturn => {
   
   // Animation de slide out (pour les modales)
   const animateSlideOut = useCallback(() => {
-    console.log('[useWorkoutAnimations] Animating slide out');
     Animated.timing(slideAnim, {
       toValue: 0,
       duration: 300,
@@ -86,8 +80,6 @@ export const useWorkoutAnimations = (): UseWorkoutAnimationsReturn => {
   
   // Initialiser les animations pour une liste d'exercices
   const initializeExerciseAnimations = useCallback((exercises: any[]) => {
-    console.log(`[useWorkoutAnimations] Initializing animations for ${exercises.length} exercises`);
-    
     const progressAnimations: { [key: string]: Animated.Value } = {};
     const bounceAnimations: { [key: string]: Animated.Value } = {};
     
@@ -104,8 +96,6 @@ export const useWorkoutAnimations = (): UseWorkoutAnimationsReturn => {
   
   // Animer la progression d'un exercice
   const animateExerciseProgress = useCallback((exerciseId: string, progress: number) => {
-    console.log(`[useWorkoutAnimations] Animating exercise progress: ${exerciseId} -> ${progress}`);
-    
     const animation = exerciseProgressAnimations[exerciseId];
     if (animation) {
       // Normaliser la valeur de progression : si > 1, c'est un pourcentage, sinon c'est déjà 0-1
@@ -121,8 +111,6 @@ export const useWorkoutAnimations = (): UseWorkoutAnimationsReturn => {
   
   // Animer le rebond d'un exercice
   const animateExerciseBounce = useCallback((exerciseId: string) => {
-    console.log(`[useWorkoutAnimations] Animating exercise bounce: ${exerciseId}`);
-    
     const animation = exerciseBounceAnimations[exerciseId];
     if (animation) {
       // Animation de rebond (sans vibration)
@@ -143,8 +131,6 @@ export const useWorkoutAnimations = (): UseWorkoutAnimationsReturn => {
   
   // Réinitialiser toutes les animations
   const resetAllAnimations = useCallback(() => {
-    console.log('[useWorkoutAnimations] Resetting all animations');
-    
     // Réinitialiser les animations principales
     prBadgeAnim.setValue(0);
     slideAnim.setValue(0);

@@ -65,7 +65,6 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
   onRestTimeUpdate,
   openTimerDirectly = false,
 }) => {
-  const [modalVisible, setModalVisible] = useState(visible);
   const slideAnim = React.useRef(new Animated.Value(height)).current;
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
   
@@ -94,37 +93,36 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
     setTimerMode(openTimerDirectly);
   }, [exercise, visible, openTimerDirectly]);
 
-  // Gérer le changement de visibilité
+  // Gérer le changement de visibilité avec animations améliorées
   useEffect(() => {
     if (visible) {
-      setModalVisible(true);
+      // Animation d'entrée
       Animated.parallel([
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: ANIMATION_DURATION,
-          useNativeDriver: true,
-        }),
         Animated.timing(fadeAnim, {
           toValue: 1,
-          duration: ANIMATION_DURATION,
+          duration: 250,
           useNativeDriver: true,
+        }),
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          useNativeDriver: true,
+          bounciness: 0,
         }),
       ]).start();
     } else {
+      // Animation de sortie
       Animated.parallel([
-        Animated.timing(slideAnim, {
-          toValue: height,
-          duration: ANIMATION_DURATION,
-          useNativeDriver: true,
-        }),
         Animated.timing(fadeAnim, {
           toValue: 0,
-          duration: ANIMATION_DURATION,
+          duration: 200,
           useNativeDriver: true,
         }),
-      ]).start(() => {
-        setModalVisible(false);
-      });
+        Animated.timing(slideAnim, {
+          toValue: height,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
     }
   }, [visible]);
 
@@ -152,7 +150,7 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
   // Gérer le bouton retour sur Android
   useEffect(() => {
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (modalVisible) {
+      if (visible) {
         if (isKeyboardVisible) {
           Keyboard.dismiss();
           return true;
@@ -161,13 +159,13 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
           // Si on est en mode timer, revenir au menu principal
           // Si on a ouvert directement en mode timer, fermer la modale
           if (openTimerDirectly) {
-            closeModal();
+            handleClose();
           } else {
             setTimerMode(false);
           }
         } else {
           // Sinon, fermer la modale
-          closeModal();
+          handleClose();
         }
         return true;
       }
@@ -175,7 +173,7 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
     });
 
     return () => backHandler.remove();
-  }, [modalVisible, timerMode, openTimerDirectly, isKeyboardVisible]);
+  }, [visible, timerMode, openTimerDirectly, isKeyboardVisible]);
 
   // Fonction pour mettre à jour le temps de repos
   const handleRestTimeUpdate = () => {
@@ -186,30 +184,16 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
       const totalSeconds = (minutes * 60) + seconds;
       onRestTimeUpdate(totalSeconds);
     }
-    closeModal();
+    handleClose();
   };
 
-  // Fonction pour fermer la modale avec animation
-  const closeModal = () => {
+  // Fonction pour fermer la modale
+  const handleClose = () => {
     // Fermer le clavier d'abord si visible
     if (isKeyboardVisible) {
       Keyboard.dismiss();
     }
-    
-    Animated.parallel([
-      Animated.timing(slideAnim, {
-        toValue: height,
-        duration: ANIMATION_DURATION,
-        useNativeDriver: true,
-      }),
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: ANIMATION_DURATION,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      onClose();
-    });
+    onClose();
   };
 
   // Fonctions améliorées pour assurer une fermeture correcte avec animation
@@ -284,36 +268,31 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
     
     // Si on a ouvert directement en mode timer, fermer la modale
     if (openTimerDirectly) {
-      closeModal();
+      handleClose();
     } else {
       setTimerMode(false);
     }
   };
 
+  if (!visible) return null;
+
   return (
     <Modal
-      visible={modalVisible}
       transparent
+      visible={visible}
       animationType="none"
-      onRequestClose={closeModal}
+      onRequestClose={onClose}
     >
-      <View style={styles.container}>
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <Animated.View
-            style={[
-              styles.overlay,
-              {
-                opacity: fadeAnim,
-              },
-            ]}
-          >
-            <TouchableOpacity
-              style={styles.overlayTouchable}
-              activeOpacity={1}
-              onPress={closeModal}
-            />
-          </Animated.View>
-        </TouchableWithoutFeedback>
+      <View style={styles.overlay}>
+        <Animated.View 
+          style={[styles.backdrop, { opacity: fadeAnim }]}
+        >
+          <TouchableOpacity 
+            style={StyleSheet.absoluteFill} 
+            activeOpacity={1} 
+            onPress={onClose} 
+          />
+        </Animated.View>
 
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -321,7 +300,7 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
         >
           <Animated.View
             style={[
-              styles.modalContent,
+              styles.modalContainer,
               {
                 transform: [{ translateY: slideAnim }],
               },
@@ -388,33 +367,40 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
               <>
                 <View style={styles.handle} />
                 
-                <TouchableOpacity
-                  style={styles.option}
-                  onPress={handleReplacePress}
-                >
-                  <Ionicons name="swap-horizontal-outline" size={24} color="#FFFFFF" />
-                  <Text style={styles.optionText}>Replace exercise</Text>
-                </TouchableOpacity>
-                
-                {onRestTimeUpdate && (
-                  <TouchableOpacity
-                    style={styles.option}
-                    onPress={handleShowTimerMode}
-                  >
-                    <Ionicons name="timer-outline" size={24} color="#FFFFFF" />
-                    <Text style={styles.optionText}>Configure rest timer</Text>
-                  </TouchableOpacity>
-                )}
-                
-                <TouchableOpacity
-                  style={[styles.option, styles.deleteOption]}
-                  onPress={handleDeletePress}
-                >
-                  <Ionicons name="trash-outline" size={24} color="#FF3B30" />
-                  <Text style={[styles.optionText, styles.deleteText]}>
-                    Delete exercise
-                  </Text>
-                </TouchableOpacity>
+                <View style={styles.content}>
+                  <Text style={styles.title}>Exercise settings</Text>
+                  
+                  <View style={styles.optionsContainer}>
+                    <TouchableOpacity
+                      style={[styles.option, styles.replaceOption]}
+                      onPress={handleReplacePress}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="swap-horizontal-outline" size={24} color="#FFFFFF" />
+                      <Text style={styles.optionText}>Replace exercise</Text>
+                    </TouchableOpacity>
+                    
+                    {onRestTimeUpdate && (
+                      <TouchableOpacity
+                        style={[styles.option, styles.timerOption]}
+                        onPress={handleShowTimerMode}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="timer-outline" size={24} color="#FFFFFF" />
+                        <Text style={styles.optionText}>Configure rest timer</Text>
+                      </TouchableOpacity>
+                    )}
+                    
+                    <TouchableOpacity
+                      style={[styles.option, styles.deleteOption]}
+                      onPress={handleDeletePress}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="trash-outline" size={24} color="#FFFFFF" />
+                      <Text style={styles.optionText}>Delete exercise</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
               </>
             )}
           </Animated.View>
@@ -425,26 +411,23 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
 };
 
 const styles = StyleSheet.create({
-  container: {
+  overlay: {
     flex: 1,
     justifyContent: 'flex-end',
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   keyboardAvoidingContainer: {
     width: '100%',
   },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  overlayTouchable: {
-    flex: 1,
-  },
-  modalContent: {
-    backgroundColor: 'rgba(36, 37, 38, 0.95)',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    paddingBottom: 32,
+  modalContainer: {
+    backgroundColor: '#1C1C1E',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 34, // Safe area
+    minHeight: 320,
   },
   scrollContent: {
     maxHeight: '100%',
@@ -454,30 +437,50 @@ const styles = StyleSheet.create({
   },
   handle: {
     width: 40,
-    height: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 2,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
     alignSelf: 'center',
+    marginTop: 8,
     marginBottom: 24,
+  },
+  content: {
+    paddingHorizontal: 24,
+    alignItems: 'center',
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 32,
+    textAlign: 'center',
+  },
+  optionsContainer: {
+    width: '100%',
+    gap: 12,
   },
   option: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 16,
+    borderRadius: 12,
+  },
+  replaceOption: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  timerOption: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   deleteOption: {
-    borderBottomWidth: 0,
-    marginTop: 8,
+    backgroundColor: '#FF3B30',
   },
   optionText: {
     fontSize: 16,
+    fontWeight: '600',
     color: '#FFFFFF',
-    marginLeft: 16,
-  },
-  deleteText: {
-    color: '#FF3B30',
+    marginLeft: 12,
   },
   // Styles pour le mode timer
   timerHeader: {

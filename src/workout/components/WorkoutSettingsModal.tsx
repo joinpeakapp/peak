@@ -46,136 +46,117 @@ export const WorkoutSettingsModal: React.FC<WorkoutSettingsModalProps> = ({
   onEdit,
   onDelete,
 }) => {
-  const [modalVisible, setModalVisible] = useState(visible);
   const slideAnim = React.useRef(new Animated.Value(height)).current;
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
 
-  // Gérer le changement de visibilité
+  // Gérer le changement de visibilité avec animations améliorées
   React.useEffect(() => {
     if (visible) {
-      setModalVisible(true);
+      // Animation d'entrée
       Animated.parallel([
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: ANIMATION_DURATION,
-          useNativeDriver: true,
-        }),
         Animated.timing(fadeAnim, {
           toValue: 1,
-          duration: ANIMATION_DURATION,
+          duration: 250,
           useNativeDriver: true,
+        }),
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          useNativeDriver: true,
+          bounciness: 0,
         }),
       ]).start();
     } else {
+      // Animation de sortie
       Animated.parallel([
-        Animated.timing(slideAnim, {
-          toValue: height,
-          duration: ANIMATION_DURATION,
-          useNativeDriver: true,
-        }),
         Animated.timing(fadeAnim, {
           toValue: 0,
-          duration: ANIMATION_DURATION,
+          duration: 200,
           useNativeDriver: true,
         }),
-      ]).start(() => {
-        setModalVisible(false);
-      });
+        Animated.timing(slideAnim, {
+          toValue: height,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
     }
   }, [visible]);
 
   // Gérer le bouton retour sur Android
   React.useEffect(() => {
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (modalVisible) {
-        closeModal();
+      if (visible) {
+        onClose();
         return true;
       }
       return false;
     });
 
     return () => backHandler.remove();
-  }, [modalVisible]);
+  }, [visible, onClose]);
 
-  // Fonction pour fermer la modale avec animation
-  const closeModal = () => {
-    Animated.parallel([
-      Animated.timing(slideAnim, {
-        toValue: height,
-        duration: ANIMATION_DURATION,
-        useNativeDriver: true,
-      }),
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: ANIMATION_DURATION,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      onClose();
-    });
-  };
-
-  // Simplifions - appeler simplement le onEdit fourni
+  // Fonctions pour gérer les actions avec fermeture de modale
   const handleEditPress = () => {
-    console.log('handleEditPress in WorkoutSettingsModal - calling onEdit directly');
+    onClose();
     onEdit();
   };
 
   const handleDeletePress = () => {
-    console.log('handleDeletePress in WorkoutSettingsModal - calling onDelete directly');
+    onClose();
     onDelete();
   };
 
+  if (!visible) return null;
+
   return (
     <Modal
-      visible={modalVisible}
       transparent
+      visible={visible}
       animationType="none"
-      onRequestClose={closeModal}
+      onRequestClose={onClose}
     >
-      <View style={styles.container}>
-        <Animated.View
-          style={[
-            styles.overlay,
-            {
-              opacity: fadeAnim,
-            },
-          ]}
+      <View style={styles.overlay}>
+        <Animated.View 
+          style={[styles.backdrop, { opacity: fadeAnim }]}
         >
-          <TouchableOpacity
-            style={styles.overlayTouchable}
-            activeOpacity={1}
-            onPress={closeModal}
+          <TouchableOpacity 
+            style={StyleSheet.absoluteFill} 
+            activeOpacity={1} 
+            onPress={onClose} 
           />
         </Animated.View>
-
-        <Animated.View
+        
+        <Animated.View 
           style={[
-            styles.modalContent,
-            {
-              transform: [{ translateY: slideAnim }],
-            },
+            styles.modalContainer,
+            { transform: [{ translateY: slideAnim }] }
           ]}
         >
           <View style={styles.handle} />
           
-          <TouchableOpacity
-            style={styles.option}
-            onPress={handleEditPress}
-          >
-            <Ionicons name="pencil-outline" size={24} color="#FFFFFF" />
-            <Text style={styles.optionText}>Edit workout</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.option, styles.deleteOption]}
-            onPress={handleDeletePress}
-          >
-            <Ionicons name="trash-outline" size={24} color="#FF3B30" />
-            <Text style={[styles.optionText, styles.deleteText]}>
-              Delete workout
-            </Text>
-          </TouchableOpacity>
+          <View style={styles.content}>
+            <Text style={styles.title}>Workout settings</Text>
+            
+            <View style={styles.optionsContainer}>
+              <TouchableOpacity 
+                style={[styles.option, styles.editOption]}
+                onPress={handleEditPress}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="pencil-outline" size={24} color="#FFFFFF" />
+                <Text style={styles.optionText}>Edit workout</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.option, styles.deleteOption]}
+                onPress={handleDeletePress}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="trash-outline" size={24} color="#FFFFFF" />
+                <Text style={styles.optionText}>Delete workout</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </Animated.View>
       </View>
     </Modal>
@@ -183,49 +164,63 @@ export const WorkoutSettingsModal: React.FC<WorkoutSettingsModalProps> = ({
 };
 
 const styles = StyleSheet.create({
-  container: {
+  overlay: {
     flex: 1,
     justifyContent: 'flex-end',
   },
-  overlay: {
+  backdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
-  overlayTouchable: {
-    flex: 1,
-  },
-  modalContent: {
-    backgroundColor: 'rgba(36, 37, 38, 0.95)',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    paddingBottom: 32,
+  modalContainer: {
+    backgroundColor: '#1C1C1E',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 34, // Safe area
+    minHeight: 280,
   },
   handle: {
     width: 40,
-    height: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 2,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
     alignSelf: 'center',
+    marginTop: 8,
     marginBottom: 24,
+  },
+  content: {
+    paddingHorizontal: 24,
+    alignItems: 'center',
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 32,
+    textAlign: 'center',
+  },
+  optionsContainer: {
+    width: '100%',
+    gap: 12,
   },
   option: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 16,
+    borderRadius: 12,
+  },
+  editOption: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   deleteOption: {
-    borderBottomWidth: 0,
-    marginTop: 8,
+    backgroundColor: '#FF3B30',
   },
   optionText: {
     fontSize: 16,
+    fontWeight: '600',
     color: '#FFFFFF',
     marginLeft: 12,
-  },
-  deleteText: {
-    color: '#FF3B30',
   },
 }); 

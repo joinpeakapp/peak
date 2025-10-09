@@ -47,8 +47,6 @@ export interface UseExerciseSelectionReturn {
  * - Groupement alphabétique des exercices
  */
 export const useExerciseSelection = (): UseExerciseSelectionReturn => {
-  console.log('[useExerciseSelection] Hook initialized');
-  
   // États de base
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedExercises, setSelectedExercises] = useState<Exercise[]>([]);
@@ -125,8 +123,6 @@ export const useExerciseSelection = (): UseExerciseSelectionReturn => {
   
   // Toggle de sélection d'exercice
   const toggleExerciseSelection = useCallback((exercise: Exercise) => {
-    console.log(`[useExerciseSelection] Toggling exercise selection: ${exercise.name}`);
-    
     if (modalMode === 'exercise-replacement') {
       // En mode remplacement, on ne peut sélectionner qu'un seul exercice
       setSelectedExercises([exercise]);
@@ -146,7 +142,6 @@ export const useExerciseSelection = (): UseExerciseSelectionReturn => {
   
   // Nettoyer la sélection
   const clearSelection = useCallback(() => {
-    console.log('[useExerciseSelection] Clearing selection');
     setSearchQuery('');
     setSelectedExercises([]);
     setSelectedTags([]);
@@ -155,14 +150,12 @@ export const useExerciseSelection = (): UseExerciseSelectionReturn => {
   
   // Démarrer la sélection d'exercices
   const startExerciseSelection = useCallback(() => {
-    console.log('[useExerciseSelection] Starting exercise selection');
     setModalMode('exercise-selection');
     clearSelection();
   }, [clearSelection]);
   
   // Démarrer le remplacement d'exercice
   const startExerciseReplacement = useCallback((exerciseId: string) => {
-    console.log(`[useExerciseSelection] Starting exercise replacement for: ${exerciseId}`);
     setExerciseToReplaceId(exerciseId);
     setModalMode('exercise-replacement');
     setSearchQuery('');
@@ -172,7 +165,6 @@ export const useExerciseSelection = (): UseExerciseSelectionReturn => {
   
   // Retourner au mode workout
   const resetToWorkoutMode = useCallback(() => {
-    console.log('[useExerciseSelection] Resetting to workout mode');
     setModalMode('workout');
     setExerciseToReplaceId(null);
   }, []);
