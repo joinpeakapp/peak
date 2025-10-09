@@ -32,6 +32,11 @@ import { useNavigation, CommonActions, NavigationProp } from '@react-navigation/
 import { StreakHistory } from './StreakHistory';
 import { useStreak } from '../contexts/StreakContext';
 import { SAMPLE_EXERCISES } from './ExerciseSelectionModal';
+import { ExerciseCreateNameScreen } from '../screens/ExerciseCreateNameScreen';
+import { ExerciseCreateTrackingScreen } from '../screens/ExerciseCreateTrackingScreen';
+import { ExerciseCreateCategoriesScreen } from '../screens/ExerciseCreateCategoriesScreen';
+import { ExerciseLibraryOptionsModal } from './ExerciseLibraryOptionsModal';
+import CustomExerciseService from '../../services/customExerciseService';
 import { usePersonalRecords } from '../../hooks/usePersonalRecords';
 import { useWorkoutSession } from '../hooks/useWorkoutSession';
 import { useExerciseTracking } from '../hooks/useExerciseTracking';
@@ -78,6 +83,21 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   onStartWorkout
 }) => {
   const [exercises, setExercises] = useState<Exercise[]>([]);
+  
+  // États pour le flow de création d'exercice
+  const [exerciseCreationStep, setExerciseCreationStep] = useState<'name' | 'tracking' | 'categories'>('name');
+  const [exerciseCreationData, setExerciseCreationData] = useState<{
+    name?: string;
+    tracking?: 'trackedOnSets' | 'trackedOnTime';
+    tags?: string[];
+  }>({});
+  
+  // État pour le nouvel exercice créé (pour scroll + highlight)
+  const [newlyCreatedExerciseId, setNewlyCreatedExerciseId] = useState<string | null>(null);
+  
+  // État pour la modale d'options de la bibliothèque
+  const [libraryOptionsModalVisible, setLibraryOptionsModalVisible] = useState(false);
+  const [selectedLibraryExercise, setSelectedLibraryExercise] = useState<Exercise | null>(null);
   
   // Hook unifié pour gérer la sélection d'exercices
   const exerciseSelection = useExerciseSelection();
@@ -164,6 +184,104 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   // Fonction pour passer au mode de sélection d'exercices
   const handleAddExercise = () => {
     exerciseSelection.startExerciseSelection();
+  };
+
+  // Handlers pour le flow de création d'exercice
+  const handleExerciseNameNext = (name: string) => {
+    setExerciseCreationData(prev => ({ ...prev, name }));
+    setExerciseCreationStep('tracking');
+  };
+
+  const handleExerciseTrackingNext = (tracking: 'trackedOnSets' | 'trackedOnTime') => {
+    setExerciseCreationData(prev => ({ ...prev, tracking }));
+    setExerciseCreationStep('categories');
+  };
+
+  const handleExerciseTrackingBack = () => {
+    setExerciseCreationStep('name');
+  };
+
+  const handleExerciseCategoriesComplete = async (tags: string[]) => {
+    try {
+      const { name, tracking } = exerciseCreationData;
+      
+      if (!name || !tracking) {
+        throw new Error('Missing exercise data');
+      }
+
+      const newExercise = await CustomExerciseService.createCustomExercise(
+        name,
+        tags,
+        tracking
+      );
+      
+      // Recharger la liste des exercices personnalisés dans le hook
+      await exerciseSelection.reloadCustomExercises();
+      
+      // Stocker l'ID du nouvel exercice pour le highlight
+      setNewlyCreatedExerciseId(newExercise.id);
+      
+      // Supprimer le highlight après 3 secondes
+      setTimeout(() => {
+        setNewlyCreatedExerciseId(null);
+      }, 3000);
+      
+      Alert.alert('Success', `Exercise "${name}" created successfully!`);
+      
+      // Reset et retourner au mode sélection d'exercices
+      setExerciseCreationStep('name');
+      setExerciseCreationData({});
+      exerciseSelection.startExerciseSelection();
+    } catch (error: any) {
+      console.error('[WorkoutDetailModal] Error creating exercise:', error);
+      Alert.alert('Error', error.message || 'Failed to create exercise');
+    }
+  };
+
+  const handleExerciseCategoriesBack = () => {
+    setExerciseCreationStep('tracking');
+  };
+  
+  // Fonction pour annuler complètement la création d'exercice
+  const handleCancelCreateExercise = () => {
+    // Reset et retourner au mode sélection d'exercices
+    setExerciseCreationStep('name');
+    setExerciseCreationData({});
+    exerciseSelection.startExerciseSelection();
+  };
+
+  // Fonction pour gérer le long press sur un exercice dans la bibliothèque
+  const handleExerciseLongPress = (exercise: Exercise) => {
+    console.log('[WorkoutDetailModal] Long press on exercise:', exercise.name);
+    setSelectedLibraryExercise(exercise);
+    setLibraryOptionsModalVisible(true);
+  };
+
+  // Fonction pour vérifier si un exercice est personnalisé
+  const isCustomExercise = (exercise: Exercise): boolean => {
+    return exercise.id.startsWith('custom_');
+  };
+
+  // Fonction pour supprimer un exercice de la bibliothèque
+  const handleDeleteLibraryExercise = async () => {
+    if (!selectedLibraryExercise) return;
+
+    try {
+      console.log('[WorkoutDetailModal] Deleting exercise:', selectedLibraryExercise.name);
+      await CustomExerciseService.deleteCustomExercise(selectedLibraryExercise.id);
+      
+      // Recharger la liste des exercices personnalisés
+      await exerciseSelection.reloadCustomExercises();
+      
+      Alert.alert('Success', `Exercise "${selectedLibraryExercise.name}" deleted successfully.`);
+      
+      // Reset les états
+      setLibraryOptionsModalVisible(false);
+      setSelectedLibraryExercise(null);
+    } catch (error: any) {
+      console.error('[WorkoutDetailModal] Error deleting exercise:', error);
+      Alert.alert('Error', error.message || 'Failed to delete exercise');
+    }
   };
 
   // Fonction pour ajouter les exercices sélectionnés
@@ -884,11 +1002,16 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
 
   const renderExerciseItem = (exercise: Exercise) => {
     const isSelected = exerciseSelection.selectedExercises.some(ex => ex.id === exercise.id);
+    const isNewlyCreated = newlyCreatedExerciseId === exercise.id;
     
     return (
       <TouchableOpacity 
-        style={styles.selectionExerciseItem}
+        style={[
+          styles.selectionExerciseItem,
+          isNewlyCreated && styles.selectionExerciseItemHighlight
+        ]}
         onPress={() => exerciseSelection.toggleExerciseSelection(exercise)}
+        onLongPress={() => handleExerciseLongPress(exercise)}
         activeOpacity={0.7}
       >
         <View style={styles.exerciseSelectionRow}>
@@ -901,7 +1024,14 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
             )}
           </View>
           
-          <Text style={styles.selectionExerciseName}>{exercise.name}</Text>
+          <View style={styles.exerciseNameContainer}>
+            <Text style={styles.selectionExerciseName}>{exercise.name}</Text>
+            {isNewlyCreated && (
+              <View style={styles.newBadge}>
+                <Text style={styles.newBadgeText}>NEW</Text>
+              </View>
+            )}
+          </View>
         </View>
       </TouchableOpacity>
     );
@@ -1217,8 +1347,10 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
 
   // Gestion de la fermeture avec sauvegarde automatique
   const handleClose = () => {
-    // Si on est en mode sélection ou remplacement, retourner au mode workout
-    if (exerciseSelection.modalMode === 'exercise-selection' || exerciseSelection.modalMode === 'exercise-replacement') {
+    // Si on est en mode sélection, remplacement ou création, retourner au mode workout
+    if (exerciseSelection.modalMode === 'exercise-selection' || 
+        exerciseSelection.modalMode === 'exercise-replacement' ||
+        exerciseSelection.modalMode === 'exercise-creation') {
       exerciseSelection.resetToWorkoutMode();
       return;
     }
@@ -1302,10 +1434,11 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   if (!workout) return null;
 
   return (
-    <FullScreenModal
-      visible={visible}
-      onClose={onClose}
-    >
+    <>
+      <FullScreenModal
+        visible={visible}
+        onClose={onClose}
+      >
       <View style={[styles.container, { overflow: 'visible' }]}>
         {exerciseSelection.modalMode === 'workout' ? (
               // Mode affichage du workout
@@ -1482,7 +1615,14 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                     />
                   </View>
                   
-                  <TouchableOpacity style={styles.addButton}>
+                  <TouchableOpacity 
+                    style={styles.addButton}
+                    onPress={() => {
+                      console.log('[WorkoutDetailModal] Starting exercise creation mode...');
+                      exerciseSelection.startExerciseCreation();
+                    }}
+                    activeOpacity={0.7}
+                  >
                     <Ionicons name="add" size={24} color="#FFFFFF" />
                   </TouchableOpacity>
                 </View>
@@ -1639,6 +1779,28 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                   </ScrollView>
                 </View>
               </>
+            ) : exerciseSelection.modalMode === 'exercise-creation' ? (
+              // Mode création d'exercice - Flow multi-étapes
+              <>
+                {exerciseCreationStep === 'name' && (
+                  <ExerciseCreateNameScreen
+                    onNext={handleExerciseNameNext}
+                    onClose={handleCancelCreateExercise}
+                  />
+                )}
+                {exerciseCreationStep === 'tracking' && (
+                  <ExerciseCreateTrackingScreen
+                    onNext={handleExerciseTrackingNext}
+                    onBack={handleExerciseTrackingBack}
+                  />
+                )}
+                {exerciseCreationStep === 'categories' && (
+                  <ExerciseCreateCategoriesScreen
+                    onComplete={handleExerciseCategoriesComplete}
+                    onBack={handleExerciseCategoriesBack}
+                  />
+                )}
+              </>
             ) : (
               // Mode remplacement d'exercice avec layout flex
               <View style={styles.flexContainer}>
@@ -1662,7 +1824,14 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                     />
                   </View>
                   
-                  <TouchableOpacity style={styles.addButton}>
+                  <TouchableOpacity 
+                    style={styles.addButton}
+                    onPress={() => {
+                      console.log('[WorkoutDetailModal] Starting exercise creation mode from replacement...');
+                      exerciseSelection.startExerciseCreation();
+                    }}
+                    activeOpacity={0.7}
+                  >
                     <Ionicons name="add" size={24} color="#FFFFFF" />
                   </TouchableOpacity>
                 </View>
@@ -1835,7 +2004,21 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
           onSave={handleWorkoutEditSave}
         />
       )}
+
+      {/* Modale d'options pour les exercices de la bibliothèque */}
+      <ExerciseLibraryOptionsModal
+        visible={libraryOptionsModalVisible}
+        onClose={() => {
+          setLibraryOptionsModalVisible(false);
+          setSelectedLibraryExercise(null);
+        }}
+        onDelete={handleDeleteLibraryExercise}
+        exercise={selectedLibraryExercise}
+        isCustomExercise={selectedLibraryExercise ? isCustomExercise(selectedLibraryExercise) : false}
+      />
+
     </FullScreenModal>
+    </>
   );
 };
 
@@ -1857,6 +2040,14 @@ const styles = StyleSheet.create({
     paddingTop: 32,
     paddingBottom: 24,
     gap: 12,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  placeholder: {
+    width: 44,
   },
   backButton: {
     padding: 8,
@@ -2166,10 +2357,36 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     paddingVertical: 0,
   },
-  selectionExerciseName: {
+  selectionExerciseItemHighlight: {
+    backgroundColor: 'rgba(52, 199, 89, 0.15)',
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    marginHorizontal: -8,
+  },
+  exerciseNameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
     marginLeft: 16,
+  },
+  selectionExerciseName: {
     fontSize: 16,
     color: '#FFFFFF',
+    flex: 1,
+  },
+  newBadge: {
+    backgroundColor: '#34C759',
+    borderRadius: 4,
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    marginLeft: 8,
+  },
+  newBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   tagScrollView: {
     marginHorizontal: 16,

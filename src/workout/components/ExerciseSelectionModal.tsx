@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Exercise } from '../../types/workout';
 import { ExerciseFilterModal } from './ExerciseFilterModal';
+import CustomExerciseService from '../../services/customExerciseService';
 
 // Exemple de données d'exercices
 export const SAMPLE_EXERCISES: Exercise[] = [
@@ -121,15 +122,38 @@ const ExerciseSelectionModal: React.FC<ExerciseSelectionModalProps> = ({
   const [selectedExercises, setSelectedExercises] = useState<Exercise[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
+  const [customExercises, setCustomExercises] = useState<Exercise[]>([]);
+
+  // Charger les exercices personnalisés au montage du modal
+  useEffect(() => {
+    if (visible) {
+      loadCustomExercises();
+    }
+  }, [visible]);
+
+  const loadCustomExercises = async () => {
+    try {
+      const customs = await CustomExerciseService.getCustomExercises();
+      const exercises = customs.map(custom => CustomExerciseService.convertToExercise(custom));
+      setCustomExercises(exercises);
+    } catch (error) {
+      console.error('[ExerciseSelectionModal] Error loading custom exercises:', error);
+    }
+  };
+
+  // Fusionner les exercices par défaut et personnalisés
+  const allExercises = useMemo(() => {
+    return [...SAMPLE_EXERCISES, ...customExercises];
+  }, [customExercises]);
 
   // Filter exercises based on search query and selected tags
   const filteredExercises = useMemo(() => {
-    return SAMPLE_EXERCISES.filter(exercise => {
+    return allExercises.filter(exercise => {
       const matchesSearch = exercise.name.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesTags = selectedTags.length === 0 || selectedTags.some(tag => exercise.tags?.includes(tag));
       return matchesSearch && matchesTags;
     });
-  }, [searchQuery, selectedTags]);
+  }, [allExercises, searchQuery, selectedTags]);
 
   // Group exercises by first letter for SectionList
   const sectionedExercises = useMemo(() => {
@@ -226,25 +250,29 @@ const ExerciseSelectionModal: React.FC<ExerciseSelectionModalProps> = ({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-      <View style={styles.container}>
+      <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+        <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
             <Ionicons name="close" size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <Text style={styles.title}>Add Exercises</Text>
-          <TouchableOpacity 
-            onPress={() => setIsFilterModalVisible(true)}
-            style={styles.filterButton}
-          >
-            <Ionicons name="filter" size={22} color="#FFFFFF" />
-            {selectedTags.length > 0 && (
-              <View style={styles.filterBadge}>
-                <Text style={styles.filterBadgeText}>{selectedTags.length}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            {/* Bouton de filtre */}
+            <TouchableOpacity 
+              onPress={() => setIsFilterModalVisible(true)}
+              style={styles.filterButton}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="filter" size={22} color="#FFFFFF" />
+              {selectedTags.length > 0 && (
+                <View style={styles.filterBadge}>
+                  <Text style={styles.filterBadgeText}>{selectedTags.length}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Search Bar */}
@@ -317,12 +345,12 @@ const ExerciseSelectionModal: React.FC<ExerciseSelectionModalProps> = ({
             const tagSet = new Set<string>();
             
             // Ajouter les catégories de base (Upper/Lower Body)
-            SAMPLE_EXERCISES.forEach(exercise => {
+            allExercises.forEach(exercise => {
               exercise.tags?.forEach(tag => tagSet.add(tag));
             });
             
             return Array.from(tagSet).sort();
-          }, [])}
+          }, [allExercises])}
           selectedTags={selectedTags}
           onTagsSelected={setSelectedTags}
         />
@@ -345,9 +373,14 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: 32,
+    paddingTop: 60,
     paddingBottom: 24,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
   },
   backButton: {
@@ -378,24 +411,13 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
   },
-  addButton: {
+  filterButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
     backgroundColor: '#242526',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  filterButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginHorizontal: 16,
-    marginBottom: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 100,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
   },
   filterButtonText: {
     color: '#FFFFFF',
