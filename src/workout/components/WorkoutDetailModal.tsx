@@ -23,6 +23,7 @@ import { FullScreenModal } from '../../components/common/FullScreenModal';
 import { useWorkout } from '../../hooks/useWorkout';
 import { ExerciseSettingsModal } from './ExerciseSettingsModal';
 import { ExerciseFilterModal } from './ExerciseFilterModal';
+import { ContextMenu, ContextMenuItem } from '../../components/common/ContextMenu';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useActiveWorkout, TrackingSet, TrackingData } from '../contexts/ActiveWorkoutContext';
 import { useRestTimer } from '../contexts/RestTimerContext';
@@ -95,9 +96,23 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   // État pour le nouvel exercice créé (pour scroll + highlight)
   const [newlyCreatedExerciseId, setNewlyCreatedExerciseId] = useState<string | null>(null);
   
+  // Refs pour les ScrollViews de sélection d'exercices
+  const exerciseListScrollRef = React.useRef<ScrollView>(null);
+  const exerciseReplaceScrollRef = React.useRef<ScrollView>(null);
+  
   // État pour la modale d'options de la bibliothèque
   const [libraryOptionsModalVisible, setLibraryOptionsModalVisible] = useState(false);
   const [selectedLibraryExercise, setSelectedLibraryExercise] = useState<Exercise | null>(null);
+  
+  // États pour le ContextMenu des exercices
+  const [isExerciseMenuVisible, setIsExerciseMenuVisible] = useState(false);
+  const [exerciseMenuAnchor, setExerciseMenuAnchor] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [selectedExerciseForMenu, setSelectedExerciseForMenu] = useState<Exercise | null>(null);
   
   // Hook unifié pour gérer la sélection d'exercices
   const exerciseSelection = useExerciseSelection();
@@ -125,7 +140,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   const exerciseTracking = useExerciseTracking();
 
   // Récupération du contexte de timer de repos
-  const { startRestTimer, resetTimer, stopTimer } = useRestTimer();
+  const { startRestTimer, resetTimer, stopTimer, currentExercise: currentRestExercise } = useRestTimer();
   
   // Pour la navigation
   const navigation = useNavigation<NavigationProp<RootStackParamList | WorkoutStackParamList>>();
@@ -134,7 +149,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   const { updateStreakOnCompletion, getWorkoutStreak } = useStreak();
   
   // Récupération du contexte d'historique des workouts
-  const { getPersonalRecords: getHistoryPersonalRecords, addCompletedWorkout } = useWorkoutHistory();
+  const { getPersonalRecords: getHistoryPersonalRecords, addCompletedWorkout, getPreviousWorkoutData } = useWorkoutHistory();
   
   // État pour les records personnels
   const personalRecords = usePersonalRecords();
@@ -166,6 +181,13 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       }
     }
   }, [workout, visible, isTrackingWorkout, activeWorkout?.workoutId]);
+
+  // Synchroniser le state local avec le workout global quand il change
+  useEffect(() => {
+    if (workout && workout.exercises) {
+      setExercises(workout.exercises);
+    }
+  }, [workout?.exercises, workout?.updatedAt]);
 
   // Fonction pour sauvegarder les modifications
   const handleSaveChanges = () => {
@@ -215,23 +237,35 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
         tracking
       );
       
+      console.log('[WorkoutDetailModal] Exercise created:', newExercise.name, newExercise.id);
+      
       // Recharger la liste des exercices personnalisés dans le hook
       await exerciseSelection.reloadCustomExercises();
       
-      // Stocker l'ID du nouvel exercice pour le highlight
-      setNewlyCreatedExerciseId(newExercise.id);
-      
-      // Supprimer le highlight après 3 secondes
-      setTimeout(() => {
-        setNewlyCreatedExerciseId(null);
-      }, 3000);
-      
-      Alert.alert('Success', `Exercise "${name}" created successfully!`);
-      
-      // Reset et retourner au mode sélection d'exercices
+      // Reset et retourner au mode sélection d'exercices AVANT de sélectionner
       setExerciseCreationStep('name');
       setExerciseCreationData({});
       exerciseSelection.startExerciseSelection();
+      
+      // Convertir l'exercice personnalisé en Exercise pour la sélection
+      const exerciseForSelection = CustomExerciseService.convertToExercise(newExercise);
+      
+      // Attendre un court instant pour que le mode soit bien changé
+      setTimeout(() => {
+        // Sélectionner automatiquement l'exercice nouvellement créé
+        console.log('[WorkoutDetailModal] Auto-selecting exercise:', exerciseForSelection.name);
+        exerciseSelection.toggleExerciseSelection(exerciseForSelection);
+        
+        // Stocker l'ID du nouvel exercice pour le highlight
+        setNewlyCreatedExerciseId(newExercise.id);
+        
+        // Supprimer le highlight après 3 secondes
+        setTimeout(() => {
+          setNewlyCreatedExerciseId(null);
+        }, 3000);
+      }, 100);
+      
+      Alert.alert('Success', `Exercise "${name}" created successfully! It has been selected for you.`);
     } catch (error: any) {
       console.error('[WorkoutDetailModal] Error creating exercise:', error);
       Alert.alert('Error', error.message || 'Failed to create exercise');
@@ -240,6 +274,14 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
 
   const handleExerciseCategoriesBack = () => {
     setExerciseCreationStep('tracking');
+  };
+  
+  // Fonction pour scroller vers l'exercice nouvellement créé
+  const scrollToNewExercise = (exerciseId: string) => {
+    // Note: Comme on utilise map() et non FlatList, on ne peut pas vraiment scroller
+    // vers un élément spécifique facilement. Le highlight visuel sera suffisant.
+    // Si nécessaire, on pourrait convertir en FlatList plus tard pour un meilleur scroll
+    console.log('[WorkoutDetailModal] Newly created exercise highlighted:', exerciseId);
   };
   
   // Fonction pour annuler complètement la création d'exercice
@@ -391,12 +433,64 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     // Initialiser la session avec les records capturés
     workoutSession.initializeSession(capturedRecords);
     
+    // Préparer les données de tracking initiales avec les placeholders
+    const initialTrackingData: TrackingData = {};
+    exercises.forEach(exercise => {
+      // Récupérer les données du précédent workout pour cet exercice
+      const previousData = getPreviousWorkoutData(workout.id, exercise.name);
+      console.log(`[WorkoutDetailModal] Previous data for ${exercise.name}:`, {
+        weightPlaceholder: previousData.weightPlaceholder,
+        repsPlaceholder: previousData.repsPlaceholder,
+        setCount: previousData.setCount
+      });
+      
+      // Déterminer le nombre de séries à créer
+      let setCount = exercise.sets || 3; // 3 par défaut
+      if (previousData.setCount && previousData.setCount > 0) {
+        // Utiliser le nombre de séries de la dernière fois
+        setCount = previousData.setCount;
+      }
+      
+      // Créer les sets avec les placeholders
+      const sets: TrackingSet[] = Array(setCount).fill(0).map((_, index) => {
+        // Si on a des sets précédents et qu'il y a un set complété à cet index
+        if (previousData.sets && previousData.sets[index] && previousData.sets[index].completed) {
+          const prevSet = previousData.sets[index];
+          return {
+            completed: false,
+            weight: '',
+            reps: '',
+            weightPlaceholder: prevSet.weight > 0 ? prevSet.weight.toString() : '0',
+            repsPlaceholder: prevSet.reps > 0 ? prevSet.reps.toString() : '0',
+          };
+        }
+        
+        // Sinon, utiliser les placeholders génériques (dernière valeur complétée)
+        return {
+          completed: false,
+          weight: '',
+          reps: '',
+          weightPlaceholder: previousData.weightPlaceholder || '0',
+          repsPlaceholder: previousData.repsPlaceholder || '0',
+        };
+      });
+      
+      initialTrackingData[exercise.id] = {
+        completedSets: 0,
+        sets,
+      };
+      
+      console.log(`[WorkoutDetailModal] Created ${sets.length} sets for ${exercise.name} with placeholders:`, 
+        sets.map(s => `${s.weightPlaceholder}kg x ${s.repsPlaceholder}reps`).join(', ')
+      );
+    });
+    
     // Démarrer une nouvelle séance via le contexte
     // Le contexte gère maintenant le timer
     // IMPORTANT: Utiliser l'état local 'exercises' et non 'workout.exercises'
     // pour inclure les exercices ajoutés récemment
-    // Démarrer le workout avec les exercices sélectionnés
-    startWorkout(workout.id, workout.name, exercises);
+    // Démarrer le workout avec les exercices sélectionnés et les données initiales
+    startWorkout(workout.id, workout.name, exercises, initialTrackingData);
     updateElapsedTime(0);
   };
 
@@ -852,11 +946,11 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     // On vérifie si c'est un PR seulement quand la série est complétée (pas quand on décoche)
     if (isNowCompleted) {
       // Trouver l'exercice correspondant
-      const exercise = currentExercises.find(ex => ex.id === modalManagement.selectedExerciseId);
+      const exercise = exercises.find(ex => ex.id === modalManagement.selectedExerciseId);
       
       if (exercise) {
-        // Démarrer ou réinitialiser le timer de repos
-        resetTimer(exercise);
+        // Démarrer le timer de repos
+        startRestTimer(exercise);
         
         // Vérifier si c'est un PR (seulement si weight et reps sont renseignés)
         const weight = parseInt(newSets[index].weight) || 0;
@@ -968,15 +1062,10 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
         updatedAt: new Date().toISOString()
       };
       updateWorkout(updatedWorkout);
-      // Workout saved after updating rest time
     }
     
-    // Les changements sont maintenant sauvegardés (gérés automatiquement par le hook) // Les changements sont maintenant sauvegardés
-    
-    // Si on est en tracking, mettre à jour le reset timer dans le contexte
-    if (isTrackingWorkout) {
-      resetTimer(updatedExercise);
-    }
+    // NE PAS déclencher le timer ici - c'est juste un setting qui s'appliquera
+    // au prochain démarrage du timer (lors de la validation de la prochaine série)
   };
 
   // Rendu de l'état vide avec le même style que la page d'accueil
@@ -1276,13 +1365,53 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     modalManagement.showExerciseSettingsModal(exercise, false);
   };
 
-  // Fonction pour ouvrir la modal de paramètres d'exercice
-  const handleExerciseSettings = (exerciseId: string) => {
+  // Fonction pour ouvrir le context menu de paramètres d'exercice
+  const handleExerciseSettings = (exerciseId: string, event: any) => {
     const exercise = exercises.find(ex => ex.id === exerciseId);
-    if (exercise) {
-      handleOpenSettings(exercise);
+    if (exercise && event?.currentTarget) {
+      setSelectedExerciseForMenu(exercise);
+      // Mesurer la position du bouton pour positionner le menu
+      event.currentTarget.measure((x: number, y: number, width: number, height: number, pageX: number, pageY: number) => {
+        setExerciseMenuAnchor({ x: pageX, y: pageY, width, height });
+        setIsExerciseMenuVisible(true);
+      });
     }
   };
+  
+  // Configuration des items du menu contextuel d'exercice
+  const exerciseMenuItems: ContextMenuItem[] = selectedExerciseForMenu ? [
+    {
+      key: 'replace',
+      label: 'Replace exercise',
+      icon: 'swap-horizontal-outline',
+      onPress: () => {
+        if (selectedExerciseForMenu) {
+          startReplaceExercise(selectedExerciseForMenu.id);
+        }
+      },
+    },
+    {
+      key: 'timer',
+      label: 'Configure rest timer',
+      icon: 'timer-outline',
+      onPress: () => {
+        if (selectedExerciseForMenu) {
+          modalManagement.showExerciseSettingsModal(selectedExerciseForMenu, true);
+        }
+      },
+    },
+    {
+      key: 'delete',
+      label: 'Delete exercise',
+      icon: 'trash-outline',
+      onPress: () => {
+        if (selectedExerciseForMenu) {
+          handleRemoveExercise(selectedExerciseForMenu.id);
+        }
+      },
+      destructive: true,
+    },
+  ] : [];
 
   // Fonction pour mettre à jour le poids d'une série
   const handleWeightChange = (index: number, value: string) => {
@@ -1557,7 +1686,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                               
                               {!isTrackingWorkout ? (
                                 <TouchableOpacity 
-                                  onPress={() => handleExerciseSettings(exercise.id)}
+                                  onPress={(event) => handleExerciseSettings(exercise.id, event)}
                                   style={styles.exerciseSettingsButton}
                                 >
                                   <Ionicons name="ellipsis-vertical" size={24} color="#5B5B5C" />
@@ -1786,6 +1915,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                   <ExerciseCreateNameScreen
                     onNext={handleExerciseNameNext}
                     onClose={handleCancelCreateExercise}
+                    existingExercises={exerciseSelection.allExercises.map(ex => ex.name)}
                   />
                 )}
                 {exerciseCreationStep === 'tracking' && (
@@ -1912,7 +2042,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
             )}
                 </View>
       
-      {/* Modale des paramètres d'exercice */}
+      {/* Modale des paramètres d'exercice (utilisée uniquement pour la configuration du rest timer) */}
       <ExerciseSettingsModal
         visible={modalManagement.settingsModalVisible}
         onClose={() => {
@@ -1930,8 +2060,26 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
         openTimerDirectly={modalManagement.openTimerDirectly}
       />
       
+      {/* Context menu pour les paramètres d'exercice */}
+      <ContextMenu
+        visible={isExerciseMenuVisible}
+        onClose={() => {
+          setIsExerciseMenuVisible(false);
+          setSelectedExerciseForMenu(null);
+        }}
+        items={exerciseMenuItems}
+        anchorPosition={exerciseMenuAnchor || undefined}
+      />
+      
       {/* Afficher le timer de repos s'il est actif */}
-      <RestTimer />
+      <RestTimer 
+        onOpenSettings={() => {
+          // Récupérer l'exercice actuel depuis le contexte du rest timer
+          if (currentRestExercise) {
+            modalManagement.showExerciseSettingsModal(currentRestExercise, true);
+          }
+        }}
+      />
       
       {/* Modale pour les filtres */}
       <ExerciseFilterModal

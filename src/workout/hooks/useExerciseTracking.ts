@@ -153,9 +153,17 @@ export const useExerciseTracking = (): UseExerciseTrackingReturn => {
       const wasCompleted = newSets[index].completed;
       const isNowCompleted = !wasCompleted;
       
+      // Si on valide la série (isNowCompleted === true) et que les champs sont vides,
+      // utiliser les placeholders comme valeurs
+      const currentSet = newSets[index];
+      const weight = currentSet.weight || (isNowCompleted ? (currentSet.weightPlaceholder || '') : '');
+      const reps = currentSet.reps || (isNowCompleted ? (currentSet.repsPlaceholder || '') : '');
+      
       newSets[index] = {
         ...newSets[index],
-        completed: isNowCompleted
+        completed: isNowCompleted,
+        weight,
+        reps
       };
       
       setExerciseSets(newSets);

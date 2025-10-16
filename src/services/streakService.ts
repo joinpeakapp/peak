@@ -71,6 +71,11 @@ export const StreakService = {
   ): boolean => {
     if (!lastCompletionDate) return true;
     
+    // Pour les workouts sans fréquence définie, pas de streak tracking
+    if (frequency.type === 'none') {
+      return false; // Pas de streak pour les workouts flexibles
+    }
+    
     const lastDate = parse(lastCompletionDate, 'yyyy-MM-dd', new Date());
     
     // Calculer la date limite pour maintenir la streak (2x la durée attendue)
@@ -168,6 +173,18 @@ export const StreakService = {
       const formattedDate = format(completionDate, 'yyyy-MM-dd');
       
       console.log(`[StreakService] Updating streak for workout ${workoutId} (${workout.name}) on ${formattedDate}`);
+      
+      // Pour les workouts sans fréquence définie (type 'none'), on ne gère pas de streak
+      if (workout.frequency.type === 'none') {
+        console.log(`[StreakService] Workout ${workoutId} has no defined frequency (flexible schedule), skipping streak tracking`);
+        return {
+          workoutId,
+          current: 0,
+          longest: 0,
+          lastCompletedDate: formattedDate,
+          streakHistory: []
+        };
+      }
       
       // Récupérer les données de streak existantes (avec validation automatique)
       let streakData = await StreakService.getWorkoutStreak(workoutId, workout);
@@ -282,6 +299,11 @@ export const StreakService = {
    */
   getDaysUntilStreakLoss: (lastCompletionDate: string | undefined, frequency: WorkoutFrequency): number => {
     if (!lastCompletionDate) return 0;
+    
+    // Pour les workouts sans fréquence définie (type 'none'), pas de streak tracking
+    if (frequency.type === 'none') {
+      return 0;
+    }
     
     const lastDate = parse(lastCompletionDate, 'yyyy-MM-dd', new Date());
     const currentDate = new Date();

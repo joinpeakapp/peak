@@ -11,6 +11,8 @@ export interface TrackingSet {
   completed: boolean;
   weight: string;
   reps: string;
+  weightPlaceholder?: string;
+  repsPlaceholder?: string;
 }
 
 export interface TrackingData {
@@ -37,7 +39,7 @@ export interface ActiveWorkout {
 // Interface du contexte
 interface ActiveWorkoutContextValue {
   activeWorkout: ActiveWorkout | null;
-  startWorkout: (workoutId: string, workoutName: string, exercises: Exercise[]) => void;
+  startWorkout: (workoutId: string, workoutName: string, exercises: Exercise[], initialTrackingData?: TrackingData) => void;
   finishWorkout: (updateStreak?: boolean) => Promise<void>;
   forceCleanupSession: () => Promise<void>; // Nouvelle fonction de nettoyage d'urgence
   updateTrackingData: (exerciseId: string, sets: TrackingSet[], completedSets: number) => void;
@@ -252,19 +254,27 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [activeWorkout]);
 
   // Démarrer une nouvelle séance
-  const startWorkout = (workoutId: string, workoutName: string, exercises: Exercise[]) => {
-    // Initialiser les données de tracking pour chaque exercice
-    const initialTrackingData: TrackingData = {};
-    exercises.forEach(exercise => {
-      initialTrackingData[exercise.id] = {
-        completedSets: 0,
-        sets: Array(exercise.sets || 1).fill(0).map(() => ({
-          completed: false,
-          weight: '',
-          reps: '',
-        }))
-      };
-    });
+  const startWorkout = (
+    workoutId: string, 
+    workoutName: string, 
+    exercises: Exercise[], 
+    initialTrackingData?: TrackingData
+  ) => {
+    // Utiliser les données de tracking fournies ou initialiser par défaut
+    const trackingData = initialTrackingData || (() => {
+      const defaultTrackingData: TrackingData = {};
+      exercises.forEach(exercise => {
+        defaultTrackingData[exercise.id] = {
+          completedSets: 0,
+          sets: Array(exercise.sets || 1).fill(0).map(() => ({
+            completed: false,
+            weight: '',
+            reps: '',
+          }))
+        };
+      });
+      return defaultTrackingData;
+    })();
 
     const newActiveWorkout: ActiveWorkout = {
       workoutId,
@@ -273,7 +283,7 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
       startTime: Date.now(),
       elapsedTime: 0,
       lastResumeTime: Date.now(),
-      trackingData: initialTrackingData,
+      trackingData,
       isActive: true,
     };
 
