@@ -11,10 +11,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRestTimer } from '../contexts/RestTimerContext';
 
 interface RestTimerProps {
-  // Propriétés supplémentaires si nécessaire
+  onOpenSettings?: () => void; // Callback pour ouvrir les settings
 }
 
-const RestTimer: React.FC<RestTimerProps> = () => {
+const RestTimer: React.FC<RestTimerProps> = ({ onOpenSettings }) => {
   const { 
     isTimerActive, 
     isPaused, 
@@ -66,10 +66,14 @@ const RestTimer: React.FC<RestTimerProps> = () => {
   return (
     <View style={styles.container}>
       <View style={styles.timerCard}>
-        <View style={styles.infoContainer}>
+        <TouchableOpacity 
+          style={styles.infoContainer}
+          onPress={onOpenSettings}
+          activeOpacity={0.7}
+        >
           <Text style={styles.restForText}>rest for</Text>
           <Text style={styles.timerText}>{formatTime(currentTime)}</Text>
-        </View>
+        </TouchableOpacity>
         
         <TouchableOpacity 
           style={styles.actionButton}

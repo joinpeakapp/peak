@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -8,17 +8,21 @@ import {
   ScrollView,
   Platform,
   TouchableWithoutFeedback,
-  Keyboard
+  Keyboard,
+  Animated
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useWorkout } from '../../hooks/useWorkout';
 import { Workout, WorkoutFrequency } from '../../types/workout';
+import { Picker } from '@react-native-picker/picker';
 
 interface WorkoutEditScreenProps {
   workout: Workout;
   onSave: () => void;
   onClose: () => void;
 }
+
+type FrequencyTab = 'weekly' | 'interval' | 'none';
 
 const DAYS_OF_WEEK = [
   { value: 0, label: 'Monday' },
@@ -30,17 +34,34 @@ const DAYS_OF_WEEK = [
   { value: 6, label: 'Sunday' },
 ];
 
+// Génerer les options d'intervalle (1-30 jours)
+const INTERVAL_OPTIONS = Array.from({ length: 30 }, (_, i) => i + 1);
+
 export const WorkoutEditScreen: React.FC<WorkoutEditScreenProps> = ({
   workout,
   onSave,
   onClose
 }) => {
   const [name, setName] = useState(workout.name);
+  
+  // Initialiser le tab actif en fonction de la fréquence du workout
+  const [activeTab, setActiveTab] = useState<FrequencyTab>(workout.frequency.type);
+  
   const [selectedDay, setSelectedDay] = useState<number>(
     workout.frequency.type === 'weekly' ? workout.frequency.value : 0
   );
+  
+  const [selectedInterval, setSelectedInterval] = useState<number>(
+    workout.frequency.type === 'interval' ? workout.frequency.value : 3
+  );
+  
   const [error, setError] = useState('');
   const { updateWorkout: updateWorkoutFn, workouts } = useWorkout();
+  
+  // Animation pour l'indicateur de tab
+  const tabIndicatorPosition = useRef(new Animated.Value(
+    workout.frequency.type === 'weekly' ? 0 : workout.frequency.type === 'interval' ? 1 : 2
+  )).current;
 
   const validateName = () => {
     // Check if field is empty
@@ -73,14 +94,40 @@ export const WorkoutEditScreen: React.FC<WorkoutEditScreenProps> = ({
   const handleDaySelect = (dayValue: number) => {
     setSelectedDay(dayValue);
   };
+  
+  const handleTabChange = (tab: FrequencyTab) => {
+    setActiveTab(tab);
+    
+    // Animation de l'indicateur
+    const tabIndex = tab === 'weekly' ? 0 : tab === 'interval' ? 1 : 2;
+    Animated.spring(tabIndicatorPosition, {
+      toValue: tabIndex,
+      useNativeDriver: true,
+      tension: 80,
+      friction: 10,
+    }).start();
+  };
 
   const handleSave = () => {
     if (validateName()) {
-      // Create a frequency object for the workout
-      const frequency: WorkoutFrequency = {
-        type: 'weekly',
-        value: selectedDay
-      };
+      let frequency: WorkoutFrequency;
+      
+      if (activeTab === 'weekly') {
+        frequency = {
+          type: 'weekly',
+          value: selectedDay
+        };
+      } else if (activeTab === 'interval') {
+        frequency = {
+          type: 'interval',
+          value: selectedInterval
+        };
+      } else {
+        frequency = {
+          type: 'none',
+          value: 0
+        };
+      }
 
       // Update the workout
       const updatedWorkout: Workout = {
@@ -140,25 +187,94 @@ export const WorkoutEditScreen: React.FC<WorkoutEditScreenProps> = ({
               </View>
 
               <Text style={styles.sectionTitle}>Workout schedule</Text>
-              <View style={styles.daysContainer}>
-                {DAYS_OF_WEEK.map((day) => (
-                  <TouchableOpacity
-                    key={day.value}
-                    style={[
-                      styles.dayOption,
-                      selectedDay === day.value && styles.dayOptionSelected
-                    ]}
-                    onPress={() => handleDaySelect(day.value)}
-                  >
-                    <Text style={[
-                      styles.dayText,
-                      selectedDay === day.value && styles.dayTextSelected
-                    ]}>
-                      {day.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+              
+              {/* Tabs */}
+              <View style={styles.tabsContainer}>
+                <TouchableOpacity 
+                  style={[styles.tab, activeTab === 'weekly' && styles.tabActive]}
+                  onPress={() => handleTabChange('weekly')}
+                >
+                  <Text style={[styles.tabText, activeTab === 'weekly' && styles.tabTextActive]}>
+                    Weekly
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[styles.tab, activeTab === 'interval' && styles.tabActive]}
+                  onPress={() => handleTabChange('interval')}
+                >
+                  <Text style={[styles.tabText, activeTab === 'interval' && styles.tabTextActive]}>
+                    Interval
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[styles.tab, activeTab === 'none' && styles.tabActive]}
+                  onPress={() => handleTabChange('none')}
+                >
+                  <Text style={[styles.tabText, activeTab === 'none' && styles.tabTextActive]}>
+                    Flexible
+                  </Text>
+                </TouchableOpacity>
               </View>
+              
+              {/* Content selon le tab actif */}
+              {activeTab === 'weekly' && (
+                <View style={styles.daysContainer}>
+                  {DAYS_OF_WEEK.map((day) => (
+                    <TouchableOpacity
+                      key={day.value}
+                      style={[
+                        styles.dayOption,
+                        selectedDay === day.value && styles.dayOptionSelected
+                      ]}
+                      onPress={() => handleDaySelect(day.value)}
+                    >
+                      <Text style={[
+                        styles.dayText,
+                        selectedDay === day.value && styles.dayTextSelected
+                      ]}>
+                        {day.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+              
+              {activeTab === 'interval' && (
+                <View style={styles.intervalContainer}>
+                  <Text style={styles.intervalLabel}>Repeat every</Text>
+                  <View style={styles.pickerContainer}>
+                    <Picker
+                      selectedValue={selectedInterval}
+                      onValueChange={(itemValue) => setSelectedInterval(itemValue)}
+                      style={styles.picker}
+                      itemStyle={styles.pickerItem}
+                    >
+                      {INTERVAL_OPTIONS.map((days) => (
+                        <Picker.Item 
+                          key={days} 
+                          label={days === 1 ? "1 day" : `${days} days`} 
+                          value={days} 
+                        />
+                      ))}
+                    </Picker>
+                  </View>
+                  <Text style={styles.intervalDescription}>
+                    Your workout will repeat every {selectedInterval} {selectedInterval === 1 ? 'day' : 'days'}
+                  </Text>
+                </View>
+              )}
+              
+              {activeTab === 'none' && (
+                <View style={styles.noneContainer}>
+                  <Ionicons name="time-outline" size={48} color="rgba(255, 255, 255, 0.3)" />
+                  <Text style={styles.noneTitle}>Flexible schedule</Text>
+                  <Text style={styles.noneDescription}>
+                    This workout won't have a specific schedule. You can do it whenever you want.
+                  </Text>
+                </View>
+              )}
             </ScrollView>
           </View>
 
@@ -241,6 +357,33 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 16,
   },
+  // Tabs
+  tabsContainer: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 24,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  tabActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.5)',
+  },
+  tabTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  // Weekly content
   daysContainer: {
     marginBottom: 32,
   },
@@ -262,6 +405,59 @@ const styles = StyleSheet.create({
   dayTextSelected: {
     fontWeight: '600',
   },
+  // Interval content
+  intervalContainer: {
+    marginBottom: 32,
+  },
+  intervalLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  pickerContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 24,
+  },
+  picker: {
+    width: '100%',
+    color: '#FFFFFF',
+  },
+  pickerItem: {
+    fontSize: 20,
+    color: '#FFFFFF',
+    height: 120,
+  },
+  intervalDescription: {
+    fontSize: 14,
+    color: '#AAAAAA',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  // None content
+  noneContainer: {
+    alignItems: 'center',
+    paddingVertical: 48,
+    paddingHorizontal: 32,
+    marginBottom: 32,
+  },
+  noneTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginTop: 24,
+    marginBottom: 12,
+  },
+  noneDescription: {
+    fontSize: 14,
+    color: '#AAAAAA',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  // Button
   saveButton: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,

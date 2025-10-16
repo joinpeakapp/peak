@@ -1,8 +1,8 @@
-import React, { memo, useState } from 'react';
+import React, { memo, useState, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Workout } from '../../types/workout';
-import { WorkoutSettingsModal } from './WorkoutSettingsModal';
+import { ContextMenu, ContextMenuItem } from '../../components/common/ContextMenu';
 import { StreakDisplay } from './StreakDisplay';
 
 interface WorkoutCardProps {
@@ -38,6 +38,8 @@ const formatFrequency = (frequency: any): string => {
         return `Every ${intervalValue} day${intervalValue > 1 ? 's' : ''}`;
       }
       return 'Daily';
+    } else if (frequency.type === 'none') {
+      return 'Flexible schedule';
     }
   }
   
@@ -74,25 +76,40 @@ export const WorkoutCard = memo<WorkoutCardProps>(({
   onDelete,
 }) => {
   const { name, frequency } = workout;
-  const [isSettingsVisible, setIsSettingsVisible] = useState(false);
+  const [isMenuVisible, setIsMenuVisible] = useState(false);
+  const [buttonLayout, setButtonLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const settingsButtonRef = useRef<TouchableOpacity>(null);
 
-  // Fonction pour gérer le clic sur l'option d'édition
-  const handleEditPress = () => {
-    // Fermer le modal de paramètres
-    setIsSettingsVisible(false);
-    // Utiliser setTimeout pour s'assurer que le modal est bien fermé avant d'ouvrir l'édition
-    setTimeout(() => {
-      // Puis appeler le callback d'édition
-      onEdit();
-    }, 400);
-  };
+  // Menu items configuration
+  const menuItems: ContextMenuItem[] = [
+    {
+      key: 'edit',
+      label: 'Edit workout',
+      icon: 'pencil-outline',
+      onPress: onEdit,
+    },
+    {
+      key: 'delete',
+      label: 'Delete workout',
+      icon: 'trash-outline',
+      onPress: onDelete,
+      destructive: true,
+    },
+  ];
 
-  // Fonction pour gérer le clic sur l'option de suppression
-  const handleDeletePress = () => {
-    setIsSettingsVisible(false);
-    setTimeout(() => {
-      onDelete();
-    }, 400);
+  // Handle settings button press
+  const handleSettingsPress = () => {
+    if (settingsButtonRef.current) {
+      settingsButtonRef.current.measure((x, y, width, height, pageX, pageY) => {
+        setButtonLayout({ x: pageX, y: pageY, width, height });
+        setIsMenuVisible(true);
+      });
+    }
   };
 
   return (
@@ -111,21 +128,22 @@ export const WorkoutCard = memo<WorkoutCardProps>(({
           <View style={styles.rightContent}>
             <StreakDisplay workout={workout} showDaysRemaining={false} />
             <TouchableOpacity
+              ref={settingsButtonRef}
               testID="settings-button"
               style={styles.settingsButton}
-              onPress={() => setIsSettingsVisible(true)}
+              onPress={handleSettingsPress}
             >
-              <Ionicons name="settings-outline" size={24} color="#5B5B5C" />
+              <Ionicons name="ellipsis-vertical" size={24} color="#5B5B5C" />
             </TouchableOpacity>
           </View>
         </View>
       </TouchableOpacity>
 
-      <WorkoutSettingsModal
-        visible={isSettingsVisible}
-        onClose={() => setIsSettingsVisible(false)}
-        onEdit={handleEditPress}
-        onDelete={handleDeletePress}
+      <ContextMenu
+        visible={isMenuVisible}
+        onClose={() => setIsMenuVisible(false)}
+        items={menuItems}
+        anchorPosition={buttonLayout || undefined}
       />
     </>
   );

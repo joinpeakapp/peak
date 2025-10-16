@@ -15,11 +15,13 @@ import { Ionicons } from '@expo/vector-icons';
 interface ExerciseCreateNameScreenProps {
   onNext: (name: string) => void;
   onClose: () => void;
+  existingExercises?: string[]; // Liste des noms d'exercices existants
 }
 
 export const ExerciseCreateNameScreen: React.FC<ExerciseCreateNameScreenProps> = ({
   onNext,
-  onClose
+  onClose,
+  existingExercises = []
 }) => {
   const [name, setName] = useState('');
   const [error, setError] = useState('');
@@ -32,6 +34,16 @@ export const ExerciseCreateNameScreen: React.FC<ExerciseCreateNameScreenProps> =
     
     if (name.length > 30) {
       setError('Exercise name must be 30 characters or less');
+      return false;
+    }
+    
+    // Vérifier si un exercice avec ce nom existe déjà
+    const nameExists = existingExercises.some(
+      exerciseName => exerciseName.toLowerCase().trim() === name.toLowerCase().trim()
+    );
+    
+    if (nameExists) {
+      setError('An exercise with this name already exists');
       return false;
     }
     

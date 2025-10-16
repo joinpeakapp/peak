@@ -10,6 +10,7 @@ interface RestTimerContextValue {
   isPaused: boolean;
   currentTime: number;
   totalTime: number;
+  currentExercise: Exercise | null;
   startRestTimer: (exercise: Exercise) => void;
   pauseTimer: () => void;
   resumeTimer: () => void;
@@ -34,6 +35,7 @@ const defaultContextValue: RestTimerContextValue = {
   isPaused: false,
   currentTime: 0,
   totalTime: 0,
+  currentExercise: null,
   startRestTimer: () => {},
   pauseTimer: () => {},
   resumeTimer: () => {},
@@ -60,6 +62,7 @@ export const RestTimerProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [currentTime, setCurrentTime] = useState(0);
   const [totalTime, setTotalTime] = useState(0);
   const [currentExerciseId, setCurrentExerciseId] = useState<string | undefined>(undefined);
+  const [currentExercise, setCurrentExercise] = useState<Exercise | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const appStateRef = useRef(AppState.currentState);
   const { isTrackingWorkout } = useActiveWorkout();
@@ -298,6 +301,7 @@ export const RestTimerProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setTotalTime(restTime);
     setCurrentTime(restTime);
     setCurrentExerciseId(exercise.id);
+    setCurrentExercise(exercise);
     
     // Mettre à jour l'état pour activer le timer
     setIsTimerActive(true);
@@ -385,6 +389,7 @@ export const RestTimerProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setTotalTime(restTime);
     setCurrentTime(restTime);
     setCurrentExerciseId(exercise.id);
+    setCurrentExercise(exercise);
     
     // Mettre à jour l'état pour activer le timer
     setIsTimerActive(true);
@@ -420,7 +425,9 @@ export const RestTimerProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setIsTimerActive(false);
     setIsPaused(false);
     setCurrentTime(0);
+    setTotalTime(0);
     setCurrentExerciseId(undefined);
+    setCurrentExercise(null);
     
     // Supprimer les données du timer
     AsyncStorage.removeItem(REST_TIMER_STORAGE_KEY)
@@ -434,6 +441,7 @@ export const RestTimerProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         isPaused,
         currentTime,
         totalTime,
+        currentExercise,
         startRestTimer,
         pauseTimer,
         resumeTimer,

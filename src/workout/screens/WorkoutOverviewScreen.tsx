@@ -156,7 +156,7 @@ export const WorkoutOverviewScreen: React.FC = () => {
 
   // Charger les stickers pour tous les workouts du carousel
   useEffect(() => {
-    if (isCarouselMode && workouts) {
+    if (sourceType === 'journal' && workouts && workouts.length > 0) {
       const loadCarouselStickers = async () => {
         const stickersMap: Record<string, Sticker[]> = {};
         
@@ -175,7 +175,7 @@ export const WorkoutOverviewScreen: React.FC = () => {
 
       loadCarouselStickers();
     }
-  }, [isCarouselMode, workouts]);
+  }, [sourceType, workouts]);
 
   // Rendu d'un workout dans le carousel (pour le mode journal)
   const renderWorkoutItem = useCallback(({ item }: { item: CompletedWorkout }) => {

@@ -82,8 +82,8 @@ export interface Workout {
 
 // Pour gestion de la fréquence avec structure
 export interface WorkoutFrequency {
-  type: 'weekly' | 'interval';  // Type de fréquence
-  value: number;                // Valeur numérique (jour de la semaine ou intervalle en jours)
+  type: 'weekly' | 'interval' | 'none';  // Type de fréquence
+  value: number;                         // Valeur numérique (jour de la semaine ou intervalle en jours, 0 pour 'none')
 }
 
 // Types pour les streak (séries consécutives d'entraînements)

@@ -149,7 +149,7 @@ export const SetRow: React.FC<SetRowProps> = ({
               }
             ]}
             keyboardType="numeric"
-            placeholder="0"
+            placeholder={set.weightPlaceholder || "0"}
             placeholderTextColor="rgba(255, 255, 255, 0.3)"
             value={set.weight}
             onChangeText={(value) => onWeightChange(index, value)}
@@ -192,7 +192,7 @@ export const SetRow: React.FC<SetRowProps> = ({
               }
             ]}
             keyboardType="numeric"
-            placeholder="0"
+            placeholder={set.repsPlaceholder || "0"}
             placeholderTextColor="rgba(255, 255, 255, 0.3)"
             value={set.reps}
             onChangeText={(value) => onRepsChange(index, value)}

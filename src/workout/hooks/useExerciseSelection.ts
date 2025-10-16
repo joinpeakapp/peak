@@ -16,6 +16,7 @@ export interface UseExerciseSelectionReturn {
   modalMode: ExerciseSelectionMode;
   
   // Exercises filtrés et groupés
+  allExercises: Exercise[];
   filteredExercises: Exercise[];
   groupedExercises: { letter: string; data: Exercise[] }[];
   allTags: string[];
@@ -225,6 +226,7 @@ export const useExerciseSelection = (): UseExerciseSelectionReturn => {
     modalMode,
     
     // Exercices filtrés
+    allExercises,
     filteredExercises,
     groupedExercises,
     allTags,

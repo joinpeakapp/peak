@@ -169,17 +169,19 @@ export const WorkoutHistoryProvider: React.FC<{ children: ReactNode }> = ({ chil
           return { weightPlaceholder: '', repsPlaceholder: '' };
         }
 
-        // Rechercher le même type de workout par ID
+        // Rechercher le même type de workout par workoutId (ID du template)
         const similarWorkouts = completedWorkouts.filter(
-          (workout) => workout.id === workoutId
+          (workout) => workout.workoutId === workoutId
         );
 
         if (similarWorkouts.length === 0) {
+          console.log(`[WorkoutHistory] No previous workouts found for workoutId: ${workoutId}`);
           return { weightPlaceholder: '', repsPlaceholder: '' };
         }
 
         // Prendre le dernier workout similaire (le plus récent)
         const lastWorkout = similarWorkouts[similarWorkouts.length - 1];
+        console.log(`[WorkoutHistory] Found previous workout for ${workoutId}:`, lastWorkout.id, lastWorkout.date);
         
         // Trouver l'exercice correspondant
         const exercise = lastWorkout.exercises.find(
@@ -187,11 +189,15 @@ export const WorkoutHistoryProvider: React.FC<{ children: ReactNode }> = ({ chil
         );
 
         if (!exercise || !exercise.sets || exercise.sets.length === 0) {
+          console.log(`[WorkoutHistory] No exercise or sets found for ${exerciseName}`);
           return { weightPlaceholder: '', repsPlaceholder: '' };
         }
 
+        console.log(`[WorkoutHistory] Found exercise ${exerciseName} with ${exercise.sets.length} sets`);
+        
         // Prendre les dernières valeurs complétées
         const completedSets = exercise.sets.filter((set) => set.completed);
+        console.log(`[WorkoutHistory] ${completedSets.length} completed sets found for ${exerciseName}`);
         
         if (completedSets.length === 0) {
           return { 
@@ -211,13 +217,22 @@ export const WorkoutHistoryProvider: React.FC<{ children: ReactNode }> = ({ chil
         // Récupérer également les records personnels pour cet exercice
         const personalRecord = getPersonalRecords(exerciseName);
 
-        return { 
+        const result = { 
           weightPlaceholder, 
           repsPlaceholder,
           sets: exercise.sets,
           personalRecord,
           setCount: exercise.sets.length
         };
+        
+        console.log(`[WorkoutHistory] Returning placeholders for ${exerciseName}:`, {
+          weightPlaceholder,
+          repsPlaceholder,
+          setCount: exercise.sets.length,
+          sets: exercise.sets.map(s => `${s.weight}kg x ${s.reps}reps (${s.completed ? 'completed' : 'not completed'})`)
+        });
+        
+        return result;
       } catch (error) {
         console.error(`[WorkoutHistory] Error getting previous workout data: ${error}`);
         return { weightPlaceholder: '', repsPlaceholder: '' };

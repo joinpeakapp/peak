@@ -315,13 +315,13 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
                   keyboardShouldPersistTaps="handled"
                 >
                   <View style={styles.timerHeader}>
+                    <Text style={styles.timerTitle}>Rest Timer</Text>
                     <TouchableOpacity 
                       style={styles.backButton}
                       onPress={handleBackToMenu}
                     >
-                      <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+                      <Ionicons name="chevron-down" size={24} color="#FFFFFF" />
                     </TouchableOpacity>
-                    <Text style={styles.timerTitle}>Rest Timer</Text>
                   </View>
                   
                   <Text style={styles.timerSubtitle}>
@@ -486,27 +486,32 @@ const styles = StyleSheet.create({
   timerHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingTop: 24,
     marginBottom: 16,
   },
   backButton: {
     padding: 8,
-    marginRight: 16,
   },
   timerTitle: {
     fontSize: 20,
     fontWeight: '600',
     color: '#FFFFFF',
+    flex: 1,
   },
   timerSubtitle: {
     fontSize: 16,
     color: 'rgba(255, 255, 255, 0.6)',
     marginBottom: 32,
+    paddingHorizontal: 24,
   },
   timeInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 32,
+    paddingHorizontal: 24,
   },
   timeInput: {
     flexDirection: 'row',
@@ -533,9 +538,10 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 8,
+    borderRadius: 12,
     padding: 16,
     alignItems: 'center',
+    marginHorizontal: 24,
   },
   saveButtonText: {
     color: '#000000',

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -7,12 +7,14 @@ import {
   ScrollView,
   Platform,
   TouchableWithoutFeedback,
-  Keyboard
+  Keyboard,
+  Animated
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useWorkout } from '../../hooks/useWorkout';
 import { WorkoutFrequency } from '../../types/workout';
 import { Workout } from '../../types/workout';
+import { Picker } from '@react-native-picker/picker';
 
 // Fonction pour générer un ID unique compatible avec Hermes
 const generateId = (): string => {
@@ -25,6 +27,8 @@ interface WorkoutCreateFrequencyScreenProps {
   onBack: () => void;
 }
 
+type FrequencyTab = 'weekly' | 'interval' | 'none';
+
 const DAYS_OF_WEEK = [
   { value: 0, label: 'Monday' },
   { value: 1, label: 'Tuesday' },
@@ -35,26 +39,61 @@ const DAYS_OF_WEEK = [
   { value: 6, label: 'Sunday' },
 ];
 
+// Génerer les options d'intervalle (1-30 jours)
+const INTERVAL_OPTIONS = Array.from({ length: 30 }, (_, i) => i + 1);
+
 export const WorkoutCreateFrequencyScreen: React.FC<WorkoutCreateFrequencyScreenProps> = ({
   name,
   onComplete,
   onBack
 }) => {
+  const [activeTab, setActiveTab] = useState<FrequencyTab>('weekly');
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [selectedInterval, setSelectedInterval] = useState<number>(3); // Default: 3 jours
   const { createWorkout } = useWorkout();
+  
+  // Animation pour l'indicateur de tab
+  const tabIndicatorPosition = useRef(new Animated.Value(0)).current;
 
   const handleDaySelect = (dayValue: number) => {
     setSelectedDay(dayValue);
   };
+  
+  const handleTabChange = (tab: FrequencyTab) => {
+    setActiveTab(tab);
+    
+    // Animation de l'indicateur
+    const tabIndex = tab === 'weekly' ? 0 : tab === 'interval' ? 1 : 2;
+    Animated.spring(tabIndicatorPosition, {
+      toValue: tabIndex,
+      useNativeDriver: true,
+      tension: 80,
+      friction: 10,
+    }).start();
+  };
 
   const handleCreate = () => {
-    if (selectedDay !== null) {
-      // Créer un objet de fréquence pour le workout
-      const frequency: WorkoutFrequency = {
+    let frequency: WorkoutFrequency | null = null;
+    
+    if (activeTab === 'weekly' && selectedDay !== null) {
+      frequency = {
         type: 'weekly',
         value: selectedDay
       };
+    } else if (activeTab === 'interval') {
+      frequency = {
+        type: 'interval',
+        value: selectedInterval
+      };
+    } else if (activeTab === 'none') {
+      // Pas de fréquence définie
+      frequency = {
+        type: 'none' as any, // On va gérer ça dans le type
+        value: 0
+      };
+    }
 
+    if (frequency) {
       // Créer et ajouter le nouveau workout
       const newWorkout: Workout = {
         id: generateId(),
@@ -73,29 +112,28 @@ export const WorkoutCreateFrequencyScreen: React.FC<WorkoutCreateFrequencyScreen
       onComplete();
     }
   };
+  
+  // Vérifier si le bouton Create est actif
+  const isCreateButtonEnabled = () => {
+    if (activeTab === 'weekly') {
+      return selectedDay !== null;
+    } else if (activeTab === 'interval') {
+      return true; // Toujours un intervalle sélectionné par défaut
+    } else if (activeTab === 'none') {
+      return true; // Pas de validation nécessaire
+    }
+    return false;
+  };
 
   const dismissKeyboard = () => {
     Keyboard.dismiss();
   };
 
-  return (
-    <TouchableWithoutFeedback onPress={dismissKeyboard}>
-      <View style={styles.container}>
-        <TouchableOpacity 
-          testID="back-button"
-          style={styles.backButton} 
-          onPress={onBack}
-        >
-          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-
-        <View style={styles.titleContainer}>
-          <Text style={styles.title}>Schedule your workout</Text>
-          <Text style={styles.subtitle}>When do you plan to do this workout?</Text>
-        </View>
-        
+  const renderTabContent = () => {
+    if (activeTab === 'weekly') {
+      return (
         <ScrollView 
-          style={styles.daysContainer}
+          style={styles.contentContainer}
           showsVerticalScrollIndicator={false}
         >
           {DAYS_OF_WEEK.map((day) => (
@@ -116,12 +154,101 @@ export const WorkoutCreateFrequencyScreen: React.FC<WorkoutCreateFrequencyScreen
             </TouchableOpacity>
           ))}
         </ScrollView>
+      );
+    } else if (activeTab === 'interval') {
+      return (
+        <View style={styles.contentContainer}>
+          <Text style={styles.intervalLabel}>Repeat every</Text>
+          <View style={styles.pickerContainer}>
+            <Picker
+              selectedValue={selectedInterval}
+              onValueChange={(itemValue) => setSelectedInterval(itemValue)}
+              style={styles.picker}
+              itemStyle={styles.pickerItem}
+            >
+              {INTERVAL_OPTIONS.map((days) => (
+                <Picker.Item 
+                  key={days} 
+                  label={days === 1 ? "1 day" : `${days} days`} 
+                  value={days} 
+                />
+              ))}
+            </Picker>
+          </View>
+          <Text style={styles.intervalDescription}>
+            Your workout will repeat every {selectedInterval} {selectedInterval === 1 ? 'day' : 'days'}
+          </Text>
+        </View>
+      );
+    } else if (activeTab === 'none') {
+      return (
+        <View style={styles.contentContainer}>
+          <View style={styles.noneContainer}>
+            <Ionicons name="time-outline" size={48} color="rgba(255, 255, 255, 0.3)" />
+            <Text style={styles.noneTitle}>Flexible schedule</Text>
+            <Text style={styles.noneDescription}>
+              This workout won't have a specific schedule. You can do it whenever you want.
+            </Text>
+          </View>
+        </View>
+      );
+    }
+  };
+
+  return (
+    <TouchableWithoutFeedback onPress={dismissKeyboard}>
+      <View style={styles.container}>
+        <TouchableOpacity 
+          testID="back-button"
+          style={styles.backButton} 
+          onPress={onBack}
+        >
+          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+
+        <View style={styles.titleContainer}>
+          <Text style={styles.title}>Schedule your workout</Text>
+          <Text style={styles.subtitle}>When do you plan to do this workout?</Text>
+        </View>
+        
+        {/* Tabs */}
+        <View style={styles.tabsContainer}>
+          <TouchableOpacity 
+            style={[styles.tab, activeTab === 'weekly' && styles.tabActive]}
+            onPress={() => handleTabChange('weekly')}
+          >
+            <Text style={[styles.tabText, activeTab === 'weekly' && styles.tabTextActive]}>
+              Weekly
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.tab, activeTab === 'interval' && styles.tabActive]}
+            onPress={() => handleTabChange('interval')}
+          >
+            <Text style={[styles.tabText, activeTab === 'interval' && styles.tabTextActive]}>
+              Interval
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.tab, activeTab === 'none' && styles.tabActive]}
+            onPress={() => handleTabChange('none')}
+          >
+            <Text style={[styles.tabText, activeTab === 'none' && styles.tabTextActive]}>
+              Flexible
+            </Text>
+          </TouchableOpacity>
+        </View>
+        
+        {/* Content selon le tab actif */}
+        {renderTabContent()}
 
         <View style={styles.buttonContainer}>
           <TouchableOpacity 
-            style={[styles.createButton, selectedDay === null && styles.createButtonDisabled]} 
+            style={[styles.createButton, !isCreateButtonEnabled() && styles.createButtonDisabled]} 
             onPress={handleCreate}
-            disabled={selectedDay === null}
+            disabled={!isCreateButtonEnabled()}
           >
             <Text style={styles.createButtonText}>Create workout</Text>
           </TouchableOpacity>
@@ -145,6 +272,7 @@ const styles = StyleSheet.create({
   titleContainer: {
     alignItems: 'flex-start',
     marginTop: 24,
+    marginBottom: 32,
   },
   title: {
     fontSize: 24,
@@ -155,12 +283,39 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 14,
     color: '#AAAAAA',
-    marginBottom: 48,
   },
-  daysContainer: {
+  // Tabs
+  tabsContainer: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 24,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  tabActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.5)',
+  },
+  tabTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  // Content
+  contentContainer: {
     flex: 1,
     marginBottom: 16,
   },
+  // Weekly content
   dayOption: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 12,
@@ -179,6 +334,56 @@ const styles = StyleSheet.create({
   dayTextSelected: {
     fontWeight: '600',
   },
+  // Interval content
+  intervalLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  pickerContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 24,
+  },
+  picker: {
+    width: '100%',
+    color: '#FFFFFF',
+  },
+  pickerItem: {
+    fontSize: 20,
+    color: '#FFFFFF',
+    height: 120,
+  },
+  intervalDescription: {
+    fontSize: 14,
+    color: '#AAAAAA',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  // None content
+  noneContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  noneTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginTop: 24,
+    marginBottom: 12,
+  },
+  noneDescription: {
+    fontSize: 14,
+    color: '#AAAAAA',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  // Button
   buttonContainer: {
     paddingBottom: Platform.OS === 'ios' ? 48 : 48,
   },
