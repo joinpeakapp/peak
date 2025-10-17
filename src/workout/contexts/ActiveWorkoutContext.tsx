@@ -46,6 +46,7 @@ interface ActiveWorkoutContextValue {
   updateElapsedTime: (newElapsedTime: number) => void;
   updatePhotoUri: (photoUri: string) => void; // Nouvelle fonction pour mettre à jour la photo
   updatePhotoInfo: (photoUri: string, isFrontCamera: boolean) => void; // Fonction pour mettre à jour photo et caméra
+  updateExercise: (exerciseId: string, updatedExercise: Exercise) => void; // Nouvelle fonction pour mettre à jour un exercice
   resumeWorkout: () => void;
   pauseWorkout: () => void; // Nouvelle fonction pour mettre en pause
   isTrackingWorkout: boolean;
@@ -61,6 +62,7 @@ const defaultContextValue: ActiveWorkoutContextValue = {
   updateElapsedTime: () => {},
   updatePhotoUri: () => {}, // Ajout de la nouvelle fonction
   updatePhotoInfo: () => {}, // Ajout de la nouvelle fonction
+  updateExercise: () => {}, // Nouvelle fonction
   resumeWorkout: () => {},
   pauseWorkout: () => {}, // Ajout de la nouvelle fonction
   isTrackingWorkout: false,
@@ -424,6 +426,22 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
     });
   };
 
+  // Mettre à jour un exercice dans l'activeWorkout
+  const updateExercise = (exerciseId: string, updatedExercise: Exercise) => {
+    if (!activeWorkout) return;
+
+    setActiveWorkout(prev => {
+      if (!prev) return null;
+      
+      return {
+        ...prev,
+        exercises: prev.exercises.map(ex => 
+          ex.id === exerciseId ? updatedExercise : ex
+        )
+      };
+    });
+  };
+
   // Reprendre une séance mise en pause (manuellement)
   const resumeWorkout = () => {
     if (!activeWorkout) return;
@@ -473,7 +491,8 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
         updateTrackingData,
         updateElapsedTime,
         updatePhotoUri,
-    updatePhotoInfo,
+        updatePhotoInfo,
+        updateExercise,
         resumeWorkout,
         pauseWorkout,
         isTrackingWorkout
