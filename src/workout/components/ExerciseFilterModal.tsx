@@ -196,6 +196,9 @@ export const ExerciseFilterModal: React.FC<ExerciseFilterModalProps> = ({
               >
                 {tag}
               </Text>
+              {localSelectedTags.includes(tag) && (
+                <Ionicons name="checkmark" size={16} color="#000000" style={{ marginLeft: 6 }} />
+              )}
             </TouchableOpacity>
           ))}
         </View>
@@ -333,10 +336,13 @@ const styles = StyleSheet.create({
   },
   tagButton: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    paddingVertical: 12,
+    borderRadius: 1000,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     margin: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexDirection: 'row',
   },
   tagButtonSelected: {
     backgroundColor: '#FFFFFF',
@@ -344,10 +350,11 @@ const styles = StyleSheet.create({
   tagButtonText: {
     color: '#FFFFFF',
     fontSize: 14,
+    fontWeight: '500',
   },
   tagButtonTextSelected: {
     color: '#000000',
-    fontWeight: '500',
+    fontWeight: '600',
   },
   buttonsContainer: {
     flexDirection: 'row',
@@ -360,8 +367,8 @@ const styles = StyleSheet.create({
   clearButton: {
     paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   clearButtonText: {
     color: '#FFFFFF',
@@ -371,7 +378,7 @@ const styles = StyleSheet.create({
   applyButton: {
     paddingVertical: 12,
     paddingHorizontal: 24,
-    borderRadius: 8,
+    borderRadius: 20,
     backgroundColor: '#FFFFFF',
   },
   applyButtonText: {

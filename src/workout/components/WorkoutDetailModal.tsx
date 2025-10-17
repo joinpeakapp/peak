@@ -2476,7 +2476,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#0D0D0F',
   },
   scrollViewContent: {
-    paddingBottom: 16, // Espace pour éviter que le contenu soit coupé par le bouton
+    paddingBottom: 120, // Espace pour éviter que le contenu soit coupé par le gradient et le bouton
   },
   fadeGradientSmall: {
     position: 'absolute',

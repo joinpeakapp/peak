@@ -93,6 +93,29 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
     setTimerMode(openTimerDirectly);
   }, [exercise, visible, openTimerDirectly]);
 
+  // Effet séparé pour réinitialiser les valeurs quand la modale s'ouvre
+  useEffect(() => {
+    if (visible && exercise) {
+      // Réinitialiser les valeurs à chaque ouverture de la modale
+      if (exercise.restTimeSeconds) {
+        const minutes = Math.floor(exercise.restTimeSeconds / 60);
+        const seconds = exercise.restTimeSeconds % 60;
+        setRestTimeMinutes(minutes.toString());
+        setRestTimeSeconds(seconds.toString().padStart(2, '0'));
+      } else {
+        setRestTimeMinutes('3');
+        setRestTimeSeconds('00');
+      }
+    }
+  }, [visible, exercise]);
+
+  // Effet pour réinitialiser le mode timer quand la modale s'ouvre
+  useEffect(() => {
+    if (visible) {
+      setTimerMode(openTimerDirectly);
+    }
+  }, [visible, openTimerDirectly]);
+
   // Gérer le changement de visibilité avec animations améliorées
   useEffect(() => {
     if (visible) {

@@ -165,19 +165,17 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   tag: {
-    backgroundColor: '#1A1A1D',
-    borderRadius: 24,
-    paddingVertical: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 1000,
+    paddingVertical: 12,
     paddingHorizontal: 16,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
   },
   tagSelected: {
     backgroundColor: '#FFFFFF',
-    borderColor: '#FFFFFF',
   },
   tagText: {
     fontSize: 14,
@@ -185,7 +183,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   tagTextSelected: {
-    color: '#0D0D0F',
+    color: '#000000',
     fontWeight: '600',
   },
   tagCheck: {
