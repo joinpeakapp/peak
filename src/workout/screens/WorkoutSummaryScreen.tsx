@@ -819,7 +819,7 @@ const styles = StyleSheet.create({
   recordBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFD700',
+    backgroundColor: '#9B93E4',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 100,

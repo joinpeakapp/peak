@@ -30,8 +30,8 @@ export const SetRow: React.FC<SetRowProps> = ({
   prData
 }) => {
   // Couleurs des badges pour les appliquer aux containers
-  const weightPRColor = '#FFD700'; // Or pour les PR de poids
-  const repsPRColor = '#FF4500'; // Orange/rouge pour les PR de reps
+  const weightPRColor = '#9B93E4'; // Violet pour les PR de poids
+  const repsPRColor = '#FFD54D'; // Jaune doré pour les PR de reps
   
   // Animations pour le flash des badges PR
   const weightFlashAnim = useRef(new Animated.Value(0)).current;

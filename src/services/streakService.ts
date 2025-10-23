@@ -71,17 +71,15 @@ export const StreakService = {
   ): boolean => {
     if (!lastCompletionDate) return true;
     
-    // Pour les workouts sans fréquence définie, pas de streak tracking
-    if (frequency.type === 'none') {
-      return false; // Pas de streak pour les workouts flexibles
-    }
-    
     const lastDate = parse(lastCompletionDate, 'yyyy-MM-dd', new Date());
     
-    // Calculer la date limite pour maintenir la streak (2x la durée attendue)
+    // Calculer la date limite pour maintenir la streak
     let deadlineDate: Date;
     
-    if (frequency.type === 'weekly') {
+    if (frequency.type === 'none') {
+      // Pour les workouts flexible schedule : fenêtre de 2 semaines (14 jours)
+      deadlineDate = addDays(lastDate, 14);
+    } else if (frequency.type === 'weekly') {
       // Pour les entraînements hebdomadaires : 2x7 = 14 jours
       deadlineDate = addDays(lastDate, 7 * 2);
     } else {
@@ -174,17 +172,8 @@ export const StreakService = {
       
       console.log(`[StreakService] Updating streak for workout ${workoutId} (${workout.name}) on ${formattedDate}`);
       
-      // Pour les workouts sans fréquence définie (type 'none'), on ne gère pas de streak
-      if (workout.frequency.type === 'none') {
-        console.log(`[StreakService] Workout ${workoutId} has no defined frequency (flexible schedule), skipping streak tracking`);
-        return {
-          workoutId,
-          current: 0,
-          longest: 0,
-          lastCompletedDate: formattedDate,
-          streakHistory: []
-        };
-      }
+      // Pour les workouts flexible schedule, on utilise une fenêtre de 2 semaines
+      // mais on ne planifie pas de notifications
       
       // Récupérer les données de streak existantes (avec validation automatique)
       let streakData = await StreakService.getWorkoutStreak(workoutId, workout);
@@ -265,7 +254,8 @@ export const StreakService = {
       }
 
       // Planifier un rappel de streak si la streak est active
-      if (streakData.current > 0 && workout.frequency) {
+      // Mais pas pour les workouts flexible schedule (pas de notifications)
+      if (streakData.current > 0 && workout.frequency && workout.frequency.type !== 'none') {
         try {
           const NotificationService = (await import('./notificationService')).default;
           await NotificationService.scheduleStreakReminder(
@@ -278,6 +268,8 @@ export const StreakService = {
         } catch (error) {
           console.warn(`[StreakService] Failed to schedule streak reminder:`, error);
         }
+      } else if (workout.frequency.type === 'none') {
+        console.log(`[StreakService] Flexible schedule workout - no notifications scheduled`);
       }
       
       return streakData;
@@ -300,18 +292,16 @@ export const StreakService = {
   getDaysUntilStreakLoss: (lastCompletionDate: string | undefined, frequency: WorkoutFrequency): number => {
     if (!lastCompletionDate) return 0;
     
-    // Pour les workouts sans fréquence définie (type 'none'), pas de streak tracking
-    if (frequency.type === 'none') {
-      return 0;
-    }
-    
     const lastDate = parse(lastCompletionDate, 'yyyy-MM-dd', new Date());
     const currentDate = new Date();
     
-    // Calculer la date limite pour maintenir la streak (2x la durée attendue)
+    // Calculer la date limite pour maintenir la streak
     let deadlineDate: Date;
     
-    if (frequency.type === 'weekly') {
+    if (frequency.type === 'none') {
+      // Pour les workouts flexible schedule : fenêtre de 2 semaines (14 jours)
+      deadlineDate = addDays(lastDate, 14);
+    } else if (frequency.type === 'weekly') {
       // Pour les entraînements hebdomadaires : 2x7 = 14 jours
       deadlineDate = addDays(lastDate, 7 * 2);
     } else {

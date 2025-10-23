@@ -203,12 +203,12 @@ export const WorkoutHistoryProvider: React.FC<{ children: ReactNode }> = ({ chil
           return { 
             weightPlaceholder: '', 
             repsPlaceholder: '',
-            sets: exercise.sets,
-            setCount: exercise.sets.length
+            sets: [],
+            setCount: 0
           };
         }
 
-        // Prendre le dernier set complété (ou le dernier set tout court si aucun n'est complété)
+        // Prendre le dernier set complété
         const lastSet = completedSets[completedSets.length - 1];
 
         const weightPlaceholder = lastSet.weight > 0 ? lastSet.weight.toString() : '';
@@ -220,16 +220,16 @@ export const WorkoutHistoryProvider: React.FC<{ children: ReactNode }> = ({ chil
         const result = { 
           weightPlaceholder, 
           repsPlaceholder,
-          sets: exercise.sets,
+          sets: completedSets,  // Utiliser seulement les sets complétés
           personalRecord,
-          setCount: exercise.sets.length
+          setCount: completedSets.length  // Compter seulement les sets complétés
         };
         
         console.log(`[WorkoutHistory] Returning placeholders for ${exerciseName}:`, {
           weightPlaceholder,
           repsPlaceholder,
-          setCount: exercise.sets.length,
-          sets: exercise.sets.map(s => `${s.weight}kg x ${s.reps}reps (${s.completed ? 'completed' : 'not completed'})`)
+          setCount: completedSets.length,
+          sets: completedSets.map(s => `${s.weight}kg x ${s.reps}reps`)
         });
         
         return result;

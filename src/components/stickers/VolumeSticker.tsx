@@ -37,7 +37,7 @@ export const VolumeSticker: React.FC<VolumeStickerProps> = ({
           <Text style={{
             color: 'white',
             fontSize: Math.max(14, size * 0.15),
-            fontFamily: Platform.OS === 'ios' ? 'Avenir Next Rounded' : 'sans-serif-condensed',
+            fontFamily: 'Poppins-Bold',
             fontWeight: 'bold',
             textAlign: 'center',
             position: 'absolute',
@@ -48,7 +48,7 @@ export const VolumeSticker: React.FC<VolumeStickerProps> = ({
           <Text style={{
             color: 'white',
             fontSize: Math.max(14, size * 0.15),
-            fontFamily: Platform.OS === 'ios' ? 'Avenir Next Rounded' : 'sans-serif-condensed',
+            fontFamily: 'Poppins-Bold',
             fontWeight: 'bold',
             textAlign: 'center',
             position: 'absolute',
@@ -59,7 +59,7 @@ export const VolumeSticker: React.FC<VolumeStickerProps> = ({
           <Text style={{
             color: 'white',
             fontSize: Math.max(14, size * 0.15),
-            fontFamily: Platform.OS === 'ios' ? 'Avenir Next Rounded' : 'sans-serif-condensed',
+            fontFamily: 'Poppins-Bold',
             fontWeight: 'bold',
             textAlign: 'center',
             position: 'absolute',
@@ -70,7 +70,7 @@ export const VolumeSticker: React.FC<VolumeStickerProps> = ({
           <Text style={{
             color: 'white',
             fontSize: Math.max(14, size * 0.15),
-            fontFamily: Platform.OS === 'ios' ? 'Avenir Next Rounded' : 'sans-serif-condensed',
+            fontFamily: 'Poppins-Bold',
             fontWeight: 'bold',
             textAlign: 'center',
             position: 'absolute',
@@ -81,7 +81,7 @@ export const VolumeSticker: React.FC<VolumeStickerProps> = ({
           <Text style={{
             color: 'white',
             fontSize: Math.max(14, size * 0.15),
-            fontFamily: Platform.OS === 'ios' ? 'Avenir Next Rounded' : 'sans-serif-condensed',
+            fontFamily: 'Poppins-Bold',
             fontWeight: 'bold',
             textAlign: 'center',
             position: 'absolute',
@@ -92,7 +92,7 @@ export const VolumeSticker: React.FC<VolumeStickerProps> = ({
           <Text style={{
             color: 'white',
             fontSize: Math.max(14, size * 0.15),
-            fontFamily: Platform.OS === 'ios' ? 'Avenir Next Rounded' : 'sans-serif-condensed',
+            fontFamily: 'Poppins-Bold',
             fontWeight: 'bold',
             textAlign: 'center',
             position: 'absolute',
@@ -103,7 +103,7 @@ export const VolumeSticker: React.FC<VolumeStickerProps> = ({
           <Text style={{
             color: 'white',
             fontSize: Math.max(14, size * 0.15),
-            fontFamily: Platform.OS === 'ios' ? 'Avenir Next Rounded' : 'sans-serif-condensed',
+            fontFamily: 'Poppins-Bold',
             fontWeight: 'bold',
             textAlign: 'center',
             position: 'absolute',
@@ -114,7 +114,7 @@ export const VolumeSticker: React.FC<VolumeStickerProps> = ({
           <Text style={{
             color: 'white',
             fontSize: Math.max(14, size * 0.15),
-            fontFamily: Platform.OS === 'ios' ? 'Avenir Next Rounded' : 'sans-serif-condensed',
+            fontFamily: 'Poppins-Bold',
             fontWeight: 'bold',
             textAlign: 'center',
             position: 'absolute',
@@ -127,7 +127,7 @@ export const VolumeSticker: React.FC<VolumeStickerProps> = ({
           <Text style={{
             color: 'black',
             fontSize: Math.max(14, size * 0.15),
-            fontFamily: Platform.OS === 'ios' ? 'Avenir Next Rounded' : 'sans-serif-condensed',
+            fontFamily: 'Poppins-Bold',
             fontWeight: 'bold',
             textAlign: 'center',
             position: 'absolute',

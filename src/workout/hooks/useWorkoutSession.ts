@@ -38,6 +38,7 @@ export interface UseWorkoutSessionReturn {
   
   // Utilitaires
   resetExercisePRResults: () => void;
+  clearExercisePRs: (exerciseId: string) => void;
   resetSessionMaxWeights: () => void;
 }
 
@@ -185,6 +186,23 @@ export const useWorkoutSession = (): UseWorkoutSessionReturn => {
     }
   }, []);
   
+  // Nettoyer les PRs d'un exercice spécifique
+  const clearExercisePRs = useCallback((exerciseId: string) => {
+    if (isMounted.current) {
+      setExercisePRResults(prev => {
+        const newResults = { ...prev };
+        // Supprimer toutes les entrées qui commencent par exerciseId_set_
+        Object.keys(newResults).forEach(key => {
+          if (key.startsWith(`${exerciseId}_set_`)) {
+            delete newResults[key];
+          }
+        });
+        return newResults;
+      });
+      console.log('[useWorkoutSession] Cleared PRs for exercise:', exerciseId);
+    }
+  }, []);
+  
   // Réinitialiser les poids maximaux de la séance
   const resetSessionMaxWeights = useCallback(() => {
     if (isMounted.current) {
@@ -216,6 +234,7 @@ export const useWorkoutSession = (): UseWorkoutSessionReturn => {
     
     // Utilitaires
     resetExercisePRResults,
+    clearExercisePRs,
     resetSessionMaxWeights,
   };
 };
