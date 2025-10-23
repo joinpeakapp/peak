@@ -19,6 +19,7 @@ import NotificationService from './src/services/notificationService';
 import { AppLoadingScreen } from './src/components/common/AppLoadingScreen';
 import { AppPreloadService } from './src/services/appPreloadService';
 import { FadeTransition } from './src/components/common/FadeTransition';
+import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
 
 // Composant pour valider les streaks au démarrage
 const StreakValidator: React.FC = () => {
@@ -44,6 +45,13 @@ const AppContent: React.FC = () => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isAppLoading, setIsAppLoading] = useState(true);
   const [appInitialized, setAppInitialized] = useState(false);
+
+  // Charger les fonts Poppins
+  const [fontsLoaded] = useFonts({
+    'Poppins-Regular': Poppins_400Regular,
+    'Poppins-SemiBold': Poppins_600SemiBold,
+    'Poppins-Bold': Poppins_700Bold,
+  });
 
   // Initialiser l'app avec préchargement des données
   useEffect(() => {
@@ -98,8 +106,8 @@ const AppContent: React.FC = () => {
     setIsAppLoading(false);
   };
 
-  const showLoadingScreen = !appInitialized || (isAppLoading && onboardingChecked && !showOnboarding);
-  const showMainApp = appInitialized && !isAppLoading && onboardingChecked;
+  const showLoadingScreen = !appInitialized || !fontsLoaded || (isAppLoading && onboardingChecked && !showOnboarding);
+  const showMainApp = appInitialized && fontsLoaded && !isAppLoading && onboardingChecked;
 
   return (
     <ErrorBoundary>

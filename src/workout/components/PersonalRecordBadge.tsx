@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFD700', // Couleur or pour le badge PR
+    backgroundColor: '#9B93E4', // Couleur violet pour le badge PR
     borderRadius: 12,
     paddingHorizontal: 8,
   },
@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
   },
   animated: {
     // Animation pour mettre en évidence un nouveau PR
-    shadowColor: '#FFD700',
+    shadowColor: '#9B93E4',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
     shadowRadius: 10,

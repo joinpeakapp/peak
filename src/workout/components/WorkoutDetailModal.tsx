@@ -23,6 +23,8 @@ import { FullScreenModal } from '../../components/common/FullScreenModal';
 import { useWorkout } from '../../hooks/useWorkout';
 import { ExerciseSettingsModal } from './ExerciseSettingsModal';
 import { ExerciseFilterModal } from './ExerciseFilterModal';
+import { ExerciseListItem } from './ExerciseListItem';
+import { ExerciseSectionHeader } from './ExerciseSectionHeader';
 import { ContextMenu, ContextMenuItem } from '../../components/common/ContextMenu';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useActiveWorkout, TrackingSet, TrackingData } from '../contexts/ActiveWorkoutContext';
@@ -85,6 +87,9 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
 }) => {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   
+  // État pour sauvegarder le template original avant modifications en mode tracking
+  const [originalWorkoutTemplate, setOriginalWorkoutTemplate] = useState<Workout | null>(null);
+  
   // États pour le flow de création d'exercice
   const [exerciseCreationStep, setExerciseCreationStep] = useState<'name' | 'tracking' | 'categories'>('name');
   const [exerciseCreationData, setExerciseCreationData] = useState<{
@@ -133,7 +138,9 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     updateTrackingData, 
     updateElapsedTime, 
     resumeWorkout, 
-    isTrackingWorkout
+    isTrackingWorkout,
+    updateExercise,
+    setExercises: setActiveWorkoutExercises
   } = useActiveWorkout();
   
   // Hook unifié pour gérer le tracking des exercices et séries
@@ -328,6 +335,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
 
   // Fonction pour ajouter les exercices sélectionnés
   const handleExercisesSelected = () => {
+    console.log('[WorkoutDetailModal] Adding exercises:', exerciseSelection.selectedExercises.length);
     // Ajouter seulement les exercices qui ne sont pas déjà présents dans le workout
     const newExercises = exerciseSelection.selectedExercises.filter(
       newEx => !exercises.some(existingEx => existingEx.id === newEx.id)
@@ -336,8 +344,9 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     if (newExercises.length > 0) {
       const updatedExercises = [...exercises, ...newExercises];
       setExercises(updatedExercises);
+      console.log('[WorkoutDetailModal] Updated exercises list with', updatedExercises.length, 'exercises');
       
-      // Sauvegarder immédiatement le workout avec les nouveaux exercices
+      // Sauvegarder immédiatement le workout template
       if (workout) {
         const updatedWorkout = {
           ...workout,
@@ -345,9 +354,24 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
           updatedAt: new Date().toISOString()
         };
         updateWorkout(updatedWorkout);
+        console.log('[WorkoutDetailModal] Saved workout template');
       }
       
-      // Les changements sont maintenant sauvegardés (gérés automatiquement par le hook) // Les changements sont maintenant sauvegardés
+      // Si on est en mode tracking, initialiser les trackingData avec 3 sets vides pour chaque nouvel exercice
+      if (isTrackingWorkout && activeWorkout) {
+        console.log('[WorkoutDetailModal] Initializing tracking data for new exercises');
+        newExercises.forEach(exercise => {
+          const emptySets: TrackingSet[] = [
+            { completed: false, weight: '', reps: '', weightPlaceholder: '0', repsPlaceholder: '0' },
+            { completed: false, weight: '', reps: '', weightPlaceholder: '0', repsPlaceholder: '0' },
+            { completed: false, weight: '', reps: '', weightPlaceholder: '0', repsPlaceholder: '0' }
+          ];
+          updateTrackingData(exercise.id, emptySets, 0);
+        });
+        // Mettre à jour la liste complète d'exercices dans activeWorkout
+        setActiveWorkoutExercises(updatedExercises);
+        console.log('[WorkoutDetailModal] Updated activeWorkout exercises after adding');
+      }
     }
     
     // Retour au mode affichage de workout
@@ -356,10 +380,52 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
 
   // Fonction pour retirer un exercice
   const handleRemoveExercise = (exerciseId: string) => {
+    // Vérifier si on est en mode tracking et si l'exercice a des sets validés ou des PR
+    if (isTrackingWorkout && activeWorkout) {
+      const trackingData = activeWorkout.trackingData?.[exerciseId];
+      const hasCompletedSets = trackingData && trackingData.sets && trackingData.sets.some(set => set.completed);
+      const prResult = workoutSession.exercisePRResults?.[exerciseId];
+      const hasPR = prResult && (prResult.weightPR?.isNew || prResult.repsPR?.isNew);
+      
+      if (hasCompletedSets || hasPR) {
+        // Demander confirmation
+        let message = 'This exercise has ';
+        if (hasCompletedSets && hasPR) {
+          message += 'completed sets and a new PR. ';
+        } else if (hasCompletedSets) {
+          message += 'completed sets. ';
+        } else {
+          message += 'a new PR. ';
+        }
+        message += 'Deleting it will lose this data for this session. Continue?';
+        
+        Alert.alert(
+          'Delete exercise',
+          message,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Delete', 
+              style: 'destructive',
+              onPress: () => performRemoveExercise(exerciseId)
+            }
+          ]
+        );
+        return;
+      }
+    }
+    
+    // Si pas de confirmation nécessaire, supprimer directement
+    performRemoveExercise(exerciseId);
+  };
+  
+  // Fonction pour effectuer la suppression réelle d'un exercice
+  const performRemoveExercise = (exerciseId: string) => {
+    console.log('[WorkoutDetailModal] Performing remove exercise:', exerciseId);
     const updatedExercises = exercises.filter(ex => ex.id !== exerciseId);
     setExercises(updatedExercises);
     
-    // Sauvegarder immédiatement le workout
+    // Sauvegarder immédiatement le workout template
     if (workout) {
       const updatedWorkout = {
         ...workout,
@@ -367,9 +433,14 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
         updatedAt: new Date().toISOString()
       };
       updateWorkout(updatedWorkout);
+      console.log('[WorkoutDetailModal] Updated workout template with', updatedExercises.length, 'exercises');
     }
     
-    // Les changements sont maintenant sauvegardés (gérés automatiquement par le hook) // Les changements sont maintenant sauvegardés
+    // Si on est en mode tracking, remplacer complètement la liste d'exercices dans activeWorkout
+    if (isTrackingWorkout && activeWorkout) {
+      setActiveWorkoutExercises(updatedExercises);
+      console.log('[WorkoutDetailModal] Updated activeWorkout exercises after deletion');
+    }
   };
 
   // Fonction pour remplacer un exercice
@@ -383,6 +454,42 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
 
   // Fonction pour démarrer le processus de remplacement d'un exercice
   const startReplaceExercise = (exerciseId: string) => {
+    // Vérifier si on est en mode tracking et si l'exercice a des sets validés ou des PR
+    if (isTrackingWorkout && activeWorkout) {
+      const trackingData = activeWorkout.trackingData?.[exerciseId];
+      const hasCompletedSets = trackingData && trackingData.sets && trackingData.sets.some(set => set.completed);
+      const prResult = workoutSession.exercisePRResults?.[exerciseId];
+      const hasPR = prResult && (prResult.weightPR?.isNew || prResult.repsPR?.isNew);
+      
+      if (hasCompletedSets || hasPR) {
+        // Demander confirmation
+        let message = 'This exercise has ';
+        if (hasCompletedSets && hasPR) {
+          message += 'completed sets and a new PR. ';
+        } else if (hasCompletedSets) {
+          message += 'completed sets. ';
+        } else {
+          message += 'a new PR. ';
+        }
+        message += 'Replacing it will lose this data for this session. Continue?';
+        
+        Alert.alert(
+          'Replace exercise',
+          message,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Replace', 
+              style: 'destructive',
+              onPress: () => exerciseSelection.startExerciseReplacement(exerciseId)
+            }
+          ]
+        );
+        return;
+      }
+    }
+    
+    // Si pas de confirmation nécessaire, démarrer le remplacement directement
     exerciseSelection.startExerciseReplacement(exerciseId);
   };
 
@@ -391,16 +498,17 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     // Vérifier qu'on a bien un exercice à remplacer et un nouvel exercice sélectionné
     if (exerciseSelection.exerciseToReplaceId && exerciseSelection.selectedExercises.length === 1) {
       const newExercise = exerciseSelection.selectedExercises[0];
+      const exerciseIdToReplace = exerciseSelection.exerciseToReplaceId;
       
       // Mettre à jour la liste des exercices en remplaçant l'ancien par le nouveau
       const updatedExercises = exercises.map(ex => 
-        ex.id === exerciseSelection.exerciseToReplaceId 
-          ? { ...newExercise, id: exerciseSelection.exerciseToReplaceId } // Conserve l'ID original pour maintenir les références
+        ex.id === exerciseIdToReplace 
+          ? { ...newExercise, id: exerciseIdToReplace } // Conserve l'ID original pour maintenir les références
           : ex
       );
       setExercises(updatedExercises);
       
-      // Sauvegarder immédiatement le workout
+      // Sauvegarder immédiatement le workout template
       if (workout) {
         const updatedWorkout = {
           ...workout,
@@ -410,7 +518,23 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
         updateWorkout(updatedWorkout);
       }
       
-      // Les changements sont maintenant sauvegardés (gérés automatiquement par le hook) // Les changements sont maintenant sauvegardés
+      // Si on est en mode tracking, réinitialiser les trackingData avec 3 sets vides
+      if (isTrackingWorkout && activeWorkout) {
+        // Mettre à jour les trackingData via la fonction du contexte
+        const emptySets: TrackingSet[] = [
+          { completed: false, weight: '', reps: '', weightPlaceholder: '0', repsPlaceholder: '0' },
+          { completed: false, weight: '', reps: '', weightPlaceholder: '0', repsPlaceholder: '0' },
+          { completed: false, weight: '', reps: '', weightPlaceholder: '0', repsPlaceholder: '0' }
+        ];
+        updateTrackingData(exerciseIdToReplace, emptySets, 0);
+        
+        // Nettoyer les PRs de l'exercice remplacé
+        workoutSession.clearExercisePRs(exerciseIdToReplace);
+        
+        // Mettre à jour la liste complète d'exercices dans activeWorkout
+        setActiveWorkoutExercises(updatedExercises);
+        console.log('[WorkoutDetailModal] Updated activeWorkout exercises and cleared PRs after replacement');
+      }
     }
     
     // Réinitialiser et retourner au mode workout
@@ -420,6 +544,10 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   // Fonction pour démarrer une séance
   const handleStartWorkout = async () => {
     if (!workout) return;
+    
+    // Sauvegarder le template original avant de commencer la séance
+    // Cela permettra de restaurer le template si l'utilisateur discard la séance
+    setOriginalWorkoutTemplate(JSON.parse(JSON.stringify(workout)));
     
     // S'assurer que les records sont bien chargés avant de commencer
     await personalRecords.loadRecords();
@@ -513,6 +641,13 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
           text: "Discard",
           style: "destructive",
           onPress: async () => {
+            // Restaurer le template original si des modifications ont été faites pendant le tracking
+            if (originalWorkoutTemplate) {
+              updateWorkout(originalWorkoutTemplate);
+              setExercises(originalWorkoutTemplate.exercises || []);
+              setOriginalWorkoutTemplate(null);
+            }
+            
             // Annuler tout record temporaire
             if (workoutSession.prResults) {
               workoutSession.safeSetPrResults(null);
@@ -697,10 +832,13 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
         // Continuer malgré l'erreur de nettoyage - le workout est sauvé
       }
       
-      // 3. Fermer les modales
+      // 3. Réinitialiser le template original car la séance est terminée avec succès
+      setOriginalWorkoutTemplate(null);
+      
+      // 4. Fermer les modales
       onClose();
       
-      // 4. Attendre que les opérations se terminent avant navigation
+      // 5. Attendre que les opérations se terminent avant navigation
       await new Promise(resolve => setTimeout(resolve, 200));
       
       // 5. Pré-calculer les stickers pour éviter les appels async dans les écrans suivants
@@ -1083,46 +1221,39 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     </View>
   );
 
+  /**
+   * Rendu d'un header de section alphabétique
+   * Utilise le composant ExerciseSectionHeader pour une meilleure séparation des responsabilités
+   */
   const renderSectionHeader = ({ letter }: { letter: string }) => (
-    <View style={styles.sectionHeader}>
-      <Text style={styles.sectionHeaderText}>{letter}</Text>
-    </View>
+    <ExerciseSectionHeader letter={letter} />
   );
 
+  /**
+   * Rendu d'un exercice dans la liste de sélection
+   * Utilise le composant ExerciseListItem pour une meilleure séparation des responsabilités
+   */
   const renderExerciseItem = (exercise: Exercise) => {
     const isSelected = exerciseSelection.selectedExercises.some(ex => ex.id === exercise.id);
     const isNewlyCreated = newlyCreatedExerciseId === exercise.id;
     
+    // Vérifier si l'exercice est déjà dans le workout
+    // En mode remplacement, on peut sélectionner l'exercice qu'on remplace
+    const isAlreadyInWorkout = exerciseSelection.modalMode === 'exercise-selection' 
+      ? exercises.some(ex => ex.id === exercise.id)
+      : exerciseSelection.modalMode === 'exercise-replacement'
+        ? exercises.some(ex => ex.id === exercise.id && ex.id !== exerciseSelection.exerciseToReplaceId)
+        : false;
+    
     return (
-      <TouchableOpacity 
-        style={[
-          styles.selectionExerciseItem,
-          isNewlyCreated && styles.selectionExerciseItemHighlight
-        ]}
+      <ExerciseListItem
+        exercise={exercise}
+        isSelected={isSelected}
+        isAlreadyInWorkout={isAlreadyInWorkout}
+        isNewlyCreated={isNewlyCreated}
         onPress={() => exerciseSelection.toggleExerciseSelection(exercise)}
         onLongPress={() => handleExerciseLongPress(exercise)}
-        activeOpacity={0.7}
-      >
-        <View style={styles.exerciseSelectionRow}>
-          <View style={[
-            styles.checkbox, 
-            isSelected && styles.checkboxSelected
-          ]}>
-            {isSelected && (
-              <Ionicons name="checkmark" size={24} color="#000000" />
-            )}
-          </View>
-          
-          <View style={styles.exerciseNameContainer}>
-            <Text style={styles.selectionExerciseName}>{exercise.name}</Text>
-            {isNewlyCreated && (
-              <View style={styles.newBadge}>
-                <Text style={styles.newBadgeText}>NEW</Text>
-              </View>
-            )}
-          </View>
-        </View>
-      </TouchableOpacity>
+      />
     );
   };
 
@@ -1385,9 +1516,11 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       label: 'Replace exercise',
       icon: 'swap-horizontal-outline',
       onPress: () => {
+        setIsExerciseMenuVisible(false);
         if (selectedExerciseForMenu) {
           startReplaceExercise(selectedExerciseForMenu.id);
         }
+        setSelectedExerciseForMenu(null);
       },
     },
     {
@@ -1395,9 +1528,11 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       label: 'Configure rest timer',
       icon: 'timer-outline',
       onPress: () => {
+        setIsExerciseMenuVisible(false);
         if (selectedExerciseForMenu) {
           modalManagement.showExerciseSettingsModal(selectedExerciseForMenu, true);
         }
+        setSelectedExerciseForMenu(null);
       },
     },
     {
@@ -1405,9 +1540,11 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       label: 'Delete exercise',
       icon: 'trash-outline',
       onPress: () => {
+        setIsExerciseMenuVisible(false);
         if (selectedExerciseForMenu) {
           handleRemoveExercise(selectedExerciseForMenu.id);
         }
+        setSelectedExerciseForMenu(null);
       },
       destructive: true,
     },
@@ -1692,27 +1829,34 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                                   <Ionicons name="ellipsis-vertical" size={24} color="#5B5B5C" />
                                 </TouchableOpacity>
                               ) : (
-                                <View style={styles.exerciseChevronContainer}>
-                                  <Ionicons name="chevron-forward" size={24} color="#5B5B5C" />
+                                <View style={styles.exerciseActionsContainer}>
+                                  <TouchableOpacity 
+                                    onPress={(event) => handleExerciseSettings(exercise.id, event)}
+                                    style={styles.exerciseSettingsButtonTracking}
+                                  >
+                                    <Ionicons name="ellipsis-vertical" size={20} color="#5B5B5C" />
+                                  </TouchableOpacity>
+                                  <View style={styles.exerciseChevronContainer}>
+                                    <Ionicons name="chevron-forward" size={24} color="#5B5B5C" />
+                                  </View>
                                 </View>
                               )}
                             </View>
                           </Pressable>
                         ))}
                         
-                        {!isTrackingWorkout && (
-                          <TouchableOpacity 
-                            style={styles.addButtonContainer}
-                            onPress={handleAddExercise}
+                        {/* Bouton Add exercise - disponible en mode édition ET tracking */}
+                        <TouchableOpacity 
+                          style={styles.addButtonContainer}
+                          onPress={handleAddExercise}
+                        >
+                          <View 
+                            style={styles.addRoundButton}
                           >
-                            <View 
-                              style={styles.addRoundButton}
-                            >
-                              <Ionicons name="add" size={24} color="#FFFFFF" />
-                            </View>
-                            <Text style={styles.addButtonText}>Add exercise</Text>
-                          </TouchableOpacity>
-                        )}
+                            <Ionicons name="add" size={24} color="#FFFFFF" />
+                          </View>
+                          <Text style={styles.addButtonText}>Add exercise</Text>
+                        </TouchableOpacity>
                       </View>
                     )}
                     
@@ -2071,15 +2215,19 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
         anchorPosition={exerciseMenuAnchor || undefined}
       />
       
-      {/* Afficher le timer de repos s'il est actif */}
-      <RestTimer 
-        onOpenSettings={() => {
-          // Récupérer l'exercice actuel depuis le contexte du rest timer
-          if (currentRestExercise) {
-            modalManagement.showExerciseSettingsModal(currentRestExercise, true);
-          }
-        }}
-      />
+      {/* Afficher le timer de repos seulement en mode workout et tracking, pas en mode sélection/remplacement */}
+      {(exerciseSelection.modalMode === 'workout' || modalManagement.selectedExerciseId) && 
+       exerciseSelection.modalMode !== 'exercise-selection' && 
+       exerciseSelection.modalMode !== 'exercise-replacement' && (
+        <RestTimer 
+          onOpenSettings={() => {
+            // Récupérer l'exercice actuel depuis le contexte du rest timer
+            if (currentRestExercise) {
+              modalManagement.showExerciseSettingsModal(currentRestExercise, true);
+            }
+          }}
+        />
+      )}
       
       {/* Modale pour les filtres */}
       <ExerciseFilterModal
@@ -2501,41 +2649,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  selectionExerciseItem: {
-    marginBottom: 32,
-    paddingVertical: 0,
-  },
-  selectionExerciseItemHighlight: {
-    backgroundColor: 'rgba(52, 199, 89, 0.15)',
-    borderRadius: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    marginHorizontal: -8,
-  },
-  exerciseNameContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    marginLeft: 16,
-  },
-  selectionExerciseName: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    flex: 1,
-  },
-  newBadge: {
-    backgroundColor: '#34C759',
-    borderRadius: 4,
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-    marginLeft: 8,
-  },
-  newBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
+  // Note: Les styles pour ExerciseListItem ont été déplacés dans ExerciseListItem.tsx
   tagScrollView: {
     marginHorizontal: 16,
     marginBottom: 24,
@@ -2620,6 +2734,14 @@ const styles = StyleSheet.create({
   },
   exerciseChevronContainer: {
     padding: 8,
+  },
+  exerciseActionsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  exerciseSettingsButtonTracking: {
+    padding: 8,
+    marginRight: 8, // 8px à gauche du chevron
   },
   // Styles pour le tracking d'un exercice spécifique
   exerciseTrackingTitle: {

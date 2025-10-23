@@ -19,6 +19,7 @@ import UserProfileService, { UserProfile } from '../services/userProfileService'
 import { PersonalRecordService } from '../services/personalRecordService';
 import { NotificationSettingsModal } from '../components/common/NotificationSettingsModal';
 import { NotificationTestModal } from '../components/common/NotificationTestModal';
+import { OnboardingCarousel } from '../components/common/OnboardingCarousel';
 import { useActiveWorkout } from '../workout/contexts/ActiveWorkoutContext';
 
 export const ProfileScreen: React.FC = () => {
@@ -36,6 +37,7 @@ export const ProfileScreen: React.FC = () => {
   const [isInitialLoad, setIsInitialLoad] = useState(false);
   const [isNotificationModalVisible, setIsNotificationModalVisible] = useState(false);
   const [isNotificationTestModalVisible, setIsNotificationTestModalVisible] = useState(false);
+  const [isOnboardingTestVisible, setIsOnboardingTestVisible] = useState(false);
 
   // Charger le profil utilisateur
   const loadUserProfile = useCallback(async () => {
@@ -217,6 +219,13 @@ export const ProfileScreen: React.FC = () => {
                   <Ionicons name="refresh" size={18} color="#F59E0B" />
                   <Text style={[styles.testButtonText, { color: '#F59E0B' }]}>Reset</Text>
                 </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.testButton}
+                  onPress={() => setIsOnboardingTestVisible(true)}
+                >
+                  <Ionicons name="play" size={18} color="#007AFF" />
+                  <Text style={[styles.testButtonText, { color: '#007AFF' }]}>Onboarding</Text>
+                </TouchableOpacity>
                 {/* Session cleanup button - only show if there's an active workout */}
                 {activeWorkout && (
                   <TouchableOpacity
@@ -322,6 +331,13 @@ export const ProfileScreen: React.FC = () => {
       <NotificationTestModal
         visible={isNotificationTestModalVisible}
         onClose={() => setIsNotificationTestModalVisible(false)}
+      />
+      
+      {/* Onboarding Test Modal */}
+      <OnboardingCarousel
+        visible={isOnboardingTestVisible}
+        onComplete={() => setIsOnboardingTestVisible(false)}
+        onClose={() => setIsOnboardingTestVisible(false)}
       />
     </View>
   );

@@ -58,10 +58,10 @@ const styles = StyleSheet.create({
     zIndex: 10, // Assurer que le badge est au-dessus des autres éléments
   },
   weightBadge: {
-    backgroundColor: '#FFD700', // Couleur or pour les records de poids
+    backgroundColor: '#9B93E4', // Couleur violet pour les records de poids
   },
   repsBadge: {
-    backgroundColor: '#FF4500', // Couleur orange/rouge pour les records de répétitions
+    backgroundColor: '#FFD54D', // Couleur jaune doré pour les records de répétitions
   },
   weightText: {
     fontWeight: 'bold',
@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
   },
   repsText: {
     fontWeight: 'bold',
-    color: '#FFFFFF',
+    color: '#000000',
     fontSize: 12,
   }
 }); 

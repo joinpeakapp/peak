@@ -29,22 +29,27 @@ export const theme = {
     h1: {
       fontSize: 32,
       fontWeight: 'bold',
+      fontFamily: 'Poppins-Bold',
     },
     h2: {
       fontSize: 24,
       fontWeight: 'bold',
+      fontFamily: 'Poppins-Bold',
     },
     h3: {
       fontSize: 20,
       fontWeight: '600',
+      fontFamily: 'Poppins-SemiBold',
     },
     body: {
       fontSize: 16,
       fontWeight: 'normal',
+      fontFamily: 'Poppins-Regular',
     },
     caption: {
       fontSize: 14,
       fontWeight: 'normal',
+      fontFamily: 'Poppins-Regular',
     },
   },
   shadows: {

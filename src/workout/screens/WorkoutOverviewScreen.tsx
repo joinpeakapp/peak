@@ -708,7 +708,7 @@ const styles = StyleSheet.create({
   recordBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFD700',
+    backgroundColor: '#9B93E4',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 100,
@@ -778,7 +778,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -10,
     right: 10,
-    backgroundColor: '#FFD700',
+    backgroundColor: '#9B93E4',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 10,
