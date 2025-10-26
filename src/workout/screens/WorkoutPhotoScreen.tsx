@@ -11,7 +11,7 @@ import {
   Alert,
   GestureResponderEvent
 } from 'react-native';
-import Slider from '@react-native-community/slider';
+import { Slider } from 'react-native';
 import { CameraView, CameraType, FlashMode, Camera } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { NavigationProp, RouteProp, useNavigation, useRoute } from '@react-navigation/native';
