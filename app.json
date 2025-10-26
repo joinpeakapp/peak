@@ -22,7 +22,7 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.hugolabbedev.peak",
+      "bundleIdentifier": "com.hugz.peak",
       "splash": {
         "image": "./assets/splash-icon.png",
         "resizeMode": "contain",
@@ -46,7 +46,7 @@
         "resizeMode": "contain",
         "backgroundColor": "#0D0D0F"
       },
-      "package": "com.hugolabbedev.peak",
+      "package": "com.hugz.peak",
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
