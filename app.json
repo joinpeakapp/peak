@@ -22,7 +22,7 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yourcompany.peak",
+      "bundleIdentifier": "com.hugolabbedev.peak",
       "splash": {
         "image": "./assets/splash-icon.png",
         "resizeMode": "contain",
@@ -32,7 +32,8 @@
         "NSCameraUsageDescription": "This app needs access to camera to take photos of your workouts.",
         "NSPhotoLibraryUsageDescription": "This app needs access to photos to save workout photos.",
         "NSPhotoLibraryAddUsageDescription": "This app needs access to photos to save workout photos.",
-        "NSUserNotificationsUsageDescription": "This app uses notifications to remind you about workouts and help maintain your fitness streak."
+        "NSUserNotificationsUsageDescription": "This app uses notifications to remind you about workouts and help maintain your fitness streak.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -45,14 +46,13 @@
         "resizeMode": "contain",
         "backgroundColor": "#0D0D0F"
       },
-      "package": "com.yourcompany.peak",
+      "package": "com.hugolabbedev.peak",
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.VIBRATE",
-        "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ]
     },
