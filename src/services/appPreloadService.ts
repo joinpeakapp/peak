@@ -3,6 +3,7 @@ import { PersonalRecordService } from './personalRecordService';
 import { StreakService } from './streakService';
 import { StickerService } from './stickerService';
 import { PhotoStorageService } from './photoStorageService';
+import { RobustStorageService } from './storage';
 import { Image } from 'react-native';
 
 export class AppPreloadService {
@@ -201,8 +202,6 @@ export class AppPreloadService {
    */
   private static async migrateStickerHistoricalData(): Promise<void> {
     try {
-      const { RobustStorageService } = await import('./storage');
-      const { StreakService } = await import('./streakService');
       
       // Charger l'historique des workouts
       const historyResult = await RobustStorageService.loadWorkoutHistory();

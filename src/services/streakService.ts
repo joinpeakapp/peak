@@ -2,6 +2,7 @@ import { differenceInDays, parse, format, isAfter, isBefore, addDays } from 'dat
 import { fr } from 'date-fns/locale';
 import { StreakData, StreakHistoryEntry, WorkoutFrequency, Workout } from '../types/workout';
 import { StorageService } from './storage';
+import NotificationService from './notificationService';
 
 /**
  * Service pour gérer les streaks des workouts
@@ -257,7 +258,6 @@ export const StreakService = {
       // Mais pas pour les workouts flexible schedule (pas de notifications)
       if (streakData.current > 0 && workout.frequency && workout.frequency.type !== 'none') {
         try {
-          const NotificationService = (await import('./notificationService')).default;
           await NotificationService.scheduleStreakReminder(
             workout.id,
             workout.name,

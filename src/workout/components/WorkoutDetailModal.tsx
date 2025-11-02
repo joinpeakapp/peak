@@ -28,6 +28,8 @@ import { ExerciseSectionHeader } from './ExerciseSectionHeader';
 import { ContextMenu, ContextMenuItem } from '../../components/common/ContextMenu';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useActiveWorkout, TrackingSet, TrackingData } from '../contexts/ActiveWorkoutContext';
+import { StickerService } from '../../services/stickerService';
+import { StreakService } from '../../services/streakService';
 import { useRestTimer } from '../contexts/RestTimerContext';
 import RestTimer from './RestTimer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -844,7 +846,6 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       // 5. Pré-calculer les stickers pour éviter les appels async dans les écrans suivants
       let preCalculatedStickers: any[] = [];
       try {
-        const { StickerService } = await import('../../services/stickerService');
         preCalculatedStickers = await StickerService.generateWorkoutStickers(newCompletedWorkout, true);
       } catch (stickerError) {
         console.error("Error pre-calculating stickers:", stickerError);
@@ -942,7 +943,6 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       ).length + 1; // +1 pour inclure la séance actuelle
       
       // 2. Calculer streakCount : streak APRÈS completion du workout
-      const { StreakService } = await import('../../services/streakService');
       const currentStreakData = await StreakService.getWorkoutStreak(workoutId);
       const currentStreak = currentStreakData?.current || 0;
       // La streak après completion sera current + 1 (car on vient de compléter une séance)

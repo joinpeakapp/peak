@@ -14,6 +14,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNotifications } from '../hooks/useNotifications';
 import { NotificationSettings, DEFAULT_NOTIFICATION_SETTINGS } from '../types/notifications';
+import NotificationService from '../services/notificationService';
 
 const DAYS_OF_WEEK = [
   { key: 0, label: 'Dimanche', short: 'D' },
@@ -50,7 +51,6 @@ const NotificationSettingsScreen: React.FC = () => {
       Alert.alert('Succès', 'Paramètres de notifications sauvegardés');
       
       // Replanifier les notifications avec les nouveaux paramètres
-      const NotificationService = (await import('../services/notificationService')).default;
       await NotificationService.scheduleWorkoutReminders();
       
     } catch (error) {
