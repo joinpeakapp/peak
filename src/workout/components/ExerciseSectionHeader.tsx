@@ -11,7 +11,7 @@ interface ExerciseSectionHeaderProps {
  */
 export const ExerciseSectionHeader: React.FC<ExerciseSectionHeaderProps> = ({ letter }) => {
   return (
-    <View style={styles.sectionHeader}>
+    <View style={styles.sectionHeader} pointerEvents="box-none">
       <Text style={styles.sectionHeaderText}>{letter}</Text>
     </View>
   );

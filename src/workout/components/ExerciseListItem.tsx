@@ -47,6 +47,7 @@ export const ExerciseListItem: React.FC<ExerciseListItemProps> = ({
       }}
       activeOpacity={isAlreadyInWorkout ? 1 : 0.7}
       disabled={isAlreadyInWorkout}
+      pointerEvents={isAlreadyInWorkout ? 'none' : 'auto'}
     >
       <View style={styles.exerciseSelectionRow}>
         <View style={[

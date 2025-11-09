@@ -7,8 +7,19 @@ import { Platform } from 'react-native';
  */
 export class PhotoStorageService {
   private static getPhotosDirectory(): string {
-    // Utiliser l'API legacy qui est stable
-    const baseDir = FileSystem.documentDirectory || FileSystem.cacheDirectory;
+    // Utiliser documentDirectory pour garantir la persistance entre les builds
+    // documentDirectory persiste même après les mises à jour de l'app
+    // Contrairement à cacheDirectory qui peut être nettoyé par le système entre les builds
+    const baseDir = FileSystem.documentDirectory;
+    if (!baseDir) {
+      // Fallback vers cacheDirectory uniquement si documentDirectory n'est pas disponible (très rare)
+      const fallbackDir = FileSystem.cacheDirectory;
+      if (!fallbackDir) {
+        throw new Error('Neither documentDirectory nor cacheDirectory is available');
+      }
+      console.warn('[PhotoStorageService] documentDirectory not available, using cacheDirectory as fallback');
+      return `${fallbackDir}workout_photos/`;
+    }
     return `${baseDir}workout_photos/`;
   }
 
@@ -179,6 +190,47 @@ export class PhotoStorageService {
       }
     } catch (error) {
       console.error('[PhotoStorageService] Error cleaning up photos:', error);
+    }
+  }
+
+  /**
+   * Supprime la photo associée à un workout
+   * @param workoutId ID du workout
+   * @param photoUri URI de la photo à supprimer (optionnel, si non fourni, cherche toutes les photos du workout)
+   */
+  static async deleteWorkoutPhoto(workoutId: string, photoUri?: string): Promise<void> {
+    try {
+      await this.initialize();
+      
+      const photosDir = this.getPhotosDirectory();
+      const dirInfo = await FileSystem.getInfoAsync(photosDir);
+      if (!dirInfo.exists) return;
+
+      // Si une URI spécifique est fournie, supprimer uniquement celle-ci
+      if (photoUri && photoUri.startsWith(photosDir)) {
+        const fileInfo = await FileSystem.getInfoAsync(photoUri);
+        if (fileInfo.exists) {
+          await FileSystem.deleteAsync(photoUri);
+          console.log(`[PhotoStorageService] Deleted photo: ${photoUri}`);
+        }
+        return;
+      }
+
+      // Sinon, chercher toutes les photos associées à ce workout
+      const files = await FileSystem.readDirectoryAsync(photosDir);
+      
+      for (const file of files) {
+        // Extraire l'ID du workout du nom de fichier
+        const match = file.match(/workout_([^_]+)_/);
+        if (match && match[1] === workoutId) {
+          const filePath = `${photosDir}${file}`;
+          await FileSystem.deleteAsync(filePath);
+          console.log(`[PhotoStorageService] Deleted photo: ${filePath}`);
+        }
+      }
+    } catch (error) {
+      console.error('[PhotoStorageService] Error deleting workout photo:', error);
+      // Ne pas throw pour éviter de bloquer la suppression du workout
     }
   }
 

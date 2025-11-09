@@ -5,6 +5,7 @@ import { useStreak } from './StreakContext';
 import { RobustStorageService } from '../../services/storage';
 import { PersonalRecordService } from '../../services/personalRecordService';
 import { usePersonalRecords } from '../../hooks/usePersonalRecords';
+import { PhotoStorageService } from '../../services/photoStorageService';
 
 interface ExerciseWithTracking {
   id: string;
@@ -45,6 +46,7 @@ interface WorkoutHistoryContextType {
   error: string | null;
   addCompletedWorkout: (workout: CompletedWorkout, originalWorkout?: Workout) => Promise<void>;
   updateCompletedWorkout: (workoutId: string, updates: Partial<CompletedWorkout>) => Promise<void>;
+  deleteCompletedWorkout: (workoutId: string) => Promise<void>;
   getPreviousWorkoutData: (workoutId: string, exerciseName: string) => PreviousWorkoutData;
   getPersonalRecords: (exerciseName: string) => { maxWeight: number; maxReps: number };
   refreshWorkoutHistory: () => Promise<void>;
@@ -156,6 +158,55 @@ export const WorkoutHistoryProvider: React.FC<{ children: ReactNode }> = ({ chil
     } catch (error) {
       console.error('[WorkoutHistory] Unexpected error updating completed workout:', error);
       setError('An unexpected error occurred while updating your workout');
+      // Revenir à l'état précédent
+      setCompletedWorkouts(completedWorkouts);
+    }
+  };
+
+  // Supprimer un entraînement terminé et toutes ses données associées
+  const deleteCompletedWorkout = async (workoutId: string): Promise<void> => {
+    try {
+      // Trouver le workout à supprimer
+      const workoutToDelete = completedWorkouts.find(w => w.id === workoutId);
+      if (!workoutToDelete) {
+        console.error('[WorkoutHistory] Workout not found:', workoutId);
+        setError('Workout not found');
+        return;
+      }
+
+      // Supprimer la photo associée
+      if (workoutToDelete.photo) {
+        await PhotoStorageService.deleteWorkoutPhoto(workoutId, workoutToDelete.photo);
+      }
+
+      // Mettre à jour l'état local immédiatement pour une meilleure UX
+      const updatedWorkouts = completedWorkouts.filter(w => w.id !== workoutId);
+      setCompletedWorkouts(updatedWorkouts);
+      
+      // Sauvegarder avec le service robuste
+      const result = await RobustStorageService.saveWorkoutHistory(updatedWorkouts);
+      
+      if (!result.success) {
+        console.error('[WorkoutHistory] Failed to delete workout:', result.error?.userMessage);
+        // Revenir à l'état précédent en cas d'échec
+        setCompletedWorkouts(completedWorkouts);
+        setError(result.error?.userMessage || 'Could not delete your workout');
+        return;
+      }
+
+      // Recalculer les records personnels depuis l'historique restant
+      try {
+        await personalRecords.migrateFromWorkoutHistory(updatedWorkouts);
+      } catch (error) {
+        console.error('[WorkoutHistory] Error recalculating personal records after deletion:', error);
+        // Ne pas bloquer la suppression si le recalcul des records échoue
+      }
+      
+      setError(null); // Effacer les erreurs précédentes
+      
+    } catch (error) {
+      console.error('[WorkoutHistory] Unexpected error deleting completed workout:', error);
+      setError('An unexpected error occurred while deleting your workout');
       // Revenir à l'état précédent
       setCompletedWorkouts(completedWorkouts);
     }
@@ -322,6 +373,7 @@ export const WorkoutHistoryProvider: React.FC<{ children: ReactNode }> = ({ chil
     error,
     addCompletedWorkout,
     updateCompletedWorkout,
+    deleteCompletedWorkout,
     getPreviousWorkoutData,
     getPersonalRecords,
     refreshWorkoutHistory,

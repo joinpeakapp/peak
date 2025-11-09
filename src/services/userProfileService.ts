@@ -8,6 +8,8 @@ export interface UserProfile {
   onboardingCompleted: boolean;
   createdAt: string;
   personalRecords: PersonalRecords; // Ajout des PRs dans le profil
+  profilePhotoUri?: string; // URI de la photo de profil
+  gradientColor?: string; // Couleur de dégradé pour le profil (format hex: #E43C3C)
 }
 
 export interface OnboardingData {

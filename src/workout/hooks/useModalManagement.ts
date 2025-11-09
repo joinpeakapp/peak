@@ -9,6 +9,7 @@ export interface UseModalManagementReturn {
   isFinishModalVisible: boolean;
   settingsModalVisible: boolean;
   isWorkoutEditModalVisible: boolean;
+  isRepositionModalVisible: boolean;
   
   // État de l'exercice sélectionné
   selectedExerciseId: string | null;
@@ -16,6 +17,7 @@ export interface UseModalManagementReturn {
   // États temporaires
   currentExercise: Exercise | undefined;
   openTimerDirectly: boolean;
+  exerciseToReposition: Exercise | null;
   
   // Actions pour les modales principales
   showExerciseSettings: () => void;
@@ -30,6 +32,10 @@ export interface UseModalManagementReturn {
   // Actions pour la modale de paramètres d'exercice
   showExerciseSettingsModal: (exercise: Exercise, openTimer?: boolean) => void;
   hideExerciseSettingsModal: () => void;
+  
+  // Actions pour la modale de repositionnement
+  showRepositionModal: (exercise: Exercise) => void;
+  hideRepositionModal: () => void;
   
   // Actions pour la sélection d'exercice
   selectExercise: (exerciseId: string) => void;
@@ -56,6 +62,7 @@ export const useModalManagement = (): UseModalManagementReturn => {
   const [isFinishModalVisible, setIsFinishModalVisible] = useState(false);
   const [settingsModalVisible, setSettingsModalVisible] = useState(false);
   const [isWorkoutEditModalVisible, setIsWorkoutEditModalVisible] = useState(false);
+  const [isRepositionModalVisible, setIsRepositionModalVisible] = useState(false);
   
   // État de l'exercice sélectionné
   const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(null);
@@ -63,6 +70,7 @@ export const useModalManagement = (): UseModalManagementReturn => {
   // États temporaires
   const [currentExercise, setCurrentExercise] = useState<Exercise | undefined>(undefined);
   const [openTimerDirectly, setOpenTimerDirectly] = useState(false);
+  const [exerciseToReposition, setExerciseToReposition] = useState<Exercise | null>(null);
   
   // Actions pour les modales principales
   const showExerciseSettings = useCallback(() => {
@@ -110,6 +118,17 @@ export const useModalManagement = (): UseModalManagementReturn => {
     setOpenTimerDirectly(false);
   }, []);
   
+  // Actions pour la modale de repositionnement
+  const showRepositionModal = useCallback((exercise: Exercise) => {
+    setExerciseToReposition(exercise);
+    setIsRepositionModalVisible(true);
+  }, []);
+  
+  const hideRepositionModal = useCallback(() => {
+    setIsRepositionModalVisible(false);
+    setExerciseToReposition(null);
+  }, []);
+  
   // Actions pour la sélection d'exercice
   const selectExercise = useCallback((exerciseId: string) => {
     setSelectedExerciseId(exerciseId);
@@ -126,8 +145,10 @@ export const useModalManagement = (): UseModalManagementReturn => {
     setIsFinishModalVisible(false);
     setSettingsModalVisible(false);
     setIsWorkoutEditModalVisible(false);
+    setIsRepositionModalVisible(false);
     setCurrentExercise(undefined);
     setOpenTimerDirectly(false);
+    setExerciseToReposition(null);
   }, []);
   
   // Réinitialiser tous les états
@@ -143,6 +164,7 @@ export const useModalManagement = (): UseModalManagementReturn => {
     isFinishModalVisible,
     settingsModalVisible,
     isWorkoutEditModalVisible,
+    isRepositionModalVisible,
     
     // État de l'exercice sélectionné
     selectedExerciseId,
@@ -150,6 +172,7 @@ export const useModalManagement = (): UseModalManagementReturn => {
     // États temporaires
     currentExercise,
     openTimerDirectly,
+    exerciseToReposition,
     
     // Actions pour les modales principales
     showExerciseSettings,
@@ -164,6 +187,10 @@ export const useModalManagement = (): UseModalManagementReturn => {
     // Actions pour la modale de paramètres d'exercice
     showExerciseSettingsModal,
     hideExerciseSettingsModal,
+    
+    // Actions pour la modale de repositionnement
+    showRepositionModal,
+    hideRepositionModal,
     
     // Actions pour la sélection d'exercice
     selectExercise,

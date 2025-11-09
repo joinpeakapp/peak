@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useScrollToTop } from '@react-navigation/native';
 import { WorkoutCard } from './WorkoutCard';
 import { Workout } from '../../types/workout';
 import { useWorkout } from '../../hooks/useWorkout';
@@ -42,6 +43,10 @@ export const WorkoutList: React.FC<WorkoutListProps> = ({
   const { removeWorkout } = useWorkout();
   const [editingWorkout, setEditingWorkout] = useState<Workout | null>(null);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const flatListRef = useRef<FlatList>(null);
+
+  // Scroll vers le haut quand on clique sur le tab actif
+  useScrollToTop(flatListRef);
 
   const handleEdit = (workout: Workout) => {
     // Force update to trigger a clean render
@@ -106,6 +111,7 @@ export const WorkoutList: React.FC<WorkoutListProps> = ({
       </View>
       
       <FlatList
+        ref={flatListRef}
         style={styles.container}
         data={workouts}
         renderItem={renderWorkoutItem}

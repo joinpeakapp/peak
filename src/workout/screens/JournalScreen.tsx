@@ -15,7 +15,7 @@ import {
   Easing
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useFocusEffect, NavigationProp, useRoute, RouteProp } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, NavigationProp, useRoute, RouteProp, useScrollToTop } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { RootStackParamList } from '../../types/navigation';
 import { CompletedWorkout } from '../../types/workout';
@@ -26,6 +26,7 @@ import { StickerService } from '../../services/stickerService';
 import { PhotoStorageService } from '../../services/photoStorageService';
 import { StickerBadge } from '../../components/common/StickerBadge';
 import { Sticker } from '../../types/stickers';
+import { ContextMenu, ContextMenuItem } from '../../components/common/ContextMenu';
 
 // Type pour les paramètres de route
 type JournalScreenParams = {
@@ -48,8 +49,16 @@ export const JournalScreen: React.FC = () => {
   const [newWorkoutIndex, setNewWorkoutIndex] = useState<number>(-1);
   
   // Utiliser le contexte WorkoutHistory au lieu d'un état local
-  const { completedWorkouts, error, refreshWorkoutHistory } = useWorkoutHistory();
+  const { completedWorkouts, error, refreshWorkoutHistory, deleteCompletedWorkout } = useWorkoutHistory();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // États pour le menu contextuel
+  const [menuVisibleForWorkout, setMenuVisibleForWorkout] = useState<string | null>(null);
+  const [menuButtonLayout, setMenuButtonLayout] = useState<{
+    workoutId: string;
+    layout: { x: number; y: number; width: number; height: number };
+  } | null>(null);
+  const cardRefs = useRef<{[key: string]: View | null}>({});
   
   // Référence pour stocker les animations des cartes
   const cardAnimations = useRef<{[key: string]: Animated.Value}>({});
@@ -63,6 +72,7 @@ export const JournalScreen: React.FC = () => {
 
   // Récupérer la navigation
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
+  const flatListRef = useRef<FlatList>(null);
 
   // Organiser les workouts par date (plus récentes en premier) et initialiser les animations
   const sortedWorkouts = React.useMemo(() => {
@@ -266,6 +276,17 @@ export const JournalScreen: React.FC = () => {
       zIndex: isNewWorkout ? 10 : 1, // S'assurer que la carte animée est au-dessus des autres
     };
 
+    // Items du menu contextuel pour cette séance
+    const menuItems: ContextMenuItem[] = [
+      {
+        key: 'delete',
+        label: 'Delete workout',
+        icon: 'trash-outline',
+        onPress: () => handleDeleteWorkout(item),
+        destructive: true,
+      },
+    ];
+
     // Memo pour optimiser les re-rendus uniquement lorsque nécessaire
     const cardContent = (
       <CachedImageBackground 
@@ -306,16 +327,41 @@ export const JournalScreen: React.FC = () => {
       </CachedImageBackground>
     );
 
+    const isMenuVisible = menuVisibleForWorkout === item.id;
+    const menuAnchorPosition = menuButtonLayout?.workoutId === item.id 
+      ? menuButtonLayout.layout 
+      : undefined;
+
     return (
-      <TouchableOpacity 
-        style={[styles.cardContainer, isLastInRow && { marginRight: 0 }]}
-        onPress={() => handleWorkoutPress(item)}
-        activeOpacity={0.8}
-      >
-        <Animated.View style={[styles.card, animatedCardStyle]}>
-          {cardContent}
-        </Animated.View>
-      </TouchableOpacity>
+      <>
+        <TouchableOpacity 
+          style={[styles.cardContainer, isLastInRow && { marginRight: 0 }]}
+          onPress={() => handleWorkoutPress(item)}
+          onLongPress={(e) => handleCardLongPress(item, e)}
+          activeOpacity={0.8}
+        >
+          <Animated.View style={[styles.card, animatedCardStyle]}>
+            <View 
+              ref={(ref) => {
+                cardRefs.current[item.id] = ref;
+              }}
+              style={StyleSheet.absoluteFill}
+              collapsable={false}
+            />
+            {cardContent}
+          </Animated.View>
+        </TouchableOpacity>
+
+        <ContextMenu
+          visible={isMenuVisible}
+          onClose={() => {
+            setMenuVisibleForWorkout(null);
+            setMenuButtonLayout(null);
+          }}
+          items={menuItems}
+          anchorPosition={menuAnchorPosition}
+        />
+      </>
     );
   };
 
@@ -338,10 +384,74 @@ export const JournalScreen: React.FC = () => {
     });
   };
 
+  // Handler pour ouvrir le menu contextuel via long press
+  const handleCardLongPress = (workout: CompletedWorkout, event: any) => {
+    const cardRef = cardRefs.current[workout.id];
+    if (cardRef) {
+      cardRef.measure((x, y, width, height, pageX, pageY) => {
+        // Utiliser la position du touch depuis l'événement si disponible, sinon utiliser le centre de la carte
+        const touchX = event?.nativeEvent?.pageX ?? pageX + width / 2;
+        const touchY = event?.nativeEvent?.pageY ?? pageY + height / 2;
+        
+        setMenuButtonLayout({
+          workoutId: workout.id,
+          layout: { x: touchX, y: touchY, width: 0, height: 0 },
+        });
+        setMenuVisibleForWorkout(workout.id);
+      });
+    } else {
+      // Fallback si la ref n'est pas disponible - utiliser les coordonnées du touch directement
+      const touchX = event?.nativeEvent?.pageX ?? 0;
+      const touchY = event?.nativeEvent?.pageY ?? 0;
+      
+      if (touchX > 0 && touchY > 0) {
+        setMenuButtonLayout({
+          workoutId: workout.id,
+          layout: { x: touchX, y: touchY, width: 0, height: 0 },
+        });
+        setMenuVisibleForWorkout(workout.id);
+      }
+    }
+  };
+
+  // Handler pour supprimer une séance (avec confirmation)
+  const handleDeleteWorkout = async (workout: CompletedWorkout) => {
+    Alert.alert(
+      'Supprimer la séance',
+      `Êtes-vous sûr de vouloir supprimer "${workout.name || 'Quick Workout'}" ? Cette action supprimera également la photo et toutes les données associées à cette séance.`,
+      [
+        {
+          text: 'Annuler',
+          style: 'cancel',
+        },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteCompletedWorkout(workout.id);
+            } catch (error) {
+              console.error('[JournalScreen] Error deleting workout:', error);
+              Alert.alert(
+                'Erreur',
+                'Une erreur est survenue lors de la suppression de la séance. Veuillez réessayer.',
+                [{ text: 'OK' }]
+              );
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
   // Mettre à jour manuellement les séances
   const handleRefresh = () => {
     refreshWorkoutHistory();
   };
+
+  // Scroll vers le haut quand on clique sur le tab actif
+  useScrollToTop(flatListRef);
 
   // Plus d'état de chargement - les données sont préchargées
 
@@ -371,6 +481,7 @@ export const JournalScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       <FlatList
+        ref={flatListRef}
         ListHeaderComponent={() => (
           <View style={styles.header}>
             <Text style={styles.title}>Journal</Text>

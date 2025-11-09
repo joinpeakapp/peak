@@ -195,7 +195,7 @@ const ExerciseSelectionModal: React.FC<ExerciseSelectionModalProps> = ({
   };
 
   const renderSectionHeader = ({ section }: { section: { title: string, data: Exercise[] } }) => (
-    <View style={styles.sectionHeader}>
+    <View style={styles.sectionHeader} pointerEvents="box-none">
       <Text style={styles.sectionHeaderText}>{section.title}</Text>
     </View>
   );
@@ -316,6 +316,7 @@ const ExerciseSelectionModal: React.FC<ExerciseSelectionModalProps> = ({
           <LinearGradient
             colors={['rgba(13, 13, 15, 0)', 'rgba(13, 13, 15, 0.8)', 'rgba(13, 13, 15, 1)']}
             style={styles.fadeGradient}
+            pointerEvents="none"
           />
         </View>
         
