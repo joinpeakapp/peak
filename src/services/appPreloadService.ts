@@ -170,9 +170,9 @@ export class AppPreloadService {
           await RobustStorageService.saveWorkoutHistory(updatedWorkouts);
         }
         
-        // Nettoyer les photos orphelines
-        const activeWorkoutIds = result.data.map(w => w.id);
-        await PhotoStorageService.cleanupOrphanedPhotos(activeWorkoutIds);
+        // Nettoyer les photos orphelines - DÉSACTIVÉ pour éviter les suppressions accidentelles
+        // const activeWorkoutIds = result.data.map(w => w.id);
+        // await PhotoStorageService.cleanupOrphanedPhotos(activeWorkoutIds);
         
         const stats = await PhotoStorageService.getStorageStats();
         // Photos migration completed

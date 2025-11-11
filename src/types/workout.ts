@@ -119,6 +119,11 @@ export interface CompletedSet {
   weight: number;
   reps: number;
   completed: boolean;
+  // Données PR pour ce set spécifique
+  prData?: {
+    weightPR?: WeightPR | null;
+    repsPR?: RepsPR | null;
+  };
 }
 
 export interface CompletedExercise {

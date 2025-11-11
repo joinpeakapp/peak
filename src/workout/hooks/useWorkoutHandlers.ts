@@ -808,11 +808,22 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
           return {
             id: exercise.id,
             name: exercise.name,
-            sets: finalSets.map(set => ({
-              weight: parseInt(set.weight) || 0,
-              reps: parseInt(set.reps) || 0,
-              completed: set.completed
-            })),
+            sets: finalSets.map((set, setIndex) => {
+              // Récupérer les données PR pour ce set depuis workoutSession.exercisePRResults
+              const prResultKey = `${exercise.id}_set_${setIndex}`;
+              const prResult = workoutSession.exercisePRResults[prResultKey];
+              
+              return {
+                weight: parseInt(set.weight) || 0,
+                reps: parseInt(set.reps) || 0,
+                completed: set.completed,
+                // Inclure les données PR si disponibles
+                prData: prResult ? {
+                  weightPR: prResult.weightPR || null,
+                  repsPR: prResult.repsPR || null
+                } : undefined
+              };
+            }),
             tracking: exercise.tracking || 'trackedOnSets',
             duration: exercise.duration,
             personalRecord

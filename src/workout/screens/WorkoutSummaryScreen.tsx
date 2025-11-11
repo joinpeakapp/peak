@@ -24,6 +24,7 @@ import { useStreak } from '../contexts/StreakContext';
 import { StickerService } from '../../services/stickerService';
 import { StickerBadge } from '../../components/common/StickerBadge';
 import { Sticker } from '../../types/stickers';
+import { PRBadge } from '../components/PRBadge';
 
 interface StepInfo {
   title: string;
@@ -567,12 +568,6 @@ export const WorkoutSummaryScreen: React.FC = () => {
                 <View style={styles.exerciseHeader}>
                   <Text style={styles.exerciseName}>{exercise.name}</Text>
                   <View style={styles.headerRightContainer}>
-                    {exercise.personalRecord && (
-                      <View style={styles.recordBadge}>
-                        <Ionicons name="trophy" size={14} color="#000000" />
-                        <Text style={styles.recordText}>PR</Text>
-                      </View>
-                    )}
                     <Text style={styles.exerciseSetsCount}>
                       {exercise.sets.filter(set => set.completed).length} sets
                     </Text>
@@ -590,13 +585,46 @@ export const WorkoutSummaryScreen: React.FC = () => {
                             style={styles.setContainer}
                           >
                             {/* Container de poids */}
-                            <View style={styles.dataContainer}>
+                            <View style={[
+                              styles.dataContainer,
+                              set.prData?.weightPR && styles.weightPRBorder
+                            ]}>
+                              {/* Fond coloré pour PR de poids */}
+                              {set.prData?.weightPR && (
+                                <View style={[styles.prHighlight, styles.weightPRHighlight]} />
+                              )}
                               <Text style={styles.dataText}>{set.weight} kg</Text>
+                              {/* Badge PR de poids si disponible */}
+                              {set.prData?.weightPR && (
+                                <View style={styles.prBadgeContainer}>
+                                  <PRBadge 
+                                    type="weight"
+                                    value={set.prData.weightPR.weight}
+                                  />
+                                </View>
+                              )}
                             </View>
                             
                             {/* Container de répétitions */}
-                            <View style={styles.dataContainer}>
+                            <View style={[
+                              styles.dataContainer,
+                              set.prData?.repsPR && styles.repsPRBorder
+                            ]}>
+                              {/* Fond coloré pour PR de reps */}
+                              {set.prData?.repsPR && (
+                                <View style={[styles.prHighlight, styles.repsPRHighlight]} />
+                              )}
                               <Text style={styles.dataText}>{set.reps} reps</Text>
+                              {/* Badge PR de reps si disponible */}
+                              {set.prData?.repsPR && (
+                                <View style={styles.prBadgeContainer}>
+                                  <PRBadge 
+                                    type="reps"
+                                    value={set.prData.repsPR.reps}
+                                    previousValue={set.prData.repsPR.previousReps}
+                                  />
+                                </View>
+                              )}
                             </View>
                           </View>
                         ) : null
@@ -789,10 +817,11 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginBottom: 16,
     padding: 16,
-    backgroundColor: 'rgba(36, 37, 38, 0.5)',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 16,
+    overflow: 'visible',
   },
   exerciseHeader: {
     flexDirection: 'row',
@@ -832,11 +861,13 @@ const styles = StyleSheet.create({
   },
   setsListContainer: {
     marginTop: 16,
+    overflow: 'visible',
   },
   setContainer: {
     flexDirection: 'row',
     marginBottom: 8,
     position: 'relative',
+    overflow: 'visible',
   },
   dataContainer: {
     flex: 1,
@@ -846,10 +877,44 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.2)',
     marginHorizontal: 4,
     alignItems: 'center',
+    position: 'relative',
+    overflow: 'visible',
   },
   dataText: {
     color: '#FFFFFF',
     fontSize: 14,
+    zIndex: 1,
+  },
+  prHighlight: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 100,
+    borderWidth: 1,
+    opacity: 0.1,
+    overflow: 'hidden',
+  },
+  weightPRHighlight: {
+    borderColor: '#9B93E4',
+    backgroundColor: '#9B93E4',
+  },
+  repsPRHighlight: {
+    borderColor: '#FFD54D',
+    backgroundColor: '#FFD54D',
+  },
+  weightPRBorder: {
+    borderColor: '#9B93E4',
+  },
+  repsPRBorder: {
+    borderColor: '#FFD54D',
+  },
+  prBadgeContainer: {
+    position: 'absolute',
+    top: -8,
+    right: -4,
+    zIndex: 10,
   },
   bottomPadding: {
     height: 100,
