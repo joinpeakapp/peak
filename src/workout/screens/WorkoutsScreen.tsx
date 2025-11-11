@@ -9,13 +9,22 @@ import { WorkoutCreationModal } from '../components/WorkoutCreationModal';
 import { WorkoutDetailModal } from '../components/WorkoutDetailModal';
 import ActiveWorkoutIndicator from '../components/ActiveWorkoutIndicator';
 import { useActiveWorkout } from '../contexts/ActiveWorkoutContext';
+import { useWorkoutCreation } from '../../contexts/WorkoutCreationContext';
 
 export const WorkoutsScreen: React.FC = () => {
   const { workouts, loading, error, createWorkout } = useWorkout();
   const { activeWorkout } = useActiveWorkout();
+  const { isWorkoutCreationOpen, closeWorkoutCreation } = useWorkoutCreation();
   const [isCreationModalVisible, setIsCreationModalVisible] = useState(false);
   const [isDetailModalVisible, setIsDetailModalVisible] = useState(false);
   const [selectedWorkout, setSelectedWorkout] = useState<Workout | null>(null);
+
+  // Synchroniser avec le contexte
+  useEffect(() => {
+    if (isWorkoutCreationOpen) {
+      setIsCreationModalVisible(true);
+    }
+  }, [isWorkoutCreationOpen]);
 
   // Synchroniser selectedWorkout avec les changements dans le store
   useEffect(() => {
@@ -59,6 +68,7 @@ export const WorkoutsScreen: React.FC = () => {
 
   const handleCloseCreationModal = () => {
     setIsCreationModalVisible(false);
+    closeWorkoutCreation();
   };
 
   // Gestionnaire pour reprendre une séance active

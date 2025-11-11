@@ -1,0 +1,235 @@
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  Animated,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import { Camera } from 'expo-camera';
+
+interface CameraPermissionScreenProps {
+  onContinue: () => void;
+}
+
+export const CameraPermissionScreen: React.FC<CameraPermissionScreenProps> = ({
+  onContinue,
+}) => {
+  const [permissionStatus, setPermissionStatus] = useState<string | null>(null);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+  const buttonScaleAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    checkPermissionStatus();
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  const checkPermissionStatus = async () => {
+    const { status } = await Camera.getCameraPermissionsAsync();
+    setPermissionStatus(status);
+    
+    if (status === 'granted') {
+      setTimeout(() => {
+        onContinue();
+      }, 1000);
+    }
+  };
+
+  const handleRequestPermission = async () => {
+    try {
+      const { status } = await Camera.requestCameraPermissionsAsync();
+      setPermissionStatus(status);
+      
+      if (status === 'granted') {
+        setTimeout(() => {
+          onContinue();
+        }, 500);
+      } else {
+        Alert.alert(
+          'Camera access denied',
+          'We need access to your camera to take workout photos. You can enable it later in settings.',
+          [
+            {
+              text: 'Continue anyway',
+              onPress: onContinue,
+            },
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('Error requesting camera permission:', error);
+      Alert.alert('Error', 'An error occurred while requesting permission.');
+    }
+  };
+
+  const handlePress = () => {
+    Animated.sequence([
+      Animated.timing(buttonScaleAnim, {
+        toValue: 0.95,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(buttonScaleAnim, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      handleRequestPermission();
+    });
+  };
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.background}>
+        <LinearGradient
+          colors={['#FF8A2440', 'rgba(10, 10, 12, 0.25)']}
+          style={styles.gradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+        />
+      </View>
+      <Animated.View
+        style={[
+          styles.content,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          },
+        ]}
+      >
+        <View style={styles.iconContainer}>
+          <Ionicons name="camera" size={80} color="#FFFFFF" />
+        </View>
+
+        <Text style={styles.title}>Capture your moments</Text>
+        <Text style={styles.description}>
+          Take a photo at the end of each session to create workout memory cards and track your progress visually.
+        </Text>
+
+        <View style={styles.benefitsContainer}>
+          <View style={styles.benefitItem}>
+            <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
+            <Text style={styles.benefitText}>Workout memory cards</Text>
+          </View>
+          <View style={styles.benefitItem}>
+            <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
+            <Text style={styles.benefitText}>Visual progress tracking</Text>
+          </View>
+          <View style={styles.benefitItem}>
+            <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
+            <Text style={styles.benefitText}>Share your achievements</Text>
+          </View>
+        </View>
+
+        <Animated.View style={{ width: '100%', transform: [{ scale: buttonScaleAnim }] }}>
+          <TouchableOpacity style={styles.button} onPress={handlePress}>
+            <Text style={styles.buttonText}>Allow camera access</Text>
+          </TouchableOpacity>
+        </Animated.View>
+
+        {permissionStatus === 'denied' && (
+          <TouchableOpacity style={styles.skipButton} onPress={onContinue}>
+            <Text style={styles.skipButtonText}>Skip this step</Text>
+          </TouchableOpacity>
+        )}
+      </Animated.View>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#0D0D0F',
+  },
+  background: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  gradient: {
+    flex: 1,
+  },
+  content: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  iconContainer: {
+    marginBottom: 48,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    fontFamily: 'Poppins-SemiBold',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  description: {
+    fontSize: 16,
+    fontWeight: '400',
+    color: '#FFFFFF',
+    fontFamily: 'Poppins-Regular',
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 48,
+    opacity: 0.7,
+  },
+  benefitsContainer: {
+    width: '100%',
+    marginBottom: 48,
+    gap: 16,
+  },
+  benefitItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  benefitText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#FFFFFF',
+    fontFamily: 'Poppins-Regular',
+  },
+  button: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 1000,
+    paddingVertical: 16,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  buttonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#000000',
+    fontFamily: 'Poppins-SemiBold',
+  },
+  skipButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+  },
+  skipButtonText: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontFamily: 'Poppins-Regular',
+  },
+});
