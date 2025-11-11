@@ -7,6 +7,7 @@ import {
   Dimensions,
   TouchableOpacity,
   FlatList,
+  Alert,
 } from 'react-native';
 import { useWorkoutHistory } from '../workout/contexts/WorkoutHistoryContext';
 import { useNavigation, useScrollToTop } from '@react-navigation/native';

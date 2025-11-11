@@ -9,11 +9,12 @@ import { ActiveWorkoutProvider } from './src/workout/contexts/ActiveWorkoutConte
 import { RestTimerProvider } from './src/workout/contexts/RestTimerContext';
 import { StreakProvider, useStreak } from './src/workout/contexts/StreakContext';
 import { WorkoutHistoryProvider } from './src/workout/contexts/WorkoutHistoryContext';
+import { WorkoutCreationProvider } from './src/contexts/WorkoutCreationContext';
 import { useSelector } from 'react-redux';
 import { RootState } from './src/store';
 import { ErrorBoundary } from './src/components/common/ErrorBoundary';
 import { RobustStorageService } from './src/services/storage';
-import { OnboardingNavigator } from './src/screens/onboarding/OnboardingNavigator';
+import { NewOnboardingNavigator } from './src/screens/onboarding/NewOnboardingNavigator';
 import UserProfileService, { UserProfile } from './src/services/userProfileService';
 import NotificationService from './src/services/notificationService';
 import { AppLoadingScreen } from './src/components/common/AppLoadingScreen';
@@ -94,6 +95,7 @@ const AppContent: React.FC = () => {
   const handleOnboardingComplete = async (profile: UserProfile) => {
     console.log('[App] Onboarding completed:', profile);
     setUserProfile(profile);
+    // Le fade out est géré dans NewOnboardingNavigator
     setShowOnboarding(false);
     
     // Précharger les données après l'onboarding
@@ -112,25 +114,27 @@ const AppContent: React.FC = () => {
   return (
     <ErrorBoundary>
       {/* App principale toujours présente */}
-      <StreakProvider>
-        <WorkoutHistoryProvider>
-          <ActiveWorkoutProvider>
-            <RestTimerProvider>
-              <SafeAreaProvider>
-                <StreakValidator />
-                <StatusBar style="light" />
-                <AppNavigator />
-                
-                {/* Onboarding Modal */}
-                <OnboardingNavigator
-                  visible={showOnboarding}
-                  onComplete={handleOnboardingComplete}
-                />
-              </SafeAreaProvider>
-            </RestTimerProvider>
-          </ActiveWorkoutProvider>
-        </WorkoutHistoryProvider>
-      </StreakProvider>
+      <WorkoutCreationProvider>
+        <StreakProvider>
+          <WorkoutHistoryProvider>
+            <ActiveWorkoutProvider>
+              <RestTimerProvider>
+                <SafeAreaProvider>
+                  <StreakValidator />
+                  <StatusBar style="light" />
+                  <AppNavigator />
+                  
+                  {/* Onboarding Modal */}
+                  <NewOnboardingNavigator
+                    visible={showOnboarding}
+                    onComplete={handleOnboardingComplete}
+                  />
+                </SafeAreaProvider>
+              </RestTimerProvider>
+            </ActiveWorkoutProvider>
+          </WorkoutHistoryProvider>
+        </StreakProvider>
+      </WorkoutCreationProvider>
 
       {/* Loading Screen en overlay avec transition */}
       <FadeTransition 
