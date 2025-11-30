@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {
   View,
   Platform,
-  InteractionManager,
   ScrollView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -290,6 +289,20 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     }
   }, [isTrackingWorkout, visible]);
 
+  // Réinitialiser toutes les modales quand le WorkoutDetailModal se ferme
+  // Cela évite que les modales restent ouvertes quand on ferme et rouvre la modale principale
+  useEffect(() => {
+    if (!visible) {
+      // Réinitialiser toutes les modales après un court délai pour laisser le temps aux animations de se terminer
+      const timeoutId = setTimeout(() => {
+        modalManagement.resetModalStates();
+        setSelectedExerciseForMenu(null);
+        setIsExerciseMenuVisible(false);
+      }, 300);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [visible, modalManagement]);
+
   // Les handlers sont maintenant dans le hook useWorkoutHandlers
 
   useEffect(() => {
@@ -355,19 +368,19 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       label: 'Reposition exercise',
       icon: 'swap-vertical-outline',
       onPress: () => {
-        // Le ContextMenu ferme déjà le menu et attend 350ms sur iOS avant d'appeler onPress
-        // On utilise InteractionManager pour s'assurer que toutes les animations sont terminées
-        // avant d'ouvrir la modale de repositionnement
+        // Le ContextMenu ferme déjà le menu et attend 400ms sur iOS avant d'appeler onPress
+        // En production (TestFlight), InteractionManager peut ne jamais se résoudre,
+        // donc on utilise directement un setTimeout avec un délai approprié
         const exerciseToReposition = selectedExerciseForMenu;
-        InteractionManager.runAfterInteractions(() => {
-          // Petit délai supplémentaire pour iOS pour garantir que le Modal est complètement démonté
-          setTimeout(() => {
-            if (exerciseToReposition) {
-              modalManagement.showRepositionModal(exerciseToReposition);
-            }
-            setSelectedExerciseForMenu(null);
-          }, Platform.OS === 'ios' ? 50 : 0);
-        });
+        // Délai supplémentaire pour garantir que le Modal ContextMenu est complètement démonté
+        // et que React Native a eu le temps de mettre à jour l'état après les 400ms du ContextMenu
+        const delay = Platform.OS === 'ios' ? 100 : 50;
+        setTimeout(() => {
+          if (exerciseToReposition) {
+            modalManagement.showRepositionModal(exerciseToReposition);
+          }
+          setSelectedExerciseForMenu(null);
+        }, delay);
       },
     },
     {

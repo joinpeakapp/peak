@@ -1,5 +1,5 @@
 import React, { memo, useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, InteractionManager } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Workout } from '../../types/workout';
 import { ContextMenu, ContextMenuItem } from '../../components/common/ContextMenu';
@@ -95,18 +95,18 @@ export const WorkoutCard = memo<WorkoutCardProps>(({
       label: 'Reposition workout',
       icon: 'swap-vertical-outline' as keyof typeof Ionicons.glyphMap,
       onPress: () => {
-        setIsMenuVisible(false);
-        // Utiliser InteractionManager pour s'assurer que toutes les animations sont terminées
-        // avant d'ouvrir la modale de repositionnement (comme pour les exercices)
+        // Le ContextMenu ferme déjà le menu et attend 400ms sur iOS avant d'appeler onPress
+        // En production (TestFlight), InteractionManager peut ne jamais se résoudre,
+        // donc on utilise directement un setTimeout avec un délai approprié
         const workoutToReposition = workout;
-        InteractionManager.runAfterInteractions(() => {
-          // Petit délai supplémentaire pour iOS pour garantir que le Modal est complètement démonté
-          setTimeout(() => {
-            if (workoutToReposition && onReposition) {
-              onReposition();
-            }
-          }, Platform.OS === 'ios' ? 100 : 50);
-        });
+        // Délai supplémentaire pour garantir que le Modal ContextMenu est complètement démonté
+        // et que React Native a eu le temps de mettre à jour l'état après les 400ms du ContextMenu
+        const delay = Platform.OS === 'ios' ? 100 : 50;
+        setTimeout(() => {
+          if (workoutToReposition && onReposition) {
+            onReposition();
+          }
+        }, delay);
       },
     }] : []),
     {

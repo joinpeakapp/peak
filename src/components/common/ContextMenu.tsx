@@ -183,7 +183,9 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
     onClose();
     // Wait for animation to finish, then trigger action
     // Délai plus long sur iOS pour garantir que le Modal est complètement démonté sur TestFlight
-    const delay = Platform.OS === 'ios' ? 350 : 200;
+    // En production, les animations peuvent être plus lentes, donc on augmente le délai
+    // Le délai doit être au moins égal à la durée de l'animation de fermeture (150ms) + un buffer
+    const delay = Platform.OS === 'ios' ? 400 : 250;
     setTimeout(() => {
       item.onPress();
     }, delay);
