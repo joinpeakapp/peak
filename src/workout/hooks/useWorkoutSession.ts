@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { PersonalRecords } from '../../types/workout';
 import { PersonalRecordService } from '../../services/personalRecordService';
+import { TrackingSet } from '../contexts/ActiveWorkoutContext';
 
 // Types pour les résultats de Personal Records
 export interface PRResult {
@@ -29,7 +30,7 @@ export interface UseWorkoutSessionReturn {
   // Fonctions de vérification des PRs
   checkOriginalWeightPR: (exerciseName: string, weight: number) => { isNew: boolean; weight: number } | null;
   checkOriginalRepsPR: (exerciseName: string, weight: number, reps: number) => { isNew: boolean; weight: number; reps: number; previousReps: number } | null;
-  checkSessionWeightPR: (exerciseName: string, weight: number) => { isNew: boolean; weight: number } | null;
+  checkSessionWeightPR: (exerciseName: string, weight: number, completedSets?: TrackingSet[], excludeIndex?: number) => { isNew: boolean; weight: number } | null;
   
   // Actions sécurisées pour mettre à jour l'état
   safeUpdateSessionWeight: (exerciseName: string, weight: number) => void;
@@ -40,6 +41,7 @@ export interface UseWorkoutSessionReturn {
   resetExercisePRResults: () => void;
   clearExercisePRs: (exerciseId: string) => void;
   resetSessionMaxWeights: () => void;
+  recalculateSessionMaxWeight: (exerciseName: string, completedSets: TrackingSet[]) => void;
   
   // Fonctions de synchronisation des records
   updateOriginalRecordsForExercise: (exerciseName: string) => Promise<void>;
@@ -143,23 +145,40 @@ export const useWorkoutSession = (): UseWorkoutSessionReturn => {
     [originalRecords]
   );
   
-  // Fonction pour vérifier les PR de poids en tenant compte du poids maximum de la séance actuelle
+  /**
+   * Vérifie si un poids représente un nouveau PR en comparant avec le record original
+   * et le poids maximum parmi toutes les séries complétées actuelles.
+   * 
+   * @param exerciseName - Nom de l'exercice
+   * @param weight - Poids à vérifier
+   * @param completedSets - Toutes les séries complétées actuelles pour cet exercice
+   * @param excludeIndex - Index de la série à exclure du calcul (optionnel, pour la série qu'on vérifie)
+   * @returns PRResult si c'est un nouveau PR, null sinon
+   */
   const checkSessionWeightPR = useCallback(
-    (exerciseName: string, weight: number) => {
+    (exerciseName: string, weight: number, completedSets: TrackingSet[] = [], excludeIndex?: number) => {
       // 🔧 CORRECTIF ROBUSTE : Vérifier que les paramètres sont valides
       if (!exerciseName || weight <= 0) {
         return null;
       }
       
-      // Récupérer le record original et le record de séance
+      // Récupérer le record original
       const originalRecord = originalRecords[exerciseName]?.maxWeight || 0;
-      const sessionRecord = currentSessionMaxWeights[exerciseName] || originalRecord;
       
-      // Un PR de poids est détecté si:
-      // 1. Le poids est supérieur au record original ET
-      // 2. Le poids est supérieur au record de séance actuel
-      if (weight > originalRecord && weight > sessionRecord) {
-        console.log(`[checkSessionWeightPR] ✅ NEW PR detected for ${exerciseName}: ${weight}kg > ${Math.max(originalRecord, sessionRecord)}kg`);
+      // Calculer le poids max parmi toutes les séries complétées (en excluant celle qu'on vérifie si spécifié)
+      let currentMaxWeight = originalRecord;
+      completedSets.forEach((set, index) => {
+        if (set.completed && index !== excludeIndex) {
+          const setWeight = parseInt(set.weight) || 0;
+          if (setWeight > currentMaxWeight) {
+            currentMaxWeight = setWeight;
+          }
+        }
+      });
+      
+      // Un PR de poids est détecté si le poids est strictement supérieur au max actuel
+      if (weight > currentMaxWeight) {
+        console.log(`[checkSessionWeightPR] ✅ NEW PR detected for ${exerciseName}: ${weight}kg > ${currentMaxWeight}kg (original: ${originalRecord}kg)`);
         return {
           isNew: true,
           weight
@@ -178,7 +197,7 @@ export const useWorkoutSession = (): UseWorkoutSessionReturn => {
       
       return null;
     },
-    [originalRecords, currentSessionMaxWeights]
+    [originalRecords]
   );
   
   // Fonction sécurisée pour mettre à jour les records de séance
@@ -246,6 +265,62 @@ export const useWorkoutSession = (): UseWorkoutSessionReturn => {
       setCurrentSessionMaxWeights({});
     }
   }, []);
+
+  /**
+   * Recalcule le poids maximum de la séance pour un exercice donné
+   * en fonction UNIQUEMENT des séries complétées actuelles.
+   * Si aucune série complétée ne reste avec un poids supérieur au record original,
+   * supprime l'entrée de currentSessionMaxWeights (pas de PR en mémoire).
+   */
+  const recalculateSessionMaxWeight = useCallback(
+    (exerciseName: string, completedSets: TrackingSet[]) => {
+      if (!isMounted.current || !exerciseName) return;
+
+      // Trouver le poids maximum parmi les séries complétées actuelles
+      let maxWeight = 0;
+      completedSets.forEach(set => {
+        if (set.completed) {
+          const weight = parseInt(set.weight) || 0;
+          if (weight > maxWeight) {
+            maxWeight = weight;
+          }
+        }
+      });
+
+      // Récupérer le record original pour cet exercice
+      const originalRecord = originalRecords[exerciseName]?.maxWeight || 0;
+
+      console.log(`[recalculateSessionMaxWeight] ${exerciseName}: maxWeight=${maxWeight}kg, originalRecord=${originalRecord}kg, completedSets=${completedSets.filter(s => s.completed).length}`);
+
+      // Si aucun poids trouvé ou si le poids max est inférieur ou égal au record original,
+      // supprimer l'entrée (pas de PR en mémoire)
+      if (maxWeight <= originalRecord) {
+        setCurrentSessionMaxWeights(prev => {
+          const updated = { ...prev };
+          if (updated[exerciseName]) {
+            delete updated[exerciseName];
+            console.log(`[useWorkoutSession] ✅ Reset session max weight for ${exerciseName} (maxWeight: ${maxWeight}kg <= originalRecord: ${originalRecord}kg)`);
+          }
+          return updated;
+        });
+      } else {
+        // Sinon, mettre à jour avec le nouveau poids maximum
+        setCurrentSessionMaxWeights(prev => {
+          const currentMax = prev[exerciseName];
+          // Ne mettre à jour que si le nouveau max est différent
+          if (currentMax !== maxWeight) {
+            console.log(`[useWorkoutSession] ✅ Updated session max weight for ${exerciseName}: ${currentMax || 'none'}kg -> ${maxWeight}kg`);
+            return {
+              ...prev,
+              [exerciseName]: maxWeight
+            };
+          }
+          return prev;
+        });
+      }
+    },
+    [originalRecords]
+  );
 
   /**
    * Met à jour les originalRecords avec les records d'un exercice spécifique.
@@ -364,11 +439,12 @@ export const useWorkoutSession = (): UseWorkoutSessionReturn => {
     safeSetPrResults,
     safeSetExercisePRResults,
     
-    // Utilitaires
-    resetExercisePRResults,
-    clearExercisePRs,
-    resetSessionMaxWeights,
-    updateOriginalRecordsForExercise,
-    syncOriginalRecordsWithExercises,
+  // Utilitaires
+  resetExercisePRResults,
+  clearExercisePRs,
+  resetSessionMaxWeights,
+  recalculateSessionMaxWeight,
+  updateOriginalRecordsForExercise,
+  syncOriginalRecordsWithExercises,
   };
 };

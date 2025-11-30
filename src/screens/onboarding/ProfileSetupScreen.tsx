@@ -15,6 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { CachedImage } from '../../components/common/CachedImage';
+import { PhotoStorageService } from '../../services/photoStorageService';
 
 interface ProfileSetupScreenProps {
   onContinue: (firstName: string, profilePhotoUri?: string) => void;
@@ -70,7 +71,9 @@ export const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({
               });
 
               if (!result.canceled && result.assets[0]) {
-                setProfilePhotoUri(result.assets[0].uri);
+                // Sauvegarder la photo de manière permanente avant de l'afficher
+                const permanentUri = await PhotoStorageService.saveProfilePhoto(result.assets[0].uri);
+                setProfilePhotoUri(permanentUri);
               }
             },
           },
@@ -94,7 +97,9 @@ export const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({
               });
 
               if (!result.canceled && result.assets[0]) {
-                setProfilePhotoUri(result.assets[0].uri);
+                // Sauvegarder la photo de manière permanente avant de l'afficher
+                const permanentUri = await PhotoStorageService.saveProfilePhoto(result.assets[0].uri);
+                setProfilePhotoUri(permanentUri);
               }
             },
           },

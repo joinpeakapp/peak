@@ -4,10 +4,13 @@ import { StreakService } from './streakService';
 import { StickerService } from './stickerService';
 import { PhotoStorageService } from './photoStorageService';
 import { RobustStorageService } from './storage';
+import { CompletedWorkout } from '../types/workout';
 import { Image } from 'react-native';
 
 export class AppPreloadService {
   private static isPreloaded = false;
+  // Cache mémoire pour les données préchargées (disponible immédiatement)
+  private static preloadedWorkoutHistory: CompletedWorkout[] | null = null;
 
   /**
    * Précharge toutes les données critiques de l'application
@@ -21,17 +24,26 @@ export class AppPreloadService {
     const startTime = Date.now();
 
     try {
-      // Précharger en parallèle pour optimiser les performances
+      // Étape 1: Précharger en parallèle les données qui ne dépendent pas des photos
       await Promise.allSettled([
         this.preloadUserProfile(),
         this.preloadPersonalRecords(),
         this.preloadStreakData(),
         this.preloadWorkoutHistory(),
         this.preloadStickers(), // Préchargement des stickers
-        this.preloadPhotos(), // Préchargement et migration des photos
         this.migrateStickerHistoricalData(), // Migration des données historiques des stickers
-        this.preloadImages(),
       ]);
+
+      // Étape 2: Migrer les photos AVANT de précharger les images
+      // Cela garantit que les URIs sont mises à jour dans le stockage avant le préchargement
+      await Promise.allSettled([
+        this.preloadPhotos(), // Préchargement et migration des photos de workout
+        this.migrateProfilePhoto(), // Migration de la photo de profil
+      ]);
+
+      // Étape 3: Précharger les images avec les URIs migrées et vérifiées
+      // Les photos sont maintenant dans documentDirectory avec des URIs permanentes
+      await this.preloadImages();
 
       this.isPreloaded = true;
       const loadTime = Date.now() - startTime;
@@ -86,7 +98,7 @@ export class AppPreloadService {
   }
 
   /**
-   * Précharge l'historique des workouts
+   * Précharge l'historique des workouts et le met en cache mémoire
    */
   private static async preloadWorkoutHistory(): Promise<void> {
     try {
@@ -94,29 +106,60 @@ export class AppPreloadService {
       const { RobustStorageService } = require('./storage');
       const result = await RobustStorageService.loadWorkoutHistory();
       
-      if (!result.success) {
+      if (result.success) {
+        // Mettre en cache mémoire pour accès immédiat dans le contexte
+        this.preloadedWorkoutHistory = result.data;
+      } else {
         console.warn('[AppPreloadService] Failed to preload workout history:', result.error?.userMessage);
+        this.preloadedWorkoutHistory = [];
       }
       // Workout history preloaded
     } catch (error) {
       console.warn('[AppPreloadService] Failed to preload workout history:', error);
+      this.preloadedWorkoutHistory = [];
     }
   }
 
   /**
+   * Récupère l'historique préchargé depuis le cache mémoire (synchrone)
+   * Retourne null si les données ne sont pas encore préchargées
+   */
+  static getPreloadedWorkoutHistory(): CompletedWorkout[] | null {
+    return this.preloadedWorkoutHistory;
+  }
+
+  /**
+   * Met à jour le cache mémoire avec de nouveaux workouts
+   * Utile pour synchroniser le cache après l'ajout/modification d'un workout
+   */
+  static updatePreloadedWorkoutHistory(workouts: CompletedWorkout[]): void {
+    this.preloadedWorkoutHistory = workouts;
+  }
+
+  /**
    * Précharge tous les stickers des workouts
+   * Utilise le cache mémoire si disponible, sinon charge depuis le stockage
    */
   private static async preloadStickers(): Promise<void> {
     try {
-      // Charger l'historique des workouts pour pré-calculer les stickers
-      const { RobustStorageService } = require('./storage');
-      const result = await RobustStorageService.loadWorkoutHistory();
+      // Utiliser le cache mémoire si disponible, sinon charger depuis le stockage
+      let workouts: CompletedWorkout[] = [];
       
-      if (result.success && result.data.length > 0) {
+      if (this.preloadedWorkoutHistory) {
+        workouts = this.preloadedWorkoutHistory;
+      } else {
+        const { RobustStorageService } = require('./storage');
+        const result = await RobustStorageService.loadWorkoutHistory();
+        if (result.success) {
+          workouts = result.data;
+        }
+      }
+      
+      if (workouts.length > 0) {
         let preloadedCount = 0;
         
         // Pré-calculer les stickers pour chaque workout
-        for (const workout of result.data) {
+        for (const workout of workouts) {
           try {
             await StickerService.generateWorkoutStickers(workout, true);
             preloadedCount++;
@@ -134,26 +177,52 @@ export class AppPreloadService {
 
   /**
    * Précharge et migre les photos des workouts vers un stockage permanent
+   * Améliore la récupération des photos même si le chemin a changé entre les builds
    */
   private static async preloadPhotos(): Promise<void> {
     try {
       // Initialiser le service de photos
       await PhotoStorageService.initialize();
       
-      // Charger l'historique des workouts pour migrer les photos
-      const { RobustStorageService } = require('./storage');
-      const result = await RobustStorageService.loadWorkoutHistory();
+      // Utiliser le cache mémoire si disponible, sinon charger depuis le stockage
+      let workouts: CompletedWorkout[] = [];
       
-      if (result.success && result.data.length > 0) {
+      if (this.preloadedWorkoutHistory) {
+        workouts = this.preloadedWorkoutHistory;
+      } else {
+        const { RobustStorageService } = require('./storage');
+        const result = await RobustStorageService.loadWorkoutHistory();
+        if (result.success) {
+          workouts = result.data;
+        }
+      }
+      
+      if (workouts.length > 0) {
         let migratedCount = 0;
         const updatedWorkouts = [];
         
-        for (const workout of result.data) {
+        for (const workout of workouts) {
           if (workout.photo && !workout.photo.includes('placeholder')) {
-            // Migrer la photo vers un stockage permanent
+            // Vérifier d'abord si la photo est accessible avec le chemin actuel
+            const isAccessible = await PhotoStorageService.isPhotoAccessible(workout.photo);
+            
+            if (!isAccessible) {
+              // Si la photo n'est plus accessible, essayer de la retrouver par workoutId
+              // Cela permet de récupérer les photos même si le chemin documentDirectory a changé
+              const foundUri = await PhotoStorageService.getAccessiblePhotoUri(workout.photo, workout.id);
+              
+              if (foundUri && !foundUri.includes('placeholder') && foundUri !== workout.photo) {
+                // Photo trouvée avec un nouveau chemin, mettre à jour
+                updatedWorkouts.push({ ...workout, photo: foundUri });
+                migratedCount++;
+                continue;
+              }
+            }
+            
+            // Migrer la photo vers un stockage permanent (si ce n'est pas déjà fait)
             const permanentUri = await PhotoStorageService.migratePhotoToPermanent(workout.photo, workout.id);
             
-            if (permanentUri !== workout.photo) {
+            if (permanentUri !== workout.photo && !permanentUri.includes('placeholder')) {
               // Mettre à jour l'URI dans le workout
               updatedWorkouts.push({ ...workout, photo: permanentUri });
               migratedCount++;
@@ -168,6 +237,9 @@ export class AppPreloadService {
         // Sauvegarder les workouts mis à jour si des photos ont été migrées
         if (migratedCount > 0) {
           await RobustStorageService.saveWorkoutHistory(updatedWorkouts);
+          // Mettre à jour le cache mémoire avec les workouts mis à jour (URIs migrées)
+          this.preloadedWorkoutHistory = updatedWorkouts;
+          console.log(`[AppPreloadService] Migrated ${migratedCount} workout photos`);
         }
         
         // Nettoyer les photos orphelines - DÉSACTIVÉ pour éviter les suppressions accidentelles
@@ -184,14 +256,106 @@ export class AppPreloadService {
   }
 
   /**
-   * Précharge les images importantes
+   * Migre la photo de profil vers un stockage permanent
+   */
+  private static async migrateProfilePhoto(): Promise<void> {
+    try {
+      // Initialiser le service de photos
+      await PhotoStorageService.initialize();
+      
+      // Charger le profil utilisateur
+      const profile = await UserProfileService.getUserProfile();
+      
+      if (profile && profile.profilePhotoUri && !profile.profilePhotoUri.includes('placeholder')) {
+        // Vérifier si la photo est accessible
+        const isAccessible = await PhotoStorageService.isProfilePhotoAccessible(profile.profilePhotoUri);
+        
+        if (!isAccessible) {
+          // Si la photo n'est plus accessible, essayer de récupérer la photo sauvegardée
+          const savedUri = await PhotoStorageService.getProfilePhotoUri();
+          if (savedUri) {
+            // Mettre à jour le profil avec la photo récupérée
+            await UserProfileService.updateUserProfile({ profilePhotoUri: savedUri });
+            console.log('[AppPreloadService] Recovered profile photo from storage');
+            return;
+          }
+        }
+        
+        // Migrer la photo vers un stockage permanent
+        const permanentUri = await PhotoStorageService.migrateProfilePhotoToPermanent(profile.profilePhotoUri);
+        
+        if (permanentUri !== profile.profilePhotoUri && !permanentUri.includes('placeholder')) {
+          // Mettre à jour le profil avec l'URI permanente
+          await UserProfileService.updateUserProfile({ profilePhotoUri: permanentUri });
+          console.log('[AppPreloadService] Migrated profile photo to permanent storage');
+        }
+      } else if (profile && (!profile.profilePhotoUri || profile.profilePhotoUri.includes('placeholder'))) {
+        // Si pas de photo de profil dans le profil, essayer de récupérer une photo sauvegardée
+        const savedUri = await PhotoStorageService.getProfilePhotoUri();
+        if (savedUri) {
+          await UserProfileService.updateUserProfile({ profilePhotoUri: savedUri });
+          console.log('[AppPreloadService] Restored profile photo from storage');
+        }
+      }
+    } catch (error) {
+      console.warn('[AppPreloadService] Failed to migrate profile photo:', error);
+    }
+  }
+
+  /**
+   * Précharge les images importantes avec les URIs vérifiées et migrées
+   * IMPORTANT: Cette méthode doit être appelée APRÈS preloadPhotos() pour garantir
+   * que les URIs sont migrées vers documentDirectory (persistant entre les builds)
    */
   private static async preloadImages(): Promise<void> {
     try {
-      // Note: UserProfileService n'a pas de getCompletedWorkouts()
-      // En réalité, on préchargerait les images depuis le Redux store
-      // Ici on simule le préchargement
-      // Images preloaded
+      // Utiliser le cache mémoire si disponible (avec URIs migrées), sinon charger depuis le stockage
+      // À ce stade, les photos sont déjà migrées dans preloadPhotos()
+      let workouts: CompletedWorkout[] = [];
+      
+      if (this.preloadedWorkoutHistory) {
+        workouts = this.preloadedWorkoutHistory;
+      } else {
+        const { RobustStorageService } = require('./storage');
+        const result = await RobustStorageService.loadWorkoutHistory();
+        if (result.success) {
+          workouts = result.data;
+        }
+      }
+      
+      if (workouts.length > 0) {
+        const { ImageCacheUtils } = require('../components/common/CachedImage');
+        const imageUris: string[] = [];
+        
+        // Précharger les URIs vérifiées pour chaque workout
+        // Les photos sont déjà migrées vers documentDirectory dans preloadPhotos()
+        // mais on utilise getAccessiblePhotoUri() pour garantir la compatibilité
+        // en cas de changement de chemin entre les builds
+        for (const workout of workouts) {
+          if (workout.photo && !workout.photo.includes('placeholder')) {
+            try {
+              // Obtenir l'URI accessible de la photo
+              // Cette méthode gère automatiquement la récupération si le chemin a changé
+              const accessiblePhotoUri = await PhotoStorageService.getAccessiblePhotoUri(
+                workout.photo,
+                workout.id
+              );
+              
+              if (accessiblePhotoUri && !accessiblePhotoUri.includes('placeholder')) {
+                imageUris.push(accessiblePhotoUri);
+              }
+            } catch (error) {
+              console.warn(`[AppPreloadService] Failed to get accessible URI for workout ${workout.id}:`, error);
+            }
+          }
+        }
+        
+        // Précharger toutes les images en parallèle avec les URIs permanentes
+        if (imageUris.length > 0) {
+          await ImageCacheUtils.preloadImages(imageUris);
+          console.log(`[AppPreloadService] Preloaded ${imageUris.length} workout images with persistent URIs`);
+        }
+      }
     } catch (error) {
       console.warn('[AppPreloadService] Failed to preload images:', error);
     }

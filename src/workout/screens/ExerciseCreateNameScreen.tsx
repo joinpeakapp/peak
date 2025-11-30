@@ -97,7 +97,7 @@ export const ExerciseCreateNameScreen: React.FC<ExerciseCreateNameScreenProps> =
               <TextInput
                 style={[styles.input, error ? styles.inputError : null]}
                 placeholder="e.g., Barbell Squat, Pull-ups..."
-                placeholderTextColor="#5B5B5C"
+                placeholderTextColor="rgba(255, 255, 255, 0.6)"
                 value={name}
                 onChangeText={handleNameChange}
                 autoCapitalize="words"
@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 14,
-    color: '#5B5B5C',
+    color: 'rgba(255, 255, 255, 0.6)',
     lineHeight: 20,
   },
   inputContainer: {
@@ -190,7 +190,7 @@ const styles = StyleSheet.create({
   },
   characterCount: {
     fontSize: 12,
-    color: '#5B5B5C',
+    color: 'rgba(255, 255, 255, 0.6)',
     marginTop: 8,
     textAlign: 'right',
   },

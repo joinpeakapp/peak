@@ -440,6 +440,21 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
       // Trouver l'ancien exercice pour récupérer son nom
       const oldExercise = exercises.find(ex => ex.id === exerciseIdToReplace);
       
+      // Empêcher de remplacer un exercice par lui-même (même nom)
+      // Cette vérification doit être faite avant toute modification
+      if (!oldExercise) {
+        console.log('[WorkoutDetailModal] Cannot find exercise to replace');
+        exerciseSelection.resetToWorkoutMode();
+        return;
+      }
+      
+      if (oldExercise.name === newExercise.name) {
+        console.log('[WorkoutDetailModal] Cannot replace exercise with itself (same name)');
+        // Réinitialiser et retourner au mode workout sans faire de changement
+        exerciseSelection.resetToWorkoutMode();
+        return;
+      }
+      
       // Mettre à jour la liste des exercices en remplaçant l'ancien par le nouveau
       const updatedExercises = exercises.map(ex => 
         ex.id === exerciseIdToReplace 
@@ -986,6 +1001,92 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
     exerciseTracking.animateSet(index);
   }, [exerciseTracking]);
 
+  /**
+   * Réattribue les badges PR pour un exercice donné en s'assurant que seule
+   * la première série avec le poids maximum obtient le badge PR.
+   * Supprime d'abord TOUS les badges PR de l'exercice, puis réattribue uniquement ceux qui méritent un badge.
+   */
+  const reassignPRBadges = useCallback((
+    exerciseName: string,
+    exerciseId: string,
+    completedSets: TrackingSet[]
+  ) => {
+    // D'abord, supprimer TOUS les badges PR existants pour cet exercice
+    const currentPRs = { ...workoutSession.exercisePRResults };
+    Object.keys(currentPRs).forEach(key => {
+      if (key.startsWith(`${exerciseId}_set_`)) {
+        const setIdx = parseInt(key.split('_set_')[1]);
+        // Supprimer complètement le badge PR pour cette série
+        workoutSession.safeSetExercisePRResults(exerciseId, setIdx, null);
+      }
+    });
+    
+    // Calculer le poids max parmi toutes les séries complétées
+    const maxWeight = completedSets
+      .filter(set => set.completed)
+      .reduce((max, set) => {
+        const setWeight = parseInt(set.weight) || 0;
+        return Math.max(max, setWeight);
+      }, 0);
+    
+    const originalRecord = workoutSession.originalRecords[exerciseName]?.maxWeight || 0;
+    
+    // Si le poids max est supérieur au record original, trouver la première série avec ce poids
+    if (maxWeight > originalRecord) {
+      const firstMaxWeightIndex = completedSets.findIndex(set => 
+        set.completed && parseInt(set.weight) === maxWeight
+      );
+      
+      // Vérifier si cette série devrait avoir un badge PR
+      if (firstMaxWeightIndex >= 0) {
+        const firstSet = completedSets[firstMaxWeightIndex];
+        const firstWeight = parseInt(firstSet.weight) || 0;
+        const firstReps = parseInt(firstSet.reps) || 0;
+        
+        if (firstWeight > 0 && firstReps > 0) {
+          const weightPR = workoutSession.checkSessionWeightPR(exerciseName, firstWeight, completedSets, firstMaxWeightIndex);
+          const repsPR = workoutSession.checkOriginalRepsPR(exerciseName, firstWeight, firstReps);
+          
+          if (weightPR || repsPR) {
+            const prData = {
+              setIndex: firstMaxWeightIndex,
+              weightPR: weightPR,
+              repsPR: repsPR
+            };
+            
+            workoutSession.safeSetExercisePRResults(exerciseId, firstMaxWeightIndex, prData);
+          }
+        }
+      }
+    }
+    
+    // Vérifier aussi les PRs de reps pour toutes les séries complétées (pas seulement celle avec le poids max)
+    completedSets.forEach((set, index) => {
+      if (set.completed) {
+        const weight = parseInt(set.weight) || 0;
+        const reps = parseInt(set.reps) || 0;
+        
+        if (weight > 0 && reps > 0) {
+          // Vérifier si cette série a un PR de reps (mais pas de poids si ce n'est pas la première avec le max)
+          const repsPR = workoutSession.checkOriginalRepsPR(exerciseName, weight, reps);
+          
+          if (repsPR) {
+            // Récupérer le PR existant pour cette série (peut avoir déjà un weightPR)
+            const existingPR = workoutSession.exercisePRResults[`${exerciseId}_set_${index}`];
+            
+            const prData = {
+              setIndex: index,
+              weightPR: existingPR?.weightPR || null,
+              repsPR: repsPR
+            };
+            
+            workoutSession.safeSetExercisePRResults(exerciseId, index, prData);
+          }
+        }
+      }
+    });
+  }, [workoutSession]);
+
   // Fonction pour gérer le toggle d'une série (completed/uncompleted)
   const handleSetToggle = useCallback(async (index: number) => {
     // Mettre à jour l'état des sets via le hook et récupérer les nouvelles valeurs
@@ -999,71 +1100,95 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
     // Mettre à jour les données de tracking
     updateTrackingData(modalManagement.selectedExerciseId, newSets, completedCount);
     
+    // Trouver l'exercice correspondant
+    const exercise = exercises.find(ex => ex.id === modalManagement.selectedExerciseId);
+    if (!exercise) return;
+    
     // On vérifie si c'est un PR seulement quand la série est complétée (pas quand on décoche)
     if (isNowCompleted) {
-      // Trouver l'exercice correspondant
-      const exercise = exercises.find(ex => ex.id === modalManagement.selectedExerciseId);
+      // Démarrer le timer de repos
+      startRestTimer(exercise);
       
-      if (exercise) {
-        // Démarrer le timer de repos
-        startRestTimer(exercise);
+      // Vérifier si c'est un PR (seulement si weight et reps sont renseignés)
+      const weight = parseInt(newSets[index].weight) || 0;
+      const reps = parseInt(newSets[index].reps) || 0;
+      
+      if (weight > 0 && reps > 0) {
+        // 🔧 CORRECTIF ROBUSTE : S'assurer que les originalRecords contiennent les records de cet exercice
+        if (!workoutSession.originalRecords[exercise.name] && isTrackingWorkout) {
+          console.log(`[WorkoutDetailModal] Exercise "${exercise.name}" not found in originalRecords, loading now...`);
+          await workoutSession.updateOriginalRecordsForExercise(exercise.name);
+        }
         
-        // Vérifier si c'est un PR (seulement si weight et reps sont renseignés)
-        const weight = parseInt(newSets[index].weight) || 0;
-        const reps = parseInt(newSets[index].reps) || 0;
+        // Utiliser les fonctions du hook pour vérifier les PRs avec les séries complétées actuelles
+        // On exclut l'index actuel pour comparer avec les autres séries
+        const weightPR = workoutSession.checkSessionWeightPR(exercise.name, weight, newSets, index);
+        const repsPR = workoutSession.checkOriginalRepsPR(exercise.name, weight, reps);
         
-        if (weight > 0 && reps > 0) {
-          // 🔧 CORRECTIF ROBUSTE : S'assurer que les originalRecords contiennent les records de cet exercice
-          if (!workoutSession.originalRecords[exercise.name] && isTrackingWorkout) {
-            console.log(`[WorkoutDetailModal] Exercise "${exercise.name}" not found in originalRecords, loading now...`);
-            await workoutSession.updateOriginalRecordsForExercise(exercise.name);
-          }
+        // Si nous avons un nouveau PR de poids, vérifier si c'est la première série avec ce poids max
+        if (weightPR) {
+          // Trouver l'index de la première série complétée avec ce poids max
+          const firstMaxWeightIndex = newSets.findIndex((set, idx) => 
+            set.completed && parseInt(set.weight) === weightPR.weight
+          );
           
-          // Utiliser les fonctions du hook pour vérifier les PRs
-          const weightPR = workoutSession.checkSessionWeightPR(exercise.name, weight);
-          const repsPR = workoutSession.checkOriginalRepsPR(exercise.name, weight, reps);
-          
-          // Si nous avons un nouveau PR de poids pour la session, mettre à jour et supprimer les anciens PR
-          if (weightPR) {
-            // 1. Mettre à jour le record maximum de poids de la séance
-            workoutSession.safeUpdateSessionWeight(exercise.name, weight);
+          // Supprimer tous les badges PR de poids précédents pour cet exercice
+          if (modalManagement.selectedExerciseId) {
+            const updatedPRResults = { ...workoutSession.exercisePRResults };
             
-            // 2. Supprimer tous les stickers "NEW PR" précédents pour cet exercice
-            if (modalManagement.selectedExerciseId) {
-              const updatedPRResults = { ...workoutSession.exercisePRResults };
-              
-              Object.keys(updatedPRResults).forEach(key => {
-                if (key.startsWith(modalManagement.selectedExerciseId!) && updatedPRResults[key]?.weightPR) {
-                  if (updatedPRResults[key]?.repsPR) {
+            Object.keys(updatedPRResults).forEach(key => {
+              if (key.startsWith(`${modalManagement.selectedExerciseId!}_set_`)) {
+                const setIdx = parseInt(key.split('_set_')[1]);
+                const prResult = updatedPRResults[key];
+                
+                if (prResult?.weightPR) {
+                  // Supprimer le badge PR de poids (garder le repsPR si présent)
+                  if (prResult.repsPR) {
                     workoutSession.safeSetExercisePRResults(
                       modalManagement.selectedExerciseId!,
-                      parseInt(key.split('_set_')[1]),
+                      setIdx,
                       {
-                        ...updatedPRResults[key],
+                        ...prResult,
                         weightPR: null
                       }
                     );
                   } else {
                     workoutSession.safeSetExercisePRResults(
                       modalManagement.selectedExerciseId!,
-                      parseInt(key.split('_set_')[1]),
+                      setIdx,
                       null
                     );
                   }
                 }
-              });
-            }
+              }
+            });
           }
           
-          // Préparer les données PR pour ce set
+          // Préparer les données PR pour ce set (seulement si c'est la première série avec ce poids max)
           const prData = {
             setIndex: index,
-            weightPR: weightPR,
+            weightPR: index === firstMaxWeightIndex ? weightPR : null, // Badge PR uniquement pour la première série
             repsPR: repsPR
           };
           
           // Afficher le badge PR pour le set actuel si nécessaire
-          if (weightPR || repsPR) {
+          if (prData.weightPR || prData.repsPR) {
+            workoutSession.safeSetPrResults(prData);
+            animations.animatePrBadge();
+            
+            if (modalManagement.selectedExerciseId) {
+              workoutSession.safeSetExercisePRResults(modalManagement.selectedExerciseId, index, prData);
+            }
+          }
+        } else {
+          // Pas de PR de poids, mais peut-être un PR de reps
+          const prData = {
+            setIndex: index,
+            weightPR: null,
+            repsPR: repsPR
+          };
+          
+          if (repsPR) {
             workoutSession.safeSetPrResults(prData);
             animations.animatePrBadge();
             
@@ -1072,6 +1197,28 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
             }
           }
         }
+        
+        // Recalculer le poids maximum de la séance après validation
+        workoutSession.recalculateSessionMaxWeight(exercise.name, newSets);
+      }
+    } else {
+      // 🔧 CORRECTIF : Quand on décoche une série, supprimer son PR et recalculer
+      // Supprimer le PR de cette série puisqu'elle n'est plus complétée
+      if (modalManagement.selectedExerciseId) {
+        workoutSession.safeSetExercisePRResults(modalManagement.selectedExerciseId, index, null);
+      }
+      
+      // Si cette série avait un PR actif (affiché), le supprimer
+      if (workoutSession.prResults && workoutSession.prResults.setIndex === index) {
+        workoutSession.safeSetPrResults(null);
+      }
+      
+      // Recalculer le poids maximum de la séance avec les séries restantes
+      workoutSession.recalculateSessionMaxWeight(exercise.name, newSets);
+      
+      // Réattribuer les badges PR pour toutes les séries complétées restantes
+      if (modalManagement.selectedExerciseId) {
+        reassignPRBadges(exercise.name, modalManagement.selectedExerciseId, newSets);
       }
     }
     
@@ -1083,7 +1230,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
         animations.animateExerciseProgress(modalManagement.selectedExerciseId, progress);
       }
     }
-  }, [exerciseTracking, modalManagement, updateTrackingData, exercises, startRestTimer, workoutSession, isTrackingWorkout, animations, currentExercises]);
+  }, [exerciseTracking, modalManagement, updateTrackingData, exercises, startRestTimer, workoutSession, isTrackingWorkout, animations, currentExercises, reassignPRBadges]);
 
   // Fonction pour mettre à jour le temps de repos d'un exercice
   const handleRestTimeUpdate = useCallback((seconds: number) => {
@@ -1134,30 +1281,36 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
     // Vérifier si la série à supprimer avait un PR
     const hasPR = workoutSession.prResults && workoutSession.prResults.setIndex === index;
     
-    // Mettre à jour l'état local des sets via le hook
-    exerciseTracking.removeSet(index);
-    const newSets = exerciseTracking.exerciseSets;
+    // Récupérer la série à supprimer pour vérifier si elle était complétée
+    const setToRemove = exerciseTracking.exerciseSets[index];
+    
+    // Supprimer le PR de cette série AVANT de supprimer la série
+    if (modalManagement.selectedExerciseId) {
+      workoutSession.safeSetExercisePRResults(modalManagement.selectedExerciseId, index, null);
+    }
     
     // Si cette série avait un PR actif (affiché), le supprimer
     if (hasPR) {
       workoutSession.safeSetPrResults(null);
     }
     
-    // Supprimer tous les PR associés à cette série
+    // Mettre à jour l'état local des sets via le hook
+    exerciseTracking.removeSet(index);
+    const newSets = exerciseTracking.exerciseSets;
+    
+    // Supprimer TOUS les PRs de cet exercice avant de réattribuer
+    // (reassignPRBadges s'en chargera correctement en vérifiant les séries complétées)
     if (modalManagement.selectedExerciseId) {
-      // Supprimer l'entrée spécifique à cette série
-      workoutSession.safeSetExercisePRResults(modalManagement.selectedExerciseId, index, null);
-      
-      // Décaler les indices des séries suivantes
-      for (let i = index + 1; i < exerciseTracking.exerciseSets.length + 1; i++) {
-        const currentPR = workoutSession.exercisePRResults[`${modalManagement.selectedExerciseId}_set_${i}`];
-        if (currentPR) {
-          // Déplacer les PR vers l'index précédent
-          workoutSession.safeSetExercisePRResults(modalManagement.selectedExerciseId, i - 1, currentPR);
-          // Et supprimer l'ancien index
-          workoutSession.safeSetExercisePRResults(modalManagement.selectedExerciseId, i, null);
+      const currentPRs = { ...workoutSession.exercisePRResults };
+      Object.keys(currentPRs).forEach(key => {
+        if (key.startsWith(`${modalManagement.selectedExerciseId}_set_`)) {
+          workoutSession.safeSetExercisePRResults(
+            modalManagement.selectedExerciseId,
+            parseInt(key.split('_set_')[1]),
+            null
+          );
         }
-      }
+      });
     }
     
     // Mettre à jour le nombre total de séries pour l'exercice
@@ -1184,6 +1337,15 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
         // Mettre à jour les données de tracking avec les sets restants
         const completedCount = newSets.filter(set => set.completed).length;
         updateTrackingData(modalManagement.selectedExerciseId, newSets, completedCount);
+        
+        // 🔧 CORRECTIF : Recalculer le poids maximum de la séance après suppression
+        // et réattribuer les badges PR correctement
+        workoutSession.recalculateSessionMaxWeight(selectedExercise.name, newSets);
+        
+        // Réattribuer les badges PR pour toutes les séries complétées restantes
+        if (modalManagement.selectedExerciseId) {
+          reassignPRBadges(selectedExercise.name, modalManagement.selectedExerciseId, newSets);
+        }
       }
     }
   }, [exerciseTracking, workoutSession, modalManagement, exercises, setExercises, workout, updateWorkout, updateTrackingData]);

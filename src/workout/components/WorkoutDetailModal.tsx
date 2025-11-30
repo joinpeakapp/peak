@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
-  View
+  View,
+  Platform,
+  InteractionManager,
+  ScrollView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Workout, Exercise, CompletedWorkout, PersonalRecords, StickerHistoricalData } from '../../types/workout';
@@ -109,6 +112,9 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   const animations = useWorkoutAnimations();
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Référence pour suivre si on a déjà restauré les originalRecords après un redémarrage
+  const recordsRestoredRef = useRef(false);
   
   const { updateWorkout, workouts } = useWorkout();
   const { 
@@ -233,6 +239,57 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     }
   }, [workout?.exercises, workout?.updatedAt]);
 
+  // 🔧 CORRECTIF : Restaurer les originalRecords quand un workout actif est restauré après un redémarrage
+  useEffect(() => {
+    const restoreSessionRecords = async () => {
+      // Si on est en mode tracking avec un workout actif et que les originalRecords sont vides,
+      // cela signifie qu'un workout actif a été restauré après un redémarrage de l'app
+      if (
+        visible &&
+        isTrackingWorkout && 
+        activeWorkout && 
+        Object.keys(workoutSession.originalRecords).length === 0 &&
+        !recordsRestoredRef.current
+      ) {
+        console.log('[WorkoutDetailModal] 🔄 Restoring originalRecords after app restart');
+        recordsRestoredRef.current = true; // Marquer comme restauré pour éviter les appels multiples
+        
+        try {
+          // Charger les records actuels depuis le service
+          await personalRecords.loadRecords();
+          
+          // Capturer les records actuels qui serviront de référence pour toute la séance
+          const capturedRecords = JSON.parse(JSON.stringify(personalRecords.records));
+          
+          // Initialiser la session avec les records capturés
+          workoutSession.initializeSession(capturedRecords);
+          
+          // Synchroniser les originalRecords avec tous les exercices de la séance
+          const exerciseNames = activeWorkout.exercises
+            .map(ex => ex.name)
+            .filter(Boolean) as string[];
+          
+          if (exerciseNames.length > 0) {
+            await workoutSession.syncOriginalRecordsWithExercises(exerciseNames);
+            console.log(`[WorkoutDetailModal] ✅ Restored originalRecords for ${exerciseNames.length} exercises after app restart`);
+          }
+        } catch (error) {
+          console.error('[WorkoutDetailModal] ❌ Error restoring originalRecords after app restart:', error);
+          recordsRestoredRef.current = false; // Réinitialiser en cas d'erreur pour réessayer
+        }
+      }
+    };
+    
+    restoreSessionRecords();
+  }, [visible, isTrackingWorkout, activeWorkout, workoutSession, personalRecords]);
+  
+  // Réinitialiser le flag quand le workout se termine ou que le modal se ferme
+  useEffect(() => {
+    if (!isTrackingWorkout || !visible) {
+      recordsRestoredRef.current = false;
+    }
+  }, [isTrackingWorkout, visible]);
+
   // Les handlers sont maintenant dans le hook useWorkoutHandlers
 
   useEffect(() => {
@@ -298,11 +355,19 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       label: 'Reposition exercise',
       icon: 'swap-vertical-outline',
       onPress: () => {
-        setIsExerciseMenuVisible(false);
-        if (selectedExerciseForMenu) {
-          modalManagement.showRepositionModal(selectedExerciseForMenu);
-        }
-        setSelectedExerciseForMenu(null);
+        // Le ContextMenu ferme déjà le menu et attend 350ms sur iOS avant d'appeler onPress
+        // On utilise InteractionManager pour s'assurer que toutes les animations sont terminées
+        // avant d'ouvrir la modale de repositionnement
+        const exerciseToReposition = selectedExerciseForMenu;
+        InteractionManager.runAfterInteractions(() => {
+          // Petit délai supplémentaire pour iOS pour garantir que le Modal est complètement démonté
+          setTimeout(() => {
+            if (exerciseToReposition) {
+              modalManagement.showRepositionModal(exerciseToReposition);
+            }
+            setSelectedExerciseForMenu(null);
+          }, Platform.OS === 'ios' ? 50 : 0);
+        });
       },
     },
     {
@@ -401,7 +466,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                 selectedExercises={exerciseSelection.selectedExercises}
                 newlyCreatedExerciseId={newlyCreatedExerciseId}
                 exercises={exercises}
-                exerciseToReplaceId={exerciseSelection.exerciseToReplaceId}
+                exerciseToReplaceId={exerciseSelection.exerciseToReplaceId ?? undefined}
                 modalMode={exerciseSelection.modalMode}
                 getFilterButtonText={exerciseSelection.getFilterButtonText}
                 onClose={handlers.handleClose}
@@ -417,9 +482,9 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
               />
             ) : exerciseSelection.modalMode === 'exercise-tracking' ? (
               <ExerciseTrackingView
-                exercise={selectedExercise}
+                exercise={selectedExercise ?? null}
                 exerciseSets={exerciseTracking.exerciseSets}
-                setAnimations={exerciseTracking.setAnimations}
+                setAnimations={Object.values(exerciseTracking.setAnimations)}
                 prResults={workoutSession.prResults}
                 exercisePRResults={workoutSession.exercisePRResults}
                 selectedExerciseId={modalManagement.selectedExerciseId}
@@ -468,7 +533,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                 selectedExercises={exerciseSelection.selectedExercises}
                 newlyCreatedExerciseId={newlyCreatedExerciseId}
                 exercises={exercises}
-                exerciseToReplaceId={exerciseSelection.exerciseToReplaceId}
+                exerciseToReplaceId={exerciseSelection.exerciseToReplaceId ?? undefined}
                 getFilterButtonText={exerciseSelection.getFilterButtonText}
                 onClose={handlers.handleClose}
                 onStartExerciseCreation={() => {

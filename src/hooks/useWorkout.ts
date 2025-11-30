@@ -7,6 +7,7 @@ import {
   updateExercise,
   setLoading,
   setError,
+  reorderWorkouts,
 } from '../store/slices/workoutSlice';
 import { Workout, Exercise } from '../types/workout';
 
@@ -122,6 +123,14 @@ export const useWorkout = () => {
     return personalRecords[exerciseName] || null;
   };
 
+  /**
+   * Reorders workouts in the store.
+   * @param reorderedWorkouts - The workouts array in the new order
+   */
+  const reorderWorkoutsFn = (reorderedWorkouts: Workout[]) => {
+    dispatch(reorderWorkouts(reorderedWorkouts));
+  };
+
   return {
     workouts,
     loading,
@@ -133,5 +142,6 @@ export const useWorkout = () => {
     modifyExercise,
     checkPersonalRecord,
     getPersonalRecord,
+    reorderWorkouts: reorderWorkoutsFn,
   };
 }; 

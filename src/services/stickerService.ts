@@ -91,6 +91,21 @@ export class StickerService {
   }
 
   /**
+   * Récupère les stickers depuis le cache de manière synchrone
+   * Retourne null si les stickers ne sont pas dans le cache ou si le cache est expiré
+   */
+  static getCachedStickers(workout: CompletedWorkout, includeStreak: boolean = false): Sticker[] | null {
+    const cacheKey = `${workout.id}_${includeStreak}`;
+    const cached = this.stickerCache.get(cacheKey);
+    
+    if (cached && (Date.now() - cached.timestamp) < this.CACHE_DURATION) {
+      return cached.stickers;
+    }
+    
+    return null;
+  }
+
+  /**
    * Vide le cache des stickers (utile lors de changements de données)
    */
   static clearCache(): void {

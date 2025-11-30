@@ -58,8 +58,30 @@ export const ExerciseReplacementView: React.FC<ExerciseReplacementViewProps> = (
     const isSelected = selectedExercises.some(ex => ex.id === exercise.id);
     const isNewlyCreated = newlyCreatedExerciseId === exercise.id;
     
+    // Trouver l'exercice qu'on est en train de remplacer
+    const exerciseBeingReplaced = exerciseToReplaceId 
+      ? exercises.find(ex => ex.id === exerciseToReplaceId)
+      : null;
+    
+    // Vérifier si c'est le même exercice que celui qu'on remplace (même nom)
+    const isSameAsReplacedExercise = exerciseBeingReplaced 
+      ? exerciseBeingReplaced.name === exercise.name
+      : false;
+    
     // En mode remplacement, on peut sélectionner l'exercice qu'on remplace
-    const isAlreadyInWorkout = exercises.some(ex => ex.id === exercise.id && ex.id !== exerciseToReplaceId);
+    // Comparer par nom ET par ID pour éviter que l'exercice remplacé reste marqué comme ADDED
+    // Si l'exercice a le même ID que celui qu'on remplace, il n'est pas considéré comme déjà dans le workout
+    // Si l'exercice a le même nom qu'un exercice dans le workout (mais pas celui qu'on remplace), il est considéré comme déjà ajouté
+    // Si c'est le même exercice que celui qu'on remplace, on le marque comme déjà dans le workout pour empêcher la sélection
+    const isAlreadyInWorkout = isSameAsReplacedExercise || exercises.some(ex => {
+      // Si c'est l'exercice qu'on remplace, ne pas le considérer comme déjà dans le workout
+      if (ex.id === exerciseToReplaceId) {
+        return false;
+      }
+      // Comparer par nom pour détecter si l'exercice est déjà dans le workout
+      // même si l'ID a changé après un remplacement précédent
+      return ex.name === exercise.name;
+    });
     
     return (
       <ExerciseListItem
@@ -157,20 +179,36 @@ export const ExerciseReplacementView: React.FC<ExerciseReplacementViewProps> = (
       
       {/* Bottom Add Button - Layout normal */}
       <View style={styles.bottomButtonContainerFlex}>
-        <TouchableOpacity 
-          style={[
-            styles.addExercisesButton,
-            selectedExercises.length === 0 && styles.addExercisesButtonDisabled
-          ]}
-          onPress={onExerciseReplaced}
-          disabled={selectedExercises.length === 0}
-        >
-          <Text style={styles.addExercisesButtonText}>
-            {selectedExercises.length === 0 
-              ? 'Select an exercise' 
-              : 'Replace with selected exercise'}
-          </Text>
-        </TouchableOpacity>
+        {(() => {
+          // Vérifier si l'exercice sélectionné est le même que celui qu'on remplace
+          const exerciseBeingReplaced = exerciseToReplaceId 
+            ? exercises.find(ex => ex.id === exerciseToReplaceId)
+            : null;
+          const selectedExercise = selectedExercises.length > 0 ? selectedExercises[0] : null;
+          const isSameExercise = exerciseBeingReplaced && selectedExercise
+            ? exerciseBeingReplaced.name === selectedExercise.name
+            : false;
+          const isDisabled = selectedExercises.length === 0 || isSameExercise;
+          
+          return (
+            <TouchableOpacity 
+              style={[
+                styles.addExercisesButton,
+                isDisabled && styles.addExercisesButtonDisabled
+              ]}
+              onPress={onExerciseReplaced}
+              disabled={isDisabled}
+            >
+              <Text style={styles.addExercisesButtonText}>
+                {selectedExercises.length === 0 
+                  ? 'Select an exercise' 
+                  : isSameExercise
+                    ? 'Cannot replace with same exercise'
+                    : 'Replace with selected exercise'}
+              </Text>
+            </TouchableOpacity>
+          );
+        })()}
       </View>
     </View>
   );

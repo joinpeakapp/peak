@@ -1,11 +1,12 @@
-import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import React, { useState, useRef, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Platform, UIManager, LayoutAnimation } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useScrollToTop } from '@react-navigation/native';
 import { WorkoutCard } from './WorkoutCard';
 import { Workout } from '../../types/workout';
 import { useWorkout } from '../../hooks/useWorkout';
 import { WorkoutEditModal } from './WorkoutEditModal';
+import { WorkoutRepositionModal } from './WorkoutRepositionModal';
 
 interface WorkoutListProps {
   /** Array of workouts to display */
@@ -40,9 +41,11 @@ export const WorkoutList: React.FC<WorkoutListProps> = ({
   onWorkoutPress,
   onAddPress 
 }) => {
-  const { removeWorkout } = useWorkout();
+  const { removeWorkout, reorderWorkouts } = useWorkout();
   const [editingWorkout, setEditingWorkout] = useState<Workout | null>(null);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const [selectedWorkoutForReposition, setSelectedWorkoutForReposition] = useState<Workout | null>(null);
+  const [isRepositionModalVisible, setIsRepositionModalVisible] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
   // Scroll vers le haut quand on clique sur le tab actif
@@ -75,6 +78,77 @@ export const WorkoutList: React.FC<WorkoutListProps> = ({
     handleEditClose();
   };
 
+  const handleReposition = (workout: Workout) => {
+    setSelectedWorkoutForReposition(workout);
+    setIsRepositionModalVisible(true);
+  };
+
+  const handleRepositionClose = () => {
+    setIsRepositionModalVisible(false);
+    setTimeout(() => {
+      setSelectedWorkoutForReposition(null);
+    }, 300);
+  };
+
+  const handleRepositionWorkout = useCallback((workoutId: string, newPosition: number) => {
+    console.log('[WorkoutList] Repositioning workout:', workoutId, 'to position:', newPosition);
+    
+    // Activer LayoutAnimation pour Android si nécessaire
+    if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+      UIManager.setLayoutAnimationEnabledExperimental(true);
+    }
+    
+    // Configurer l'animation de réorganisation
+    LayoutAnimation.configureNext({
+      duration: 300,
+      create: {
+        type: LayoutAnimation.Types.easeInEaseOut,
+        property: LayoutAnimation.Properties.opacity,
+      },
+      update: {
+        type: LayoutAnimation.Types.easeInEaseOut,
+        springDamping: 0.7,
+      },
+    });
+    
+    // Trouver le workout à déplacer et son index actuel
+    const workoutToMove = workouts.find(w => w.id === workoutId);
+    if (!workoutToMove) return;
+    
+    const currentIndex = workouts.findIndex(w => w.id === workoutId);
+    
+    // Si la position est la même, ne rien faire
+    if (currentIndex === newPosition) {
+      console.log('[WorkoutList] Workout already at position:', newPosition);
+      return;
+    }
+    
+    // Créer une nouvelle liste sans le workout à déplacer
+    const workoutsWithoutMoved = workouts.filter(w => w.id !== workoutId);
+    
+    // Calculer la position d'insertion dans la liste sans le workout
+    let adjustedPosition: number;
+    if (currentIndex < newPosition) {
+      // Déplacement vers le bas : la position dans la liste sans le workout
+      // est égale à newPosition (pas d'ajustement car on retire avant)
+      adjustedPosition = newPosition;
+    } else {
+      // Déplacement vers le haut : pas d'ajustement nécessaire
+      adjustedPosition = newPosition;
+    }
+    
+    // Insérer le workout à la nouvelle position
+    const updatedWorkouts = [
+      ...workoutsWithoutMoved.slice(0, adjustedPosition),
+      workoutToMove,
+      ...workoutsWithoutMoved.slice(adjustedPosition)
+    ];
+    
+    // Mettre à jour le store avec le nouvel ordre
+    reorderWorkouts(updatedWorkouts);
+    console.log('[WorkoutList] Updated workouts order');
+  }, [workouts, reorderWorkouts]);
+
   const renderEmptyState = () => (
     <View style={styles.emptyStateContainer}>
       <Ionicons name="barbell-outline" size={48} color="#FFFFFF" />
@@ -97,6 +171,7 @@ export const WorkoutList: React.FC<WorkoutListProps> = ({
       onPress={() => onWorkoutPress(item)}
       onEdit={() => handleEdit(item)}
       onDelete={() => handleDelete(item.id)}
+      onReposition={() => handleReposition(item)}
     />
   );
 
@@ -131,6 +206,16 @@ export const WorkoutList: React.FC<WorkoutListProps> = ({
           workout={editingWorkout}
           onClose={handleEditClose}
           onSave={handleEditSave}
+        />
+      )}
+
+      {selectedWorkoutForReposition && (
+        <WorkoutRepositionModal
+          visible={isRepositionModalVisible}
+          onClose={handleRepositionClose}
+          workouts={workouts}
+          selectedWorkout={selectedWorkoutForReposition}
+          onPositionSelected={(newPosition) => handleRepositionWorkout(selectedWorkoutForReposition.id, newPosition)}
         />
       )}
     </>

@@ -65,7 +65,33 @@ export const ExerciseSelectionView: React.FC<ExerciseSelectionViewProps> = ({
     const isAlreadyInWorkout = modalMode === 'exercise-selection' 
       ? exercises.some(ex => ex.id === exercise.id)
       : modalMode === 'exercise-replacement'
-        ? exercises.some(ex => ex.id === exercise.id && ex.id !== exerciseToReplaceId)
+        ? (() => {
+            // Trouver l'exercice qu'on est en train de remplacer
+            const exerciseBeingReplaced = exerciseToReplaceId 
+              ? exercises.find(ex => ex.id === exerciseToReplaceId)
+              : null;
+            
+            // Vérifier si c'est le même exercice que celui qu'on remplace (même nom)
+            const isSameAsReplacedExercise = exerciseBeingReplaced 
+              ? exerciseBeingReplaced.name === exercise.name
+              : false;
+            
+            // Si c'est le même exercice que celui qu'on remplace, on le marque comme déjà dans le workout pour empêcher la sélection
+            if (isSameAsReplacedExercise) {
+              return true;
+            }
+            
+            // Sinon, vérifier si l'exercice est déjà dans le workout (mais pas celui qu'on remplace)
+            return exercises.some(ex => {
+              // Si c'est l'exercice qu'on remplace, ne pas le considérer comme déjà dans le workout
+              if (ex.id === exerciseToReplaceId) {
+                return false;
+              }
+              // Comparer par nom pour détecter si l'exercice est déjà dans le workout
+              // même si l'ID a changé après un remplacement précédent
+              return ex.name === exercise.name;
+            });
+          })()
         : false;
     
     return (

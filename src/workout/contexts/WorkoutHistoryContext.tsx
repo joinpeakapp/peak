@@ -6,6 +6,7 @@ import { RobustStorageService } from '../../services/storage';
 import { PersonalRecordService } from '../../services/personalRecordService';
 import { usePersonalRecords } from '../../hooks/usePersonalRecords';
 import { PhotoStorageService } from '../../services/photoStorageService';
+import { AppPreloadService } from '../../services/appPreloadService';
 
 interface ExerciseWithTracking {
   id: string;
@@ -55,28 +56,35 @@ interface WorkoutHistoryContextType {
 const WorkoutHistoryContext = createContext<WorkoutHistoryContextType | undefined>(undefined);
 
 export const WorkoutHistoryProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [completedWorkouts, setCompletedWorkouts] = useState<CompletedWorkout[]>([]);
+  // Initialiser avec les données préchargées si disponibles (instantané)
+  // Les données sont préchargées dans AppPreloadService avant que le contexte ne se monte
+  const preloadedData = AppPreloadService.getPreloadedWorkoutHistory();
+  const [completedWorkouts, setCompletedWorkouts] = useState<CompletedWorkout[]>(preloadedData || []);
   const [isLoading, setIsLoading] = useState(false); // Commencer à false car préchargé
   const [error, setError] = useState<string | null>(null);
   const { updateStreakOnCompletion } = useStreak();
   const personalRecords = usePersonalRecords();
 
   // Charger l'historique des entraînements depuis le nouveau service robuste
+  // Si les données sont déjà préchargées, utiliser le cache mémoire (instantané)
+  // Sinon, charger depuis le stockage (rapide car déjà en cache AsyncStorage)
   useEffect(() => {
     const loadCompletedWorkouts = async () => {
       try {
-        // Ne pas afficher de loading car les données sont préchargées
-        setError(null);
-        
-        const result = await RobustStorageService.loadWorkoutHistory();
-        
-        if (result.success) {
-          setCompletedWorkouts(result.data);
+        // Si les données sont déjà préchargées, elles sont déjà dans l'état initial
+        // Sinon, charger depuis le stockage
+        if (!preloadedData) {
+          setError(null);
+          
+          const result = await RobustStorageService.loadWorkoutHistory();
+          
+          if (result.success) {
+            setCompletedWorkouts(result.data);
           } else {
-          console.warn('[WorkoutHistory] Failed to load workout history:', result.error?.userMessage);
-          setError(result.error?.userMessage || 'Could not load workout history');
-          // Les données par défaut (tableau vide) sont déjà définies par le service
-          setCompletedWorkouts([]);
+            console.warn('[WorkoutHistory] Failed to load workout history:', result.error?.userMessage);
+            setError(result.error?.userMessage || 'Could not load workout history');
+            setCompletedWorkouts([]);
+          }
         }
       } catch (error) {
         console.error('[WorkoutHistory] Unexpected error loading completed workouts:', error);
@@ -85,8 +93,11 @@ export const WorkoutHistoryProvider: React.FC<{ children: ReactNode }> = ({ chil
       }
     };
 
-    loadCompletedWorkouts();
-  }, []);
+    // Charger seulement si les données ne sont pas déjà préchargées
+    if (!preloadedData) {
+      loadCompletedWorkouts();
+    }
+  }, [preloadedData]);
 
   // Ajouter un nouvel entraînement terminé
   const addCompletedWorkout = async (workout: CompletedWorkout, originalWorkout?: Workout): Promise<void> => {
@@ -94,6 +105,9 @@ export const WorkoutHistoryProvider: React.FC<{ children: ReactNode }> = ({ chil
       // Mettre à jour l'état local immédiatement pour une meilleure UX
       const updatedWorkouts = [...completedWorkouts, workout];
       setCompletedWorkouts(updatedWorkouts);
+      
+      // Mettre à jour le cache mémoire dans AppPreloadService
+      AppPreloadService.updatePreloadedWorkoutHistory(updatedWorkouts);
       
       // Sauvegarder avec le service robuste
       const result = await RobustStorageService.saveWorkoutHistory(updatedWorkouts);
@@ -142,6 +156,9 @@ export const WorkoutHistoryProvider: React.FC<{ children: ReactNode }> = ({ chil
       updatedWorkouts[workoutIndex] = { ...updatedWorkouts[workoutIndex], ...updates };
       setCompletedWorkouts(updatedWorkouts);
       
+      // Mettre à jour le cache mémoire dans AppPreloadService
+      AppPreloadService.updatePreloadedWorkoutHistory(updatedWorkouts);
+      
       // Sauvegarder avec le service robuste
       const result = await RobustStorageService.saveWorkoutHistory(updatedWorkouts);
       
@@ -182,6 +199,9 @@ export const WorkoutHistoryProvider: React.FC<{ children: ReactNode }> = ({ chil
       // Mettre à jour l'état local immédiatement pour une meilleure UX
       const updatedWorkouts = completedWorkouts.filter(w => w.id !== workoutId);
       setCompletedWorkouts(updatedWorkouts);
+      
+      // Mettre à jour le cache mémoire dans AppPreloadService
+      AppPreloadService.updatePreloadedWorkoutHistory(updatedWorkouts);
       
       // Sauvegarder avec le service robuste
       const result = await RobustStorageService.saveWorkoutHistory(updatedWorkouts);

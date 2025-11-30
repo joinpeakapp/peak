@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 14,
-    color: '#5B5B5C',
+    color: 'rgba(255, 255, 255, 0.6)',
     lineHeight: 20,
   },
   optionsContainer: {
@@ -222,7 +222,7 @@ const styles = StyleSheet.create({
   },
   optionDescription: {
     fontSize: 13,
-    color: '#5B5B5C',
+    color: 'rgba(255, 255, 255, 0.6)',
     lineHeight: 18,
   },
   optionDescriptionActive: {

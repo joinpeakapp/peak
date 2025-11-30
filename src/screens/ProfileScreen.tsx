@@ -46,10 +46,6 @@ export const ProfileScreen: React.FC = () => {
   } | null>(null);
   const settingsButtonRef = useRef<View>(null);
   const scrollViewRef = useRef<ScrollView>(null);
-  
-  // États pour les workouts récents
-  const [workoutStickers, setWorkoutStickers] = useState<Record<string, Sticker[]>>({});
-  const [verifiedPhotoUris, setVerifiedPhotoUris] = useState<Record<string, string>>({});
 
   // Charger le profil au montage
   useEffect(() => {
@@ -160,42 +156,114 @@ export const ProfileScreen: React.FC = () => {
       .slice(0, 10); // Limiter aux 10 premiers
   }, [completedWorkouts]);
 
-  // Charger les stickers et vérifier les photos pour les workouts récents
+  // Calculer les stickers depuis le cache AVANT le premier render (instantané)
+  const initialStickers = useMemo(() => {
+    const stickersMap: Record<string, Sticker[]> = {};
+    recentWorkouts.forEach((workout) => {
+      const cachedStickers = StickerService.getCachedStickers(workout, true);
+      if (cachedStickers) {
+        stickersMap[workout.id] = cachedStickers;
+      }
+    });
+    return stickersMap;
+  }, [recentWorkouts]);
+
+  // Initialiser les URIs de photos vérifiées AVANT le premier render
+  // Les photos sont déjà vérifiées et migrées dans AppPreloadService.preloadPhotos()
+  const initialPhotoUris = useMemo(() => {
+    const photoUrisMap: Record<string, string> = {};
+    recentWorkouts.forEach((workout) => {
+      // Utiliser directement item.photo car les photos sont déjà migrées vers documentDirectory
+      if (workout.photo && !workout.photo.includes('placeholder')) {
+        photoUrisMap[workout.id] = workout.photo;
+      }
+    });
+    return photoUrisMap;
+  }, [recentWorkouts]);
+
+  // États pour les workouts récents (initialisés avec le cache)
+  const [workoutStickers, setWorkoutStickers] = useState<Record<string, Sticker[]>>(initialStickers);
+  const [verifiedPhotoUris, setVerifiedPhotoUris] = useState<Record<string, string>>(initialPhotoUris);
+
+  // Mettre à jour les stickers et photos si le cache change (pour les nouveaux workouts)
+  useEffect(() => {
+    setWorkoutStickers(initialStickers);
+    setVerifiedPhotoUris(initialPhotoUris);
+  }, [initialStickers, initialPhotoUris]);
+
+  // Charger les stickers manquants et vérifier les photos pour les workouts récents
+  // Note: Les photos sont déjà préchargées dans AppPreloadService, mais on vérifie quand même
+  // pour les cas où une photo n'est plus accessible
   useEffect(() => {
     const loadStickersAndPhotos = async () => {
-      const stickersMap: Record<string, Sticker[]> = {};
-      const photoUrisMap: Record<string, string> = {};
+      const stickersMap: Record<string, Sticker[]> = { ...initialStickers };
+      const photoUrisMap: Record<string, string> = { ...initialPhotoUris };
       
-      // Utiliser les workouts triés pour charger les stickers
-      for (const workout of recentWorkouts) {
+      // Charger en parallèle les stickers manquants et vérifier les photos si nécessaire
+      const loadPromises = recentWorkouts.map(async (workout) => {
         try {
-          // Générer les stickers pour ce workout
-          const stickers = await StickerService.generateWorkoutStickers(workout, true);
-          stickersMap[workout.id] = stickers;
-          
-          // Vérifier et obtenir l'URI de photo accessible
-          const accessiblePhotoUri = await PhotoStorageService.getAccessiblePhotoUri(
-            workout.photo || '', 
-            workout.id
-          );
-          if (!accessiblePhotoUri.includes('placeholder') || !workout.photo) {
-            photoUrisMap[workout.id] = accessiblePhotoUri;
+          // Si les stickers ne sont pas dans le cache, les générer
+          let stickers = stickersMap[workout.id];
+          if (!stickers) {
+            stickers = await StickerService.generateWorkoutStickers(workout, true);
           }
+          
+          // Vérifier l'URI de photo seulement si elle n'est pas déjà dans initialPhotoUris
+          // ou si elle pourrait ne plus être accessible (fallback pour compatibilité)
+          let photoUri = photoUrisMap[workout.id];
+          if (!photoUri && workout.photo && !workout.photo.includes('placeholder')) {
+            // Utiliser getAccessiblePhotoUri() pour garantir la compatibilité avec la persistance
+            const accessiblePhotoUri = await PhotoStorageService.getAccessiblePhotoUri(
+              workout.photo, 
+              workout.id
+            );
+            if (accessiblePhotoUri && !accessiblePhotoUri.includes('placeholder')) {
+              photoUri = accessiblePhotoUri;
+            }
+          }
+          
+          return {
+            workoutId: workout.id,
+            stickers,
+            photoUri
+          };
         } catch (error) {
           console.error('[ProfileScreen] Error loading data for workout:', workout.name, error);
-          stickersMap[workout.id] = [];
-          photoUrisMap[workout.id] = 'https://via.placeholder.com/114x192/242526/FFFFFF?text=Workout';
+          return {
+            workoutId: workout.id,
+            stickers: stickersMap[workout.id] || [],
+            photoUri: photoUrisMap[workout.id]
+          };
         }
-      }
+      });
       
-      setWorkoutStickers(stickersMap);
-      setVerifiedPhotoUris(photoUrisMap);
+      // Attendre que tous les chargements soient terminés
+      const results = await Promise.all(loadPromises);
+      
+      // Construire les maps à partir des résultats (seulement mettre à jour si nécessaire)
+      let hasChanges = false;
+      results.forEach(({ workoutId, stickers, photoUri }) => {
+        if (stickers.length > 0 && !stickersMap[workoutId]) {
+          stickersMap[workoutId] = stickers;
+          hasChanges = true;
+        }
+        if (photoUri && photoUri !== photoUrisMap[workoutId]) {
+          photoUrisMap[workoutId] = photoUri;
+          hasChanges = true;
+        }
+      });
+      
+      // Mettre à jour seulement si nécessaire pour éviter les re-renders inutiles
+      if (hasChanges) {
+        setWorkoutStickers(stickersMap);
+        setVerifiedPhotoUris(photoUrisMap);
+      }
     };
 
     if (recentWorkouts.length > 0) {
       loadStickersAndPhotos();
     }
-  }, [recentWorkouts]);
+  }, [recentWorkouts, initialStickers, initialPhotoUris]);
 
   const navigateToExerciseDetail = (exerciseName: string) => {
     navigation.navigate('MainTabs', {
@@ -350,7 +418,7 @@ export const ProfileScreen: React.FC = () => {
                   </Text>
                 </View>
                 <View style={styles.chevronContainer}>
-                  <Ionicons name="chevron-forward" size={24} color="#5B5B5C" />
+                  <Ionicons name="chevron-forward" size={24} color="rgba(255, 255, 255, 0.6)" />
                 </View>
               </TouchableOpacity>
             ))

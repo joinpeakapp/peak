@@ -169,7 +169,7 @@ const styles = StyleSheet.create({
   exerciseTrackingSubtitle: {
     fontSize: 14,
     fontWeight: '400',
-    color: '#5B5B5C',
+    color: 'rgba(255, 255, 255, 0.6)',
     marginTop: 8,
     marginBottom: 24,
     paddingHorizontal: 16,

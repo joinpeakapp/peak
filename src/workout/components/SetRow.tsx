@@ -43,8 +43,17 @@ export const SetRow: React.FC<SetRowProps> = ({
 
   // Effet pour animer lors de la détection d'un PR (seulement une fois)
   useEffect(() => {
+    // Si prData devient null/undefined, réinitialiser les animations et les flags
+    if (!prData) {
+      hasSeenWeightPR.current = false;
+      hasSeenRepsPR.current = false;
+      weightFlashAnim.setValue(0);
+      repsFlashAnim.setValue(0);
+      return;
+    }
+    
     // Pour les PR de poids
-    if (prData?.weightPR && !hasSeenWeightPR.current) {
+    if (prData.weightPR && !hasSeenWeightPR.current) {
       hasSeenWeightPR.current = true;
       
       // Animation flash
@@ -70,10 +79,14 @@ export const SetRow: React.FC<SetRowProps> = ({
           useNativeDriver: false,
         }),
       ]).start();
+    } else if (!prData.weightPR && hasSeenWeightPR.current) {
+      // Si le PR de poids disparaît, réinitialiser
+      hasSeenWeightPR.current = false;
+      weightFlashAnim.setValue(0);
     }
     
     // Pour les PR de reps
-    if (prData?.repsPR && !hasSeenRepsPR.current) {
+    if (prData.repsPR && !hasSeenRepsPR.current) {
       hasSeenRepsPR.current = true;
       
       // Animation flash
@@ -99,8 +112,12 @@ export const SetRow: React.FC<SetRowProps> = ({
           useNativeDriver: false,
         }),
       ]).start();
+    } else if (!prData.repsPR && hasSeenRepsPR.current) {
+      // Si le PR de reps disparaît, réinitialiser
+      hasSeenRepsPR.current = false;
+      repsFlashAnim.setValue(0);
     }
-  }, [prData]);
+  }, [prData, weightFlashAnim, repsFlashAnim]);
 
   return (
     <Animated.View 
@@ -144,7 +161,7 @@ export const SetRow: React.FC<SetRowProps> = ({
             style={[
               styles.setInput,
               set.completed && styles.completedInput,
-              prData?.weightPR && {
+              prData?.weightPR && prData.weightPR !== null && {
                 borderColor: weightPRColor,
               }
             ]}
@@ -158,7 +175,7 @@ export const SetRow: React.FC<SetRowProps> = ({
           <Text style={styles.inputSuffix}>kg</Text>
           
           {/* Badge de PR de poids en superposition */}
-          {prData?.weightPR && (
+          {prData?.weightPR && prData.weightPR !== null && (
             <View style={styles.prBadgeOverlay}>
               <PRBadge 
                 type="weight"
@@ -187,7 +204,7 @@ export const SetRow: React.FC<SetRowProps> = ({
             style={[
               styles.setInput,
               set.completed && styles.completedInput,
-              prData?.repsPR && {
+              prData?.repsPR && prData.repsPR !== null && {
                 borderColor: repsPRColor,
               }
             ]}
@@ -201,7 +218,7 @@ export const SetRow: React.FC<SetRowProps> = ({
           <Text style={styles.inputSuffix}>reps</Text>
           
           {/* Badge de PR de reps en superposition */}
-          {prData?.repsPR && (
+          {prData?.repsPR && prData.repsPR !== null && (
             <View style={styles.prBadgeOverlay}>
               <PRBadge 
                 type="reps"
@@ -217,7 +234,7 @@ export const SetRow: React.FC<SetRowProps> = ({
         style={styles.setSettingsButton}
         onPress={() => onRemove(index)}
       >
-        <Ionicons name="close" size={24} color="#5B5B5C" />
+        <Ionicons name="close" size={24} color="rgba(255, 255, 255, 0.6)" />
       </TouchableOpacity>
     </Animated.View>
   );

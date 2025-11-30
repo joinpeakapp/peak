@@ -88,7 +88,7 @@ export const WorkoutCreateNameScreen: React.FC<WorkoutCreateNameScreenProps> = (
             <TextInput
               style={[styles.input, error ? styles.inputError : null]}
               placeholder="e.g. Upper Body, Cardio..."
-              placeholderTextColor="#5B5B5C"
+              placeholderTextColor="rgba(255, 255, 255, 0.6)"
               value={name}
               onChangeText={handleNameChange}
               autoCapitalize="words"

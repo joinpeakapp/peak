@@ -17,6 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { CachedImage } from './CachedImage';
 import { UserProfile } from '../../services/userProfileService';
 import UserProfileService from '../../services/userProfileService';
+import { PhotoStorageService } from '../../services/photoStorageService';
 
 interface EditProfileModalProps {
   visible: boolean;
@@ -107,7 +108,9 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
       });
 
       if (!result.canceled && result.assets[0]) {
-        setProfilePhotoUri(result.assets[0].uri);
+        // Sauvegarder la photo de manière permanente avant de l'afficher
+        const permanentUri = await PhotoStorageService.saveProfilePhoto(result.assets[0].uri);
+        setProfilePhotoUri(permanentUri);
       }
     } catch (error) {
       console.error('[EditProfileModal] Error selecting photo:', error);

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CompletedWorkout } from '../../types/workout';
 import { CachedImageBackground } from '../../components/common/CachedImageBackground';
@@ -27,6 +27,9 @@ export const WorkoutMiniCard: React.FC<WorkoutMiniCardProps> = ({
   cardWidth = DEFAULT_CARD_WIDTH,
   cardHeight = DEFAULT_CARD_HEIGHT,
 }) => {
+  // Vérifier si c'est un placeholder ou pas de photo
+  const hasNoPhoto = !imageUri || imageUri.includes('placeholder');
+  
   const cardContent = (
     <CachedImageBackground 
       uri={imageUri}
@@ -35,6 +38,17 @@ export const WorkoutMiniCard: React.FC<WorkoutMiniCardProps> = ({
       showLoader={false}
       workout={workout}
     >
+      {/* Logo Peak en overlay si pas de photo */}
+      {hasNoPhoto && (
+        <View style={styles.logoOverlay}>
+          <Image
+            source={require('../../../assets/splash-icon.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
+        </View>
+      )}
+      
       <LinearGradient
         colors={['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0.5)']}
         style={styles.cardGradient}
@@ -126,6 +140,21 @@ const styles = StyleSheet.create({
   },
   stickerSpacing: {
     marginHorizontal: 2,
+  },
+  logoOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  logoImage: {
+    width: '40%',
+    height: '40%',
+    opacity: 0.2,
   },
 });
 

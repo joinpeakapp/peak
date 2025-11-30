@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ImageBackground, ImageBackgroundProps, ActivityIndicator, View, StyleSheet, Image } from 'react-native';
+import { imageCache, CACHE_DURATION } from './CachedImage';
 
 interface CachedImageBackgroundProps extends Omit<ImageBackgroundProps, 'source'> {
   uri: string;
@@ -9,15 +10,6 @@ interface CachedImageBackgroundProps extends Omit<ImageBackgroundProps, 'source'
   horizontalFlip?: boolean; // Appliquer une symétrie horizontale à l'image
   workout?: { isFrontCamera?: boolean }; // Objet workout pour déterminer le flip automatiquement
 }
-
-// Utiliser le même cache que CachedImage
-const imageCache = new Map<string, { 
-  loaded: boolean; 
-  error: boolean; 
-  timestamp: number;
-}>();
-
-const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
 
 export const CachedImageBackground: React.FC<CachedImageBackgroundProps> = ({
   uri,

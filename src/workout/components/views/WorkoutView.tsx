@@ -170,7 +170,7 @@ export const WorkoutView: React.FC<WorkoutViewProps> = ({
                           onPress={(event) => onExerciseSettings(exercise.id, event)}
                           style={styles.exerciseSettingsButton}
                         >
-                          <Ionicons name="ellipsis-vertical" size={24} color="#5B5B5C" />
+                          <Ionicons name="ellipsis-vertical" size={24} color="rgba(255, 255, 255, 0.6)" />
                         </TouchableOpacity>
                       ) : (
                         <View style={styles.exerciseActionsContainer}>
@@ -178,10 +178,10 @@ export const WorkoutView: React.FC<WorkoutViewProps> = ({
                             onPress={(event) => onExerciseSettings(exercise.id, event)}
                             style={styles.exerciseSettingsButtonTracking}
                           >
-                            <Ionicons name="ellipsis-vertical" size={20} color="#5B5B5C" />
+                            <Ionicons name="ellipsis-vertical" size={20} color="rgba(255, 255, 255, 0.6)" />
                           </TouchableOpacity>
                           <View style={styles.exerciseChevronContainer}>
-                            <Ionicons name="chevron-forward" size={24} color="#5B5B5C" />
+                            <Ionicons name="chevron-forward" size={24} color="rgba(255, 255, 255, 0.6)" />
                           </View>
                         </View>
                       )}
@@ -333,7 +333,7 @@ const styles = StyleSheet.create({
   },
   exerciseTrackingType: {
     fontSize: 14,
-    color: '#5B5B5C',
+    color: 'rgba(255, 255, 255, 0.6)',
   },
   exerciseSettingsButton: {
     padding: 8,

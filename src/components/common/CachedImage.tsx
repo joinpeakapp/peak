@@ -10,15 +10,15 @@ interface CachedImageProps extends Omit<ImageProps, 'source'> {
   workout?: { isFrontCamera?: boolean }; // Objet workout pour déterminer le flip automatiquement
 }
 
-// Cache global pour les images
-const imageCache = new Map<string, { 
+// Cache global partagé pour les images (utilisé par CachedImage et CachedImageBackground)
+export const imageCache = new Map<string, { 
   loaded: boolean; 
   error: boolean; 
   timestamp: number;
 }>();
 
 // Durée de vie du cache (30 minutes)
-const CACHE_DURATION = 30 * 60 * 1000;
+export const CACHE_DURATION = 30 * 60 * 1000;
 
 // Nettoyer le cache périodiquement
 const cleanupCache = () => {

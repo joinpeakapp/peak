@@ -12,23 +12,23 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Exercise } from '../../types/workout';
+import { Workout } from '../../types/workout';
 
-interface ExerciseRepositionModalProps {
+interface WorkoutRepositionModalProps {
   visible: boolean;
   onClose: () => void;
-  exercises: Exercise[];
-  selectedExercise: Exercise;
+  workouts: Workout[];
+  selectedWorkout: Workout;
   onPositionSelected: (newPosition: number) => void;
 }
 
 const ANIMATION_DURATION = 300;
 
-export const ExerciseRepositionModal: React.FC<ExerciseRepositionModalProps> = ({
+export const WorkoutRepositionModal: React.FC<WorkoutRepositionModalProps> = ({
   visible,
   onClose,
-  exercises,
-  selectedExercise,
+  workouts,
+  selectedWorkout,
   onPositionSelected,
 }) => {
   const [modalVisible, setModalVisible] = useState(false);
@@ -46,8 +46,8 @@ export const ExerciseRepositionModal: React.FC<ExerciseRepositionModalProps> = (
     return () => subscription?.remove();
   }, []);
 
-  // Trouver l'index actuel de l'exercice sélectionné
-  const currentIndex = exercises.findIndex(ex => ex.id === selectedExercise.id);
+  // Trouver l'index actuel du workout sélectionné
+  const currentIndex = workouts.findIndex(w => w.id === selectedWorkout.id);
 
   useEffect(() => {
     if (visible) {
@@ -138,54 +138,54 @@ export const ExerciseRepositionModal: React.FC<ExerciseRepositionModalProps> = (
   };
 
   // Fonction pour obtenir la description d'une position
-  // Cette fonction calcule qui sera AVANT l'exercice APRÈS le déplacement
+  // Cette fonction calcule qui sera AVANT le workout APRÈS le déplacement
   const getPositionDescription = (newPosition: number): string => {
     if (newPosition === currentIndex) {
       return 'Current place';
     }
     if (newPosition === 0) {
-      return 'First exercise';
+      return 'First workout';
     }
-    if (newPosition === exercises.length - 1) {
-      return 'Last exercise';
+    if (newPosition === workouts.length - 1) {
+      return 'Last workout';
     }
     
-    // Pour calculer qui sera avant l'exercice APRÈS le déplacement :
-    // 1. On crée une liste sans l'exercice à déplacer
-    // 2. Dans la liste finale, l'exercice sera à newPosition
-    // 3. L'exercice avant sera donc à newPosition - 1 dans la liste finale
-    // 4. On doit trouver quel exercice de la liste actuelle sera à cette position
+    // Pour calculer qui sera avant le workout APRÈS le déplacement :
+    // 1. On crée une liste sans le workout à déplacer
+    // 2. Dans la liste finale, le workout sera à newPosition
+    // 3. Le workout avant sera donc à newPosition - 1 dans la liste finale
+    // 4. On doit trouver quel workout de la liste actuelle sera à cette position
     
-    // Créer la liste sans l'exercice sélectionné
-    const exercisesWithoutSelected = exercises.filter(ex => ex.id !== selectedExercise.id);
+    // Créer la liste sans le workout sélectionné
+    const workoutsWithoutSelected = workouts.filter(w => w.id !== selectedWorkout.id);
     
-    // Dans la liste finale, l'exercice avant sera à l'index newPosition - 1
-    // Dans la liste sans l'exercice sélectionné, cet index correspond à :
-    let exerciseBeforeIndexInFinalList = newPosition - 1;
+    // Dans la liste finale, le workout avant sera à l'index newPosition - 1
+    // Dans la liste sans le workout sélectionné, cet index correspond à :
+    let workoutBeforeIndexInFinalList = newPosition - 1;
     
-    // Trouver l'exercice qui sera à cette position dans la liste finale
+    // Trouver le workout qui sera à cette position dans la liste finale
     // Si newPosition > currentIndex, on a retiré un élément avant, donc l'index reste le même
     // Si newPosition < currentIndex, on a retiré un élément après, donc l'index reste le même aussi
     // En fait, dans la liste sans l'élément, l'index newPosition - 1 correspond toujours à l'index newPosition - 1
     // sauf si newPosition - 1 >= currentIndex, auquel cas il faut ajuster
     
-    let exerciseBeforeIndex: number;
-    if (exerciseBeforeIndexInFinalList >= currentIndex) {
+    let workoutBeforeIndex: number;
+    if (workoutBeforeIndexInFinalList >= currentIndex) {
       // L'index dans la liste finale correspond à l'index + 1 dans la liste actuelle
       // car on a retiré un élément avant cette position
-      exerciseBeforeIndex = exerciseBeforeIndexInFinalList + 1;
+      workoutBeforeIndex = workoutBeforeIndexInFinalList + 1;
     } else {
       // L'index reste le même car on retire un élément après
-      exerciseBeforeIndex = exerciseBeforeIndexInFinalList;
+      workoutBeforeIndex = workoutBeforeIndexInFinalList;
     }
     
-    // Récupérer l'exercice qui sera avant dans la liste finale
-    const exerciseBefore = exercises[exerciseBeforeIndex];
-    return `After "${exerciseBefore?.name || 'exercise'}"`;
+    // Récupérer le workout qui sera avant dans la liste finale
+    const workoutBefore = workouts[workoutBeforeIndex];
+    return `After "${workoutBefore?.name || 'workout'}"`;
   };
 
   // Créer une liste simple de toutes les positions possibles avec descriptions
-  const positionOptions = Array.from({ length: exercises.length }, (_, i) => ({
+  const positionOptions = Array.from({ length: workouts.length }, (_, i) => ({
     position: i,
     displayPosition: i + 1,
     isCurrentPosition: i === currentIndex,
@@ -195,11 +195,11 @@ export const ExerciseRepositionModal: React.FC<ExerciseRepositionModalProps> = (
   // Debug: vérifier que les données sont correctes
   useEffect(() => {
     if (visible) {
-      console.log('[ExerciseRepositionModal] Exercises:', exercises.length);
-      console.log('[ExerciseRepositionModal] Selected exercise:', selectedExercise?.name);
-      console.log('[ExerciseRepositionModal] Position options:', positionOptions.length);
+      console.log('[WorkoutRepositionModal] Workouts:', workouts.length);
+      console.log('[WorkoutRepositionModal] Selected workout:', selectedWorkout?.name);
+      console.log('[WorkoutRepositionModal] Position options:', positionOptions.length);
     }
-  }, [visible, exercises.length, selectedExercise, positionOptions.length]);
+  }, [visible, workouts.length, selectedWorkout, positionOptions.length]);
 
   // Ne pas rendre si jamais visible et pas visible actuellement
   // Cela évite les problèmes de timing sur TestFlight
@@ -207,8 +207,8 @@ export const ExerciseRepositionModal: React.FC<ExerciseRepositionModalProps> = (
     return null;
   }
 
-  // Si pas d'exercices, ne rien afficher
-  if (!exercises || exercises.length === 0 || !selectedExercise) {
+  // Si pas de workouts, ne rien afficher
+  if (!workouts || workouts.length === 0 || !selectedWorkout) {
     return null;
   }
 
@@ -240,14 +240,14 @@ export const ExerciseRepositionModal: React.FC<ExerciseRepositionModalProps> = (
           <View style={styles.handle} />
           
           <View style={styles.header}>
-            <Text style={styles.title}>Reposition Exercise</Text>
+            <Text style={styles.title}>Reposition Workout</Text>
             <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
               <Ionicons name="close" size={24} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
 
           <Text style={styles.subtitle}>
-            Choose the position for "{selectedExercise.name}"
+            Choose the position for "{selectedWorkout.name}"
           </Text>
 
           <View style={styles.scrollContainer}>

@@ -128,6 +128,12 @@ const workoutSlice = createSlice({
     setError: (state, action: PayloadAction<string | null>) => {
       state.error = action.payload;
     },
+    // Réorganiser les workouts
+    reorderWorkouts: (state, action: PayloadAction<Workout[]>) => {
+      state.workouts = action.payload;
+      // Sauvegarde avec le nouveau service robuste
+      RobustStorageService.saveWorkoutTemplates(state.workouts);
+    },
     // Effacer toutes les données (reset to new user)
     clearWorkouts: (state) => {
       state.workouts = [];
@@ -172,6 +178,7 @@ export const {
   updateExercise,
   setLoading,
   setError,
+  reorderWorkouts,
   clearWorkouts,
 } = workoutSlice.actions;
 

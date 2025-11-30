@@ -199,6 +199,16 @@ export const WorkoutOverviewScreen: React.FC = () => {
               resizeMode="cover"
               fallbackUri="https://via.placeholder.com/400x600/242526/FFFFFF?text=Workout"
             />
+            {/* Logo Peak en overlay si pas de photo */}
+            {(!currentWorkout.photo || currentWorkout.photo.includes('placeholder')) && (
+              <View style={styles.logoOverlay}>
+                <Image
+                  source={require('../../../assets/splash-icon.png')}
+                  style={styles.logoImage}
+                  resizeMode="contain"
+                />
+              </View>
+            )}
             <LinearGradient
               colors={[
                 'rgba(13, 13, 15, 0)', 
@@ -498,12 +508,6 @@ export const WorkoutOverviewScreen: React.FC = () => {
               <View style={styles.exerciseHeader}>
                 <Text style={styles.exerciseName}>{exercise.name}</Text>
                 <View style={styles.headerRightContainer}>
-                  {exercise.personalRecord && (
-                    <View style={styles.recordBadge}>
-                      <Ionicons name="trophy" size={14} color="#000000" />
-                      <Text style={styles.recordText}>PR</Text>
-                    </View>
-                  )}
                   <Text style={styles.exerciseSetsCount}>
                     {exercise.sets.filter(set => set.completed).length} sets
                   </Text>
@@ -521,7 +525,14 @@ export const WorkoutOverviewScreen: React.FC = () => {
                         style={styles.setContainer}
                       >
                         {/* Weight container */}
-                        <View style={styles.dataContainer}>
+                        <View style={[
+                          styles.dataContainer,
+                          set.prData?.weightPR && styles.weightPRBorder
+                        ]}>
+                          {/* Fond coloré pour PR de poids */}
+                          {set.prData?.weightPR && (
+                            <View style={[styles.prHighlight, styles.weightPRHighlight]} />
+                          )}
                           <Text style={styles.dataText}>{set.weight} kg</Text>
                           {/* Badge PR de poids si disponible */}
                           {set.prData?.weightPR && (
@@ -535,7 +546,14 @@ export const WorkoutOverviewScreen: React.FC = () => {
                         </View>
                         
                         {/* Reps container */}
-                        <View style={styles.dataContainer}>
+                        <View style={[
+                          styles.dataContainer,
+                          set.prData?.repsPR && styles.repsPRBorder
+                        ]}>
+                          {/* Fond coloré pour PR de reps */}
+                          {set.prData?.repsPR && (
+                            <View style={[styles.prHighlight, styles.repsPRHighlight]} />
+                          )}
                           <Text style={styles.dataText}>{set.reps} reps</Text>
                           {/* Badge PR de reps si disponible */}
                           {set.prData?.repsPR && (
@@ -620,6 +638,21 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     height: '100%',
+  },
+  logoOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  logoImage: {
+    width: '30%',
+    height: '30%',
+    opacity: 0.2,
   },
   safeAreaOverlay: {
     position: 'absolute',
@@ -738,20 +771,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#FFFFFF',
     textAlign: 'right',
-  },
-  recordBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#9B93E4',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 100,
-    gap: 4,
-  },
-  recordText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#000000',
   },
   setsListContainer: {
     marginTop: 16,

@@ -1,5 +1,5 @@
 import React, { memo, useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, InteractionManager } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Workout } from '../../types/workout';
 import { ContextMenu, ContextMenuItem } from '../../components/common/ContextMenu';
@@ -14,6 +14,8 @@ interface WorkoutCardProps {
   onEdit: () => void;
   /** Callback function when the workout is deleted */
   onDelete: () => void;
+  /** Callback function when the workout should be repositioned */
+  onReposition?: () => void;
 }
 
 /**
@@ -74,6 +76,7 @@ export const WorkoutCard = memo<WorkoutCardProps>(({
   onPress,
   onEdit,
   onDelete,
+  onReposition,
 }) => {
   const { name, frequency } = workout;
   const [isMenuVisible, setIsMenuVisible] = useState(false);
@@ -87,17 +90,42 @@ export const WorkoutCard = memo<WorkoutCardProps>(({
 
   // Menu items configuration
   const menuItems: ContextMenuItem[] = [
+    ...(onReposition ? [{
+      key: 'reposition',
+      label: 'Reposition workout',
+      icon: 'swap-vertical-outline' as keyof typeof Ionicons.glyphMap,
+      onPress: () => {
+        setIsMenuVisible(false);
+        // Utiliser InteractionManager pour s'assurer que toutes les animations sont terminées
+        // avant d'ouvrir la modale de repositionnement (comme pour les exercices)
+        const workoutToReposition = workout;
+        InteractionManager.runAfterInteractions(() => {
+          // Petit délai supplémentaire pour iOS pour garantir que le Modal est complètement démonté
+          setTimeout(() => {
+            if (workoutToReposition && onReposition) {
+              onReposition();
+            }
+          }, Platform.OS === 'ios' ? 100 : 50);
+        });
+      },
+    }] : []),
     {
       key: 'edit',
       label: 'Edit workout',
       icon: 'pencil-outline',
-      onPress: onEdit,
+      onPress: () => {
+        setIsMenuVisible(false);
+        onEdit();
+      },
     },
     {
       key: 'delete',
       label: 'Delete workout',
       icon: 'trash-outline',
-      onPress: onDelete,
+      onPress: () => {
+        setIsMenuVisible(false);
+        onDelete();
+      },
       destructive: true,
     },
   ];
@@ -133,7 +161,7 @@ export const WorkoutCard = memo<WorkoutCardProps>(({
               style={styles.settingsButton}
               onPress={handleSettingsPress}
             >
-              <Ionicons name="ellipsis-vertical" size={24} color="#5B5B5C" />
+              <Ionicons name="ellipsis-vertical" size={24} color="rgba(255, 255, 255, 0.6)" />
             </TouchableOpacity>
           </View>
         </View>
@@ -180,7 +208,7 @@ const styles = StyleSheet.create({
   },
   frequency: {
     fontSize: 14,
-    color: '#5B5B5C',
+    color: 'rgba(255, 255, 255, 0.6)',
   },
   settingsButton: {
     padding: 4,

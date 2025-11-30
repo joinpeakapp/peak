@@ -101,6 +101,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   const slideAnim = useRef(new Animated.Value(16)).current;
   const [menuLayout, setMenuLayout] = useState<{ width: number; height: number } | null>(null);
   const [pressedItem, setPressedItem] = useState<string | null>(null);
+  const [hasBeenVisible, setHasBeenVisible] = useState(false);
 
   // Calculate menu position (above or below anchor)
   const calculatePosition = () => {
@@ -136,6 +137,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   // Animate in/out
   useEffect(() => {
     if (visible) {
+      setHasBeenVisible(true);
       // Reset animations
       fadeAnim.setValue(0);
       slideAnim.setValue(16);
@@ -167,7 +169,12 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
           duration: 150,
           useNativeDriver: true,
         }),
-      ]).start();
+      ]).start(() => {
+        // Marquer comme non visible après l'animation
+        if (!visible) {
+          setHasBeenVisible(false);
+        }
+      });
     }
   }, [visible]);
 
@@ -175,12 +182,15 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
     // Close menu first
     onClose();
     // Wait for animation to finish, then trigger action
+    // Délai plus long sur iOS pour garantir que le Modal est complètement démonté sur TestFlight
+    const delay = Platform.OS === 'ios' ? 350 : 200;
     setTimeout(() => {
       item.onPress();
-    }, 200);
+    }, delay);
   };
 
-  if (!visible && fadeAnim._value === 0) return null;
+  // Ne pas rendre si jamais visible et pas visible actuellement
+  if (!hasBeenVisible && !visible) return null;
 
   return (
     <Modal
