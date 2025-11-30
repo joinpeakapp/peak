@@ -367,9 +367,10 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       key: 'reposition',
       label: 'Reposition exercise',
       icon: 'swap-vertical-outline',
-      onPress: () => {
+          onPress: () => {
         // Le ContextMenu ferme déjà le menu et attend 400ms sur iOS avant d'appeler onPress
-        // Appel direct comme pour "Edit Workout" qui fonctionne
+        // S'assurer que le menu est fermé pour éviter les conflits d'état
+        setIsExerciseMenuVisible(false);
         const exerciseToReposition = selectedExerciseForMenu;
         if (exerciseToReposition) {
           modalManagement.showRepositionModal(exerciseToReposition);

@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
@@ -298,7 +299,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     minWidth: 200,
     maxWidth: 280,
-    paddingVertical: 4,
     ...Platform.select({
       ios: {
         shadowColor: '#000',

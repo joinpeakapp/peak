@@ -80,7 +80,9 @@ export const WorkoutList: React.FC<WorkoutListProps> = ({
 
   const handleReposition = (workout: Workout) => {
     // Pattern similaire à handleEdit qui fonctionne
+    // Réinitialiser d'abord pour garantir un état propre
     setSelectedWorkoutForReposition(null);
+    setIsRepositionModalVisible(false);
     setTimeout(() => {
       setSelectedWorkoutForReposition(workout);
       setIsRepositionModalVisible(true);
@@ -89,6 +91,8 @@ export const WorkoutList: React.FC<WorkoutListProps> = ({
 
   const handleRepositionClose = () => {
     setIsRepositionModalVisible(false);
+    // Délai pour laisser l'animation de fermeture se terminer avant de réinitialiser le workout
+    // Même pattern que hideRepositionModal dans useModalManagement
     setTimeout(() => {
       setSelectedWorkoutForReposition(null);
     }, 300);

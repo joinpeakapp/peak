@@ -96,7 +96,8 @@ export const WorkoutCard = memo<WorkoutCardProps>(({
       icon: 'swap-vertical-outline' as keyof typeof Ionicons.glyphMap,
       onPress: () => {
         // Le ContextMenu ferme déjà le menu et attend 400ms sur iOS avant d'appeler onPress
-        // Appel direct comme pour "Edit Workout" qui fonctionne
+        // S'assurer que le menu est fermé pour éviter les conflits d'état
+        setIsMenuVisible(false);
         if (onReposition) {
           onReposition();
         }
