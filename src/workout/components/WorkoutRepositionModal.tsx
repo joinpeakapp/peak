@@ -47,10 +47,15 @@ export const WorkoutRepositionModal: React.FC<WorkoutRepositionModalProps> = ({
   }, []);
 
   // Trouver l'index actuel du workout sélectionné
-  const currentIndex = workouts.findIndex(w => w.id === selectedWorkout.id);
+  // Protection contre selectedWorkout null/undefined ou sans id valide
+  const currentIndex = selectedWorkout?.id ? workouts.findIndex(w => w.id === selectedWorkout.id) : -1;
 
   useEffect(() => {
     if (visible) {
+      // Vérifier que selectedWorkout est défini avant de continuer
+      if (!selectedWorkout?.id) {
+        return;
+      }
       setHasBeenVisible(true);
       setModalVisible(true);
       // Réinitialiser les animations avec la hauteur actuelle
@@ -207,8 +212,8 @@ export const WorkoutRepositionModal: React.FC<WorkoutRepositionModalProps> = ({
     return null;
   }
 
-  // Si pas de workouts, ne rien afficher
-  if (!workouts || workouts.length === 0 || !selectedWorkout) {
+  // Si pas de workouts ou de workout sélectionné valide, ne rien afficher
+  if (!workouts || workouts.length === 0 || !selectedWorkout?.id) {
     return null;
   }
 

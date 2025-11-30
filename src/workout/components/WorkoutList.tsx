@@ -217,15 +217,20 @@ export const WorkoutList: React.FC<WorkoutListProps> = ({
         />
       )}
 
-      {selectedWorkoutForReposition && (
-        <WorkoutRepositionModal
-          visible={isRepositionModalVisible}
-          onClose={handleRepositionClose}
-          workouts={workouts}
-          selectedWorkout={selectedWorkoutForReposition}
-          onPositionSelected={(newPosition) => handleRepositionWorkout(selectedWorkoutForReposition.id, newPosition)}
-        />
-      )}
+      {/* Modale de repositionnement de workout */}
+      {/* Toujours rendre le composant pour éviter les problèmes de montage en production */}
+      {/* Même pattern que ExerciseRepositionModal qui fonctionne */}
+      <WorkoutRepositionModal
+        visible={isRepositionModalVisible && !!selectedWorkoutForReposition}
+        onClose={handleRepositionClose}
+        workouts={workouts}
+        selectedWorkout={selectedWorkoutForReposition || { id: '', name: '', date: '', exercises: [], frequency: '', streak: 0 } as Workout}
+        onPositionSelected={(newPosition) => {
+          if (selectedWorkoutForReposition) {
+            handleRepositionWorkout(selectedWorkoutForReposition.id, newPosition);
+          }
+        }}
+      />
     </>
   );
 };
