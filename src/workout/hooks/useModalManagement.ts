@@ -121,12 +121,19 @@ export const useModalManagement = (): UseModalManagementReturn => {
   // Actions pour la modale de repositionnement
   const showRepositionModal = useCallback((exercise: Exercise) => {
     setExerciseToReposition(exercise);
-    setIsRepositionModalVisible(true);
+    // Délai minimal pour s'assurer que le composant est monté (comme dans WorkoutList.handleEdit)
+    // Ce pattern fonctionne pour "Edit Workout", donc on l'applique ici aussi
+    setTimeout(() => {
+      setIsRepositionModalVisible(true);
+    }, 10);
   }, []);
   
   const hideRepositionModal = useCallback(() => {
     setIsRepositionModalVisible(false);
-    setExerciseToReposition(null);
+    // Délai pour laisser l'animation de fermeture se terminer avant de réinitialiser l'exercice
+    setTimeout(() => {
+      setExerciseToReposition(null);
+    }, 300);
   }, []);
   
   // Actions pour la sélection d'exercice

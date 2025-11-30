@@ -96,17 +96,10 @@ export const WorkoutCard = memo<WorkoutCardProps>(({
       icon: 'swap-vertical-outline' as keyof typeof Ionicons.glyphMap,
       onPress: () => {
         // Le ContextMenu ferme déjà le menu et attend 400ms sur iOS avant d'appeler onPress
-        // En production (TestFlight), InteractionManager peut ne jamais se résoudre,
-        // donc on utilise directement un setTimeout avec un délai approprié
-        const workoutToReposition = workout;
-        // Délai supplémentaire pour garantir que le Modal ContextMenu est complètement démonté
-        // et que React Native a eu le temps de mettre à jour l'état après les 400ms du ContextMenu
-        const delay = Platform.OS === 'ios' ? 100 : 50;
-        setTimeout(() => {
-          if (workoutToReposition && onReposition) {
-            onReposition();
-          }
-        }, delay);
+        // Appel direct comme pour "Edit Workout" qui fonctionne
+        if (onReposition) {
+          onReposition();
+        }
       },
     }] : []),
     {

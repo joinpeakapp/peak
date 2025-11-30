@@ -369,18 +369,12 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       icon: 'swap-vertical-outline',
       onPress: () => {
         // Le ContextMenu ferme déjà le menu et attend 400ms sur iOS avant d'appeler onPress
-        // En production (TestFlight), InteractionManager peut ne jamais se résoudre,
-        // donc on utilise directement un setTimeout avec un délai approprié
+        // Appel direct comme pour "Edit Workout" qui fonctionne
         const exerciseToReposition = selectedExerciseForMenu;
-        // Délai supplémentaire pour garantir que le Modal ContextMenu est complètement démonté
-        // et que React Native a eu le temps de mettre à jour l'état après les 400ms du ContextMenu
-        const delay = Platform.OS === 'ios' ? 100 : 50;
-        setTimeout(() => {
-          if (exerciseToReposition) {
-            modalManagement.showRepositionModal(exerciseToReposition);
-          }
-          setSelectedExerciseForMenu(null);
-        }, delay);
+        if (exerciseToReposition) {
+          modalManagement.showRepositionModal(exerciseToReposition);
+        }
+        setSelectedExerciseForMenu(null);
       },
     },
     {
@@ -646,17 +640,18 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       />
 
       {/* Modale de repositionnement d'exercice */}
-      {modalManagement.exerciseToReposition && (
-        <ExerciseRepositionModal
-          visible={modalManagement.isRepositionModalVisible}
-          onClose={modalManagement.hideRepositionModal}
-          exercises={currentExercises}
-          selectedExercise={modalManagement.exerciseToReposition}
-          onPositionSelected={(newPosition) => {
-            handlers.handleRepositionExercise(modalManagement.exerciseToReposition!.id, newPosition);
-          }}
-        />
-      )}
+      {/* Toujours rendre le composant pour éviter les problèmes de montage en production */}
+      <ExerciseRepositionModal
+        visible={modalManagement.isRepositionModalVisible && !!modalManagement.exerciseToReposition}
+        onClose={modalManagement.hideRepositionModal}
+        exercises={currentExercises}
+        selectedExercise={modalManagement.exerciseToReposition || { id: '', name: '', sets: 0, reps: 0 } as Exercise}
+        onPositionSelected={(newPosition) => {
+          if (modalManagement.exerciseToReposition) {
+            handlers.handleRepositionExercise(modalManagement.exerciseToReposition.id, newPosition);
+          }
+        }}
+      />
 
     </FullScreenModal>
     </>

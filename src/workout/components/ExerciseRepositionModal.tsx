@@ -47,13 +47,19 @@ export const ExerciseRepositionModal: React.FC<ExerciseRepositionModalProps> = (
   }, []);
 
   // Trouver l'index actuel de l'exercice sélectionné
-  const currentIndex = exercises.findIndex(ex => ex.id === selectedExercise.id);
+  // Protection contre selectedExercise null/undefined ou sans id/name valides
+  const currentIndex = selectedExercise?.id ? exercises.findIndex(ex => ex.id === selectedExercise.id) : -1;
 
   useEffect(() => {
     if (visible) {
+      // Vérifier que selectedExercise est défini avant de continuer
+      if (!selectedExercise?.id) {
+        return;
+      }
       setHasBeenVisible(true);
       setModalVisible(true);
-      // Réinitialiser les animations avec la hauteur actuelle
+      
+      // Démarrer les animations immédiatement
       slideAnim.setValue(screenHeight);
       fadeAnim.setValue(0);
       Animated.parallel([
@@ -140,6 +146,11 @@ export const ExerciseRepositionModal: React.FC<ExerciseRepositionModalProps> = (
   // Fonction pour obtenir la description d'une position
   // Cette fonction calcule qui sera AVANT l'exercice APRÈS le déplacement
   const getPositionDescription = (newPosition: number): string => {
+    // Protection contre selectedExercise null/undefined
+    if (!selectedExercise) {
+      return '';
+    }
+    
     if (newPosition === currentIndex) {
       return 'Current place';
     }
@@ -185,12 +196,15 @@ export const ExerciseRepositionModal: React.FC<ExerciseRepositionModalProps> = (
   };
 
   // Créer une liste simple de toutes les positions possibles avec descriptions
-  const positionOptions = Array.from({ length: exercises.length }, (_, i) => ({
-    position: i,
-    displayPosition: i + 1,
-    isCurrentPosition: i === currentIndex,
-    description: getPositionDescription(i),
-  }));
+  // Protection contre selectedExercise null/undefined
+  const positionOptions = selectedExercise && exercises.length > 0 
+    ? Array.from({ length: exercises.length }, (_, i) => ({
+        position: i,
+        displayPosition: i + 1,
+        isCurrentPosition: i === currentIndex,
+        description: getPositionDescription(i),
+      }))
+    : [];
 
   // Debug: vérifier que les données sont correctes
   useEffect(() => {
@@ -207,14 +221,14 @@ export const ExerciseRepositionModal: React.FC<ExerciseRepositionModalProps> = (
     return null;
   }
 
-  // Si pas d'exercices, ne rien afficher
-  if (!exercises || exercises.length === 0 || !selectedExercise) {
+  // Si pas d'exercices ou d'exercice sélectionné valide, ne rien afficher
+  if (!exercises || exercises.length === 0 || !selectedExercise?.id) {
     return null;
   }
 
   return (
     <Modal
-      transparent
+      transparent={true}
       visible={modalVisible}
       animationType="none"
       onRequestClose={handleClose}

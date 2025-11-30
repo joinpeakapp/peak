@@ -79,8 +79,12 @@ export const WorkoutList: React.FC<WorkoutListProps> = ({
   };
 
   const handleReposition = (workout: Workout) => {
-    setSelectedWorkoutForReposition(workout);
-    setIsRepositionModalVisible(true);
+    // Pattern similaire à handleEdit qui fonctionne
+    setSelectedWorkoutForReposition(null);
+    setTimeout(() => {
+      setSelectedWorkoutForReposition(workout);
+      setIsRepositionModalVisible(true);
+    }, 10);
   };
 
   const handleRepositionClose = () => {
