@@ -29,8 +29,27 @@ export const getExerciseProgressText = (
     }
   }
   const trackingData = activeWorkout?.trackingData[exercise.id];
+  
+  // Gérer les exercices trackés par temps
+  if (exercise.tracking === 'trackedOnTime') {
+    const completedTimes = trackingData?.completedTimes || 0;
+    const times = trackingData?.times || [];
+    const completedTimesList = times.filter(time => time.completed);
+    
+    // Si rien n'est tracké et validé : "tracked on time"
+    if (completedTimes === 0) {
+      return 'Tracked on time';
+    }
+    
+    // Si quelque chose est validé : afficher la durée totale
+    const totalDuration = completedTimesList.reduce((sum, time) => sum + time.duration, 0);
+    const totalMinutes = Math.floor(totalDuration / 60);
+    return `${totalMinutes} min`;
+  }
+  
+  // Gérer les exercices trackés par sets
   const completedSets = trackingData?.completedSets || 0;
-  const totalSets = trackingData?.sets.length || exercise.sets; // Utiliser le nombre actuel de sets
+  const totalSets = trackingData?.sets?.length || exercise.sets; // Utiliser le nombre actuel de sets
   return `${completedSets} of ${totalSets} sets completed`;
 };
 
@@ -42,9 +61,18 @@ export const getExerciseProgress = (
   activeWorkout?: any
 ): number => {
   const trackingData = activeWorkout?.trackingData[exercise.id];
+  
+  // Gérer les exercices trackés par temps
+  if (exercise.tracking === 'trackedOnTime') {
+    const completedTimes = trackingData?.completedTimes || 0;
+    const totalTimes = trackingData?.times?.length || 1;
+    return totalTimes > 0 ? completedTimes / totalTimes : 0;
+  }
+  
+  // Gérer les exercices trackés par sets
   const completedSets = trackingData?.completedSets || 0;
-  const totalSets = trackingData?.sets.length || exercise.sets; // Utiliser le nombre actuel de sets
-  return completedSets / totalSets;
+  const totalSets = trackingData?.sets?.length || exercise.sets; // Utiliser le nombre actuel de sets
+  return totalSets > 0 ? completedSets / totalSets : 0;
 };
 
 /**
@@ -55,8 +83,25 @@ export const getExerciseCompletionData = (
   activeWorkout?: any
 ) => {
   const trackingData = activeWorkout?.trackingData[exercise.id];
+  
+  // Gérer les exercices trackés par temps
+  if (exercise.tracking === 'trackedOnTime') {
+    const completedTimes = trackingData?.completedTimes || 0;
+    const totalTimes = trackingData?.times?.length || 1;
+    const isCompleted = completedTimes === totalTimes && totalTimes > 0;
+    const progressPercentage = totalTimes > 0 ? (completedTimes / totalTimes) * 100 : 0;
+    
+    return {
+      completedSets: completedTimes, // Utiliser completedSets pour compatibilité
+      totalSets: totalTimes, // Utiliser totalSets pour compatibilité
+      isCompleted,
+      progressPercentage
+    };
+  }
+  
+  // Gérer les exercices trackés par sets
   const completedSets = trackingData?.completedSets || 0;
-  const totalSets = trackingData?.sets.length || exercise.sets;
+  const totalSets = trackingData?.sets?.length || exercise.sets;
   const isCompleted = completedSets === totalSets && totalSets > 0; // Simplifié : juste basé sur les sets
   const progressPercentage = totalSets > 0 ? (completedSets / totalSets) * 100 : 0;
   
@@ -113,6 +158,23 @@ export const formatElapsedTime = (elapsedTime: number): string => {
   const minutes = Math.floor(elapsedTime / 60);
   const seconds = elapsedTime % 60;
   return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+};
+
+/**
+ * Fonction pour formater le temps avec format auto (MM:SS jusqu'à 60 min, puis HH:MM:SS)
+ */
+export const formatTimeAuto = (seconds: number): string => {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  
+  // Si plus de 60 minutes (3600 secondes), afficher en HH:MM:SS
+  if (seconds >= 3600) {
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+  
+  // Sinon, afficher en MM:SS
+  return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 };
 
 /**

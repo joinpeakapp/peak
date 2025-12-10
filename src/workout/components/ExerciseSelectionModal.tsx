@@ -99,6 +99,19 @@ export const SAMPLE_EXERCISES: Exercise[] = [
   
   // Cardio
   { id: '68', name: 'Jumping Jack', sets: 3, reps: 0, duration: 60, weight: 0, tags: ['Cardio'] },
+  
+  // Cardio exercises (tracked by time) - Gym equipment only
+  { id: '69', name: 'Treadmill', sets: 1, reps: 0, duration: 0, weight: 0, tags: ['Cardio'], tracking: 'trackedOnTime' },
+  { id: '70', name: 'Elliptical', sets: 1, reps: 0, duration: 0, weight: 0, tags: ['Cardio'], tracking: 'trackedOnTime' },
+  { id: '71', name: 'Stairmaster', sets: 1, reps: 0, duration: 0, weight: 0, tags: ['Cardio'], tracking: 'trackedOnTime' },
+  { id: '72', name: 'Stationary Bike', sets: 1, reps: 0, duration: 0, weight: 0, tags: ['Cardio'], tracking: 'trackedOnTime' },
+  { id: '73', name: 'Rowing Machine', sets: 1, reps: 0, duration: 0, weight: 0, tags: ['Cardio'], tracking: 'trackedOnTime' },
+  { id: '74', name: 'Stepper', sets: 1, reps: 0, duration: 0, weight: 0, tags: ['Cardio'], tracking: 'trackedOnTime' },
+  { id: '75', name: 'Cross Trainer', sets: 1, reps: 0, duration: 0, weight: 0, tags: ['Cardio'], tracking: 'trackedOnTime' },
+  { id: '76', name: 'SkiErg', sets: 1, reps: 0, duration: 0, weight: 0, tags: ['Cardio'], tracking: 'trackedOnTime' },
+  { id: '77', name: 'Jump Rope', sets: 1, reps: 0, duration: 0, weight: 0, tags: ['Cardio'], tracking: 'trackedOnTime' },
+  { id: '78', name: 'Burpees', sets: 1, reps: 0, duration: 0, weight: 0, tags: ['Cardio'], tracking: 'trackedOnTime' },
+  { id: '79', name: 'HIIT', sets: 1, reps: 0, duration: 0, weight: 0, tags: ['Cardio'], tracking: 'trackedOnTime' },
 ];
 
 interface ExerciseSelectionModalProps {

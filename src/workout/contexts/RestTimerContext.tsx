@@ -3,6 +3,7 @@ import { Vibration, AppState, AppStateStatus } from 'react-native';
 import { Exercise } from '../../types/workout';
 import { useActiveWorkout } from './ActiveWorkoutContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { SettingsService } from '../../services/settingsService';
 
 // Interface pour le contexte du timer de repos
 interface RestTimerContextValue {
@@ -63,9 +64,26 @@ export const RestTimerProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [totalTime, setTotalTime] = useState(0);
   const [currentExerciseId, setCurrentExerciseId] = useState<string | undefined>(undefined);
   const [currentExercise, setCurrentExercise] = useState<Exercise | null>(null);
+  const [defaultRestTime, setDefaultRestTime] = useState(DEFAULT_REST_TIME);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const appStateRef = useRef(AppState.currentState);
   const { isTrackingWorkout } = useActiveWorkout();
+
+  // Charger le rest timer par défaut depuis les settings
+  useEffect(() => {
+    const loadDefaultRestTime = async () => {
+      const restTime = await SettingsService.getDefaultRestTimer();
+      setDefaultRestTime(restTime);
+    };
+    loadDefaultRestTime();
+    
+    // Recharger périodiquement pour détecter les changements dans les settings
+    const interval = setInterval(() => {
+      loadDefaultRestTime();
+    }, 2000); // Vérifier toutes les 2 secondes
+    
+    return () => clearInterval(interval);
+  }, []);
 
   // Chargement de l'état du timer au démarrage
   useEffect(() => {
@@ -295,8 +313,8 @@ export const RestTimerProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Fonction pour démarrer le timer de repos
   const startRestTimer = (exercise: Exercise) => {
-    // Définir le temps de repos (personnalisé ou par défaut)
-    const restTime = exercise.restTimeSeconds || DEFAULT_REST_TIME;
+    // Définir le temps de repos (personnalisé ou par défaut depuis les settings)
+    const restTime = exercise.restTimeSeconds || defaultRestTime;
     
     setTotalTime(restTime);
     setCurrentTime(restTime);

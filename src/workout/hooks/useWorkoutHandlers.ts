@@ -1,7 +1,8 @@
 import { useState, useCallback } from 'react';
 import { Alert, LayoutAnimation, UIManager, Platform } from 'react-native';
 import { CommonActions, NavigationProp } from '@react-navigation/native';
-import { Workout, Exercise, CompletedWorkout, TrackingSet, TrackingData } from '../../types/workout';
+import { Workout, Exercise, CompletedWorkout, TrackingSet, TrackingData, CompletedTime } from '../../types/workout';
+import { TrackingTime } from '../contexts/ActiveWorkoutContext';
 import { RootStackParamList, WorkoutStackParamList } from '../../types/navigation';
 import CustomExerciseService from '../../services/customExerciseService';
 import { StickerService } from '../../services/stickerService';
@@ -73,9 +74,11 @@ interface UseWorkoutHandlersProps {
   startWorkout: (workoutId: string, workoutName: string, exercises: Exercise[], initialTrackingData: TrackingData) => void;
   finishWorkout: (updateStreak: boolean) => Promise<void>;
   updateTrackingData: (exerciseId: string, sets: TrackingSet[], completedSets: number) => void;
+  updateTrackingTimeData: (exerciseId: string, times: TrackingTime[], completedTimes: number) => void;
   updateElapsedTime: (time: number) => void;
   isTrackingWorkout: boolean;
   setActiveWorkoutExercises: (exercises: Exercise[]) => void;
+  updateExercise: (exerciseId: string, updatedExercise: Exercise) => void;
   startRestTimer: (exercise: Exercise) => void;
   stopTimer: () => void;
   getPreviousWorkoutData: (workoutId: string, exerciseName: string) => any;
@@ -124,9 +127,11 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
     startWorkout,
     finishWorkout,
     updateTrackingData,
+    updateTrackingTimeData,
     updateElapsedTime,
     isTrackingWorkout,
     setActiveWorkoutExercises,
+    updateExercise,
     startRestTimer,
     stopTimer,
     getPreviousWorkoutData,
@@ -761,35 +766,49 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
       // 🔧 FIX: Vérifier et initialiser trackingData pour tous les exercices du workout
       exercises.forEach(exercise => {
         if (!activeWorkout.trackingData[exercise.id]) {
-          const initialSets = Array(exercise.sets || 1).fill(0).map(() => ({
-            completed: false,
-            weight: '',
-            reps: '',
-          }));
-          updateTrackingData(exercise.id, initialSets, 0);
+          if (exercise.tracking === 'trackedOnTime') {
+            // Initialiser avec une durée vide pour les exercices trackés par temps
+            updateTrackingTimeData(exercise.id, [{
+              completed: false,
+              duration: 0
+            }], 0);
+          } else {
+            const initialSets = Array(exercise.sets || 1).fill(0).map(() => ({
+              completed: false,
+              weight: '',
+              reps: '',
+            }));
+            updateTrackingData(exercise.id, initialSets, 0);
+          }
         }
       });
       
       // Créer un objet workout temporaire pour la mise à jour des PRs
+      // Ne pas inclure les exercices trackés par temps (pas de PR pour eux)
       const tempWorkout = {
         date: new Date().toISOString(),
-        exercises: exercises.map(exercise => {
-          const trackingData = activeWorkout.trackingData[exercise.id];
-          const sets = trackingData?.sets || [];
-          
-          return {
-            name: exercise.name,
-            sets: sets.map(set => ({
-              weight: parseInt(set.weight) || 0,
-              reps: parseInt(set.reps) || 0,
-              completed: set.completed
-            }))
-          };
-        })
+        exercises: exercises
+          .filter(exercise => exercise.tracking !== 'trackedOnTime')
+          .map(exercise => {
+            const trackingData = activeWorkout.trackingData[exercise.id];
+            const sets = trackingData?.sets || [];
+            
+            return {
+              name: exercise.name,
+              sets: sets.map(set => ({
+                weight: parseInt(set.weight) || 0,
+                reps: parseInt(set.reps) || 0,
+                completed: set.completed
+              }))
+            };
+          })
       };
       
       // Utiliser le nouveau système pour mettre à jour et sauvegarder les PRs
-      await personalRecords.updateRecordsFromCompletedWorkout(tempWorkout);
+      // Seulement pour les exercices trackés par sets
+      if (tempWorkout.exercises.length > 0) {
+        await personalRecords.updateRecordsFromCompletedWorkout(tempWorkout);
+      }
       
       // Nettoyer complètement la session après sauvegarde
       workoutSession.clearSession();
@@ -808,6 +827,28 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
         isFrontCamera: activeWorkout.isFrontCamera,
         exercises: exercises.map(exercise => {
           const trackingData = activeWorkout.trackingData[exercise.id];
+          
+          // Gérer les exercices trackés par temps
+          if (exercise.tracking === 'trackedOnTime') {
+            const times = trackingData?.times || [];
+            const completedTimes = times.filter(time => time.completed);
+            const totalDuration = completedTimes.reduce((sum, time) => sum + time.duration, 0);
+            
+            return {
+              id: exercise.id,
+              name: exercise.name,
+              sets: [], // Pas de sets pour les exercices trackés par temps
+              tracking: 'trackedOnTime' as const,
+              duration: totalDuration,
+              times: completedTimes.map(time => ({
+                duration: time.duration,
+                completed: time.completed
+              } as CompletedTime)),
+              // Pas de personalRecord pour les exercices trackés par temps
+            };
+          }
+          
+          // Gérer les exercices trackés par sets
           const sets = trackingData?.sets || [];
           
           // 🔧 FIX: S'assurer qu'il y a au moins des sets par défaut même si trackingData manque
@@ -817,7 +858,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
             reps: '',
           }));
           
-          // Déterminer si un nouveau record a été établi
+          // Déterminer si un nouveau record a été établi (seulement pour les exercices trackés par sets)
           const personalRecord = calculatePersonalRecord(exercise, finalSets, workoutSession.originalRecords);
           
           return {
@@ -1257,6 +1298,87 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
     }
   }, [modalManagement, exercises, setExercises, workout, updateWorkout]);
 
+  // Handler pour changer le type de tracking d'un exercice
+  const handleTrackingTypeChange = useCallback((newTrackingType: 'trackedOnSets' | 'trackedOnTime') => {
+    if (!modalManagement.currentExercise) return;
+    
+    const currentExercise = modalManagement.currentExercise;
+    
+    // Si le type ne change pas, ne rien faire
+    if (currentExercise.tracking === newTrackingType) return;
+    
+    // Mettre à jour l'exercice avec le nouveau type de tracking
+    const updatedExercise: Exercise = {
+      ...currentExercise,
+      tracking: newTrackingType
+    };
+    
+    // Convertir les données de tracking selon le nouveau type
+    if (activeWorkout && activeWorkout.trackingData[currentExercise.id]) {
+      const trackingData = activeWorkout.trackingData[currentExercise.id];
+      
+      if (newTrackingType === 'trackedOnTime') {
+        // Conversion de sets vers temps
+        // Si des sets sont complétés, créer une durée basée sur le nombre de sets
+        const completedSets = trackingData.completedSets || 0;
+        if (completedSets > 0) {
+          // Créer une durée par défaut (par exemple, 60 secondes par set complété)
+          const defaultDurationPerSet = 60; // secondes
+          const times: TrackingTime[] = Array(completedSets).fill(0).map(() => ({
+            completed: true,
+            duration: defaultDurationPerSet
+          }));
+          updateTrackingTimeData(currentExercise.id, times, completedSets);
+        } else {
+          // Initialiser avec une durée vide
+          updateTrackingTimeData(currentExercise.id, [{
+            completed: false,
+            duration: 0
+          }], 0);
+        }
+      } else {
+        // Conversion de temps vers sets
+        // Si des durées sont complétées, créer des sets basés sur le nombre de durées
+        const completedTimes = trackingData.completedTimes || 0;
+        if (completedTimes > 0) {
+          const sets: TrackingSet[] = Array(completedTimes).fill(0).map(() => ({
+            completed: true,
+            weight: '',
+            reps: ''
+          }));
+          updateTrackingData(currentExercise.id, sets, completedTimes);
+        } else {
+          // Initialiser avec des sets vides
+          const initialSets = Array(currentExercise.sets || 1).fill(0).map(() => ({
+            completed: false,
+            weight: '',
+            reps: ''
+          }));
+          updateTrackingData(currentExercise.id, initialSets, 0);
+        }
+      }
+    }
+    
+    // Mettre à jour la liste des exercices
+    const updatedExercises = exercises.map(ex => ex.id === updatedExercise.id ? updatedExercise : ex);
+    setExercises(updatedExercises);
+    
+    // Mettre à jour l'exercice dans activeWorkout si on est en mode tracking
+    if (isTrackingWorkout && activeWorkout) {
+      updateExercise(currentExercise.id, updatedExercise);
+    }
+    
+    // Sauvegarder immédiatement le workout
+    if (workout) {
+      const updatedWorkout = {
+        ...workout,
+        exercises: updatedExercises,
+        updatedAt: new Date().toISOString()
+      };
+      updateWorkout(updatedWorkout);
+    }
+  }, [modalManagement, exercises, setExercises, workout, updateWorkout, activeWorkout, isTrackingWorkout, updateExercise, updateTrackingData, updateTrackingTimeData]);
+
   // Fonction pour mettre à jour les tags sélectionnés
   const handleTagsSelected = useCallback((tags: string[]) => {
     exerciseSelection.setSelectedTags(tags);
@@ -1276,13 +1398,17 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
   // Ajouter une fonction pour supprimer une série
   const handleRemoveSet = useCallback((index: number) => {
     // Ne pas permettre de supprimer la dernière série
-    if (exerciseTracking.exerciseSets.length <= 1) return;
+    const currentSets = exerciseTracking.exerciseSets;
+    if (currentSets.length <= 1) return;
+    
+    // Calculer les nouveaux sets localement avant d'appeler removeSet
+    const newSets = currentSets.filter((_, i) => i !== index);
     
     // Vérifier si la série à supprimer avait un PR
     const hasPR = workoutSession.prResults && workoutSession.prResults.setIndex === index;
     
     // Récupérer la série à supprimer pour vérifier si elle était complétée
-    const setToRemove = exerciseTracking.exerciseSets[index];
+    const setToRemove = currentSets[index];
     
     // Supprimer le PR de cette série AVANT de supprimer la série
     if (modalManagement.selectedExerciseId) {
@@ -1296,7 +1422,6 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
     
     // Mettre à jour l'état local des sets via le hook
     exerciseTracking.removeSet(index);
-    const newSets = exerciseTracking.exerciseSets;
     
     // Supprimer TOUS les PRs de cet exercice avant de réattribuer
     // (reassignPRBadges s'en chargera correctement en vérifiant les séries complétées)
@@ -1334,7 +1459,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
           updateWorkout(updatedWorkout);
         }
         
-        // Mettre à jour les données de tracking avec les sets restants
+        // Mettre à jour les données de tracking avec les sets restants calculés localement
         const completedCount = newSets.filter(set => set.completed).length;
         updateTrackingData(modalManagement.selectedExerciseId, newSets, completedCount);
         
@@ -1396,9 +1521,17 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
 
   // Fonction pour ajouter une série
   const handleAddSet = useCallback(() => {
+    // Calculer les nouveaux sets localement avant d'appeler addSet
+    const currentSets = exerciseTracking.exerciseSets;
+    const newSet: TrackingSet = {
+      completed: false,
+      weight: '',
+      reps: ''
+    };
+    const newSets = [...currentSets, newSet];
+    
     // Ajouter une nouvelle série via le hook
     exerciseTracking.addSet();
-    const newSets = exerciseTracking.exerciseSets;
     
     // Mettre à jour le nombre total de séries pour l'exercice
     if (modalManagement.selectedExerciseId) {
@@ -1421,8 +1554,8 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
           updateWorkout(updatedWorkout);
         }
         
-        // Mettre à jour les données de tracking
-        const completedCount = exerciseTracking.getCompletedSetsCount();
+        // Mettre à jour les données de tracking avec les nouveaux sets calculés localement
+        const completedCount = newSets.filter(set => set.completed).length;
         updateTrackingData(modalManagement.selectedExerciseId, newSets, completedCount);
       }
     }
@@ -1525,6 +1658,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
     handleOpenSettings,
     handleExerciseSettings,
     handleRestTimeUpdate,
+    handleTrackingTypeChange,
     
     // Filter handlers
     handleTagsSelected,

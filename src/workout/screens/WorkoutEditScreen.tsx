@@ -159,17 +159,17 @@ export const WorkoutEditScreen: React.FC<WorkoutEditScreenProps> = ({
             <Ionicons name="close" size={24} color="#FFFFFF" />
           </TouchableOpacity>
 
-          <View style={styles.titleContainer}>
-            <Text style={styles.title}>Edit workout</Text>
-            <Text style={styles.subtitle}>Update your workout details</Text>
-          </View>
-
           {/* Contenu scrollable */}
           <View style={styles.scrollContainer}>
             <ScrollView 
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.scrollContent}
             >
+              {/* Titre et sous-titre maintenant dans le ScrollView */}
+              <View style={styles.titleContainer}>
+                <Text style={styles.title}>Edit workout</Text>
+                <Text style={styles.subtitle}>Update your workout details</Text>
+              </View>
               <Text style={styles.sectionTitle}>Workout name</Text>
               <View>
                 <TextInput
@@ -319,7 +319,7 @@ const styles = StyleSheet.create({
   },
   titleContainer: {
     alignItems: 'flex-start',
-    marginTop: 24, 
+    paddingTop: 32, 
   },
   title: {
     fontSize: 24,

@@ -3,39 +3,24 @@ import {
   View,
   Text,
   StyleSheet,
-  Switch,
   TouchableOpacity,
   ScrollView,
+  Switch,
   Alert,
   Platform,
   ActivityIndicator,
   Modal,
   Animated,
   Dimensions,
-  StatusBar,
+  BackHandler,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNotifications } from '../../hooks/useNotifications';
-import { NotificationSettings, DEFAULT_NOTIFICATION_SETTINGS } from '../../types/notifications';
+import { SettingsService } from '../../services/settingsService';
 import NotificationService from '../../services/notificationService';
 
-const DAYS_OF_WEEK = [
-  { key: 0, label: 'Dimanche', short: 'D' },
-  { key: 1, label: 'Lundi', short: 'L' },
-  { key: 2, label: 'Mardi', short: 'M' },
-  { key: 3, label: 'Mercredi', short: 'M' },
-  { key: 4, label: 'Jeudi', short: 'J' },
-  { key: 5, label: 'Vendredi', short: 'V' },
-  { key: 6, label: 'Samedi', short: 'S' },
-];
-
-const TIME_OPTIONS = [
-  '06:00', '07:00', '08:00', '09:00', '10:00', '11:00',
-  '12:00', '13:00', '14:00', '15:00', '16:00', '17:00',
-  '18:00', '19:00', '20:00', '21:00', '22:00',
-];
-
-const { height } = Dimensions.get('window');
+const { height, width } = Dimensions.get('window');
 const ANIMATION_DURATION = 300;
 
 interface NotificationSettingsModalProps {
@@ -47,26 +32,25 @@ export const NotificationSettingsModal: React.FC<NotificationSettingsModalProps>
   visible,
   onClose,
 }) => {
-  const { settings, hasPermission, saveSettings, requestPermissions, isInitialized } = useNotifications();
-  const [localSettings, setLocalSettings] = useState<NotificationSettings>(settings || DEFAULT_NOTIFICATION_SETTINGS);
-  const [hasChanges, setHasChanges] = useState(false);
+  const { hasPermission, requestPermissions, isInitialized } = useNotifications();
+  const [workoutRemindersEnabled, setWorkoutRemindersEnabled] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   
-  // Animation values
-  const slideAnim = React.useRef(new Animated.Value(height)).current;
+  // Animation values - slide from right
+  const slideAnim = React.useRef(new Animated.Value(width)).current;
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
   const [modalVisible, setModalVisible] = useState(false);
 
   useEffect(() => {
-    if (settings) {
-      setLocalSettings(settings);
+    if (visible) {
+      loadSettings();
     }
-  }, [settings]);
+  }, [visible]);
 
-  // Animation logic
   useEffect(() => {
     if (visible) {
       setModalVisible(true);
-      slideAnim.setValue(height);
+      slideAnim.setValue(width);
       fadeAnim.setValue(0);
 
       Animated.parallel([
@@ -84,7 +68,7 @@ export const NotificationSettingsModal: React.FC<NotificationSettingsModalProps>
     } else if (modalVisible) {
       Animated.parallel([
         Animated.timing(slideAnim, {
-          toValue: height,
+          toValue: width,
           duration: ANIMATION_DURATION,
           useNativeDriver: true,
         }),
@@ -99,18 +83,64 @@ export const NotificationSettingsModal: React.FC<NotificationSettingsModalProps>
     }
   }, [visible, modalVisible]);
 
-  const handleSave = async () => {
-    try {
-      await saveSettings(localSettings);
-      setHasChanges(false);
-      Alert.alert('Succès', 'Paramètres de notifications sauvegardés');
-      
-      // Replanifier les notifications avec les nouveaux paramètres
+  useEffect(() => {
+    if (visible) {
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+      return () => backHandler.remove();
+    }
+  }, [visible]);
+
+  const handleBackPress = () => {
+    onClose();
+    return true;
+  };
+
+  const loadSettings = async () => {
+    setIsLoading(true);
+    const enabled = await SettingsService.getWorkoutRemindersEnabled();
+    setWorkoutRemindersEnabled(enabled);
+    setIsLoading(false);
+  };
+
+  const handleToggle = async (value: boolean) => {
+    if (!hasPermission && value) {
+      const granted = await requestPermissions();
+      if (!granted) {
+        Alert.alert(
+          'Permissions requises',
+          'Veuillez autoriser les notifications dans les paramètres de votre appareil pour recevoir des rappels.',
+          [
+            { text: 'Annuler', style: 'cancel' },
+            {
+              text: 'Paramètres',
+              onPress: () => {
+                if (Platform.OS === 'ios') {
+                  Alert.alert(
+                    'Ouvrir Réglages',
+                    'Allez dans Réglages > Notifications > Peak pour autoriser les notifications'
+                  );
+                } else {
+                  Alert.alert(
+                    'Ouvrir Paramètres',
+                    'Allez dans Paramètres > Applications > Peak > Notifications pour autoriser les notifications'
+                  );
+                }
+              },
+            },
+          ]
+        );
+        return;
+      }
+    }
+
+    setWorkoutRemindersEnabled(value);
+    await SettingsService.setWorkoutRemindersEnabled(value);
+    
+    // Replanifier les notifications si activées
+    if (value) {
       await NotificationService.scheduleWorkoutReminders();
-      
-    } catch (error) {
-      console.error('Error saving notification settings:', error);
-      Alert.alert('Erreur', 'Impossible de sauvegarder les paramètres');
+    } else {
+      await NotificationService.cancelAllWorkoutReminders();
     }
   };
 
@@ -122,468 +152,347 @@ export const NotificationSettingsModal: React.FC<NotificationSettingsModalProps>
         'Veuillez autoriser les notifications dans les paramètres de votre appareil pour recevoir des rappels.',
         [
           { text: 'Annuler', style: 'cancel' },
-          { text: 'Paramètres', onPress: () => {
-            if (Platform.OS === 'ios') {
-              Alert.alert('Ouvrir Réglages', 'Allez dans Réglages > Notifications > Peak pour autoriser les notifications');
-            } else {
-              Alert.alert('Ouvrir Paramètres', 'Allez dans Paramètres > Applications > Peak > Notifications pour autoriser les notifications');
-            }
-          }},
+          {
+            text: 'Paramètres',
+            onPress: () => {
+              if (Platform.OS === 'ios') {
+                Alert.alert(
+                  'Ouvrir Réglages',
+                  'Allez dans Réglages > Notifications > Peak pour autoriser les notifications'
+                );
+              } else {
+                Alert.alert(
+                  'Ouvrir Paramètres',
+                  'Allez dans Paramètres > Applications > Peak > Notifications pour autoriser les notifications'
+                );
+              }
+            },
+          },
         ]
       );
     }
-  };
-
-  const updateLocalSettings = (updates: Partial<NotificationSettings>) => {
-    setLocalSettings(prev => ({ ...prev, ...updates }));
-    setHasChanges(true);
-  };
-
-  const toggleWorkoutDay = (day: number) => {
-    const currentDays = localSettings.workoutReminders.days;
-    const newDays = currentDays.includes(day)
-      ? currentDays.filter(d => d !== day)
-      : [...currentDays, day].sort();
-
-    updateLocalSettings({
-      workoutReminders: {
-        ...localSettings.workoutReminders,
-        days: newDays,
-      },
-    });
-  };
-
-  const showTimeSelector = (type: 'workout' | 'streak') => {
-    const currentTime = type === 'workout' 
-      ? localSettings.workoutReminders.time 
-      : localSettings.streakReminders.time;
-
-    Alert.alert(
-      'Choisir l\'heure',
-      'Sélectionnez l\'heure pour les rappels',
-      [
-        ...TIME_OPTIONS.map(time => ({
-          text: time,
-          onPress: () => {
-            if (type === 'workout') {
-              updateLocalSettings({
-                workoutReminders: {
-                  ...localSettings.workoutReminders,
-                  time,
-                },
-              });
-            } else {
-              updateLocalSettings({
-                streakReminders: {
-                  ...localSettings.streakReminders,
-                  time,
-                },
-              });
-            }
-          },
-        })),
-        { text: 'Annuler', style: 'cancel' },
-      ],
-      { cancelable: true }
-    );
   };
 
   if (!modalVisible && !visible) {
     return null;
   }
 
-  return (
-    <Modal
-      transparent
-      visible={modalVisible}
-      animationType="none"
-      statusBarTranslucent
-      onRequestClose={onClose}
-    >
-      <StatusBar barStyle="light-content" />
-      <View style={styles.overlay}>
-        <Animated.View 
+  // Écran de chargement
+  if (!isInitialized || isLoading) {
+    return (
+      <Modal
+        visible={modalVisible}
+        transparent
+        animationType="none"
+        onRequestClose={onClose}
+      >
+        <TouchableWithoutFeedback onPress={onClose}>
+          <Animated.View
+            style={[
+              styles.overlay,
+              {
+                opacity: fadeAnim,
+              },
+            ]}
+          >
+            <View style={styles.overlayTouchable} />
+          </Animated.View>
+        </TouchableWithoutFeedback>
+
+        <Animated.View
           style={[
-            styles.backdrop, 
-            { opacity: fadeAnim }
+            styles.bottomSheet,
+            {
+              transform: [{ translateX: slideAnim }],
+            },
           ]}
         >
-          <TouchableOpacity 
-            style={StyleSheet.absoluteFill} 
-            activeOpacity={1} 
-            onPress={onClose} 
-          />
-        </Animated.View>
-        
-        <Animated.View 
-          style={[
-            styles.modalContainer, 
-            { transform: [{ translateY: slideAnim }] }
-          ]}
-        >
-          <View style={styles.handle} />
-          
-          {/* Header */}
           <View style={styles.header}>
-            <TouchableOpacity 
-              style={styles.closeButton} 
-              onPress={onClose}
-            >
-              <Ionicons name="chevron-down" size={24} color="#FFFFFF" />
+            <TouchableOpacity style={styles.backButton} onPress={onClose}>
+              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
             </TouchableOpacity>
-            
-            {hasChanges && (
-              <TouchableOpacity onPress={handleSave} style={styles.saveButton}>
-                <Text style={styles.saveButtonText}>Save</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          <View style={styles.titleContainer}>
             <Text style={styles.title}>Notifications</Text>
+            <View style={styles.placeholder} />
           </View>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#FFFFFF" />
+            <Text style={styles.loadingText}>Loading...</Text>
+          </View>
+        </Animated.View>
+      </Modal>
+    );
+  }
 
-          {/* Loading state */}
-          {(!isInitialized || !settings) ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#FFFFFF" />
-              <Text style={styles.loadingText}>Initialisation...</Text>
-            </View>
-          ) : !hasPermission ? (
-            /* Permission state */
+  // Écran si permissions non accordées
+  if (hasPermission === false) {
+    return (
+      <Modal
+        visible={modalVisible}
+        transparent
+        animationType="none"
+        onRequestClose={onClose}
+      >
+        <TouchableWithoutFeedback onPress={onClose}>
+          <Animated.View
+            style={[
+              styles.overlay,
+              {
+                opacity: fadeAnim,
+              },
+            ]}
+          >
+            <View style={styles.overlayTouchable} />
+          </Animated.View>
+        </TouchableWithoutFeedback>
+
+        <Animated.View
+          style={[
+            styles.bottomSheet,
+            {
+              transform: [{ translateX: slideAnim }],
+            },
+          ]}
+        >
+          <View style={styles.header}>
+            <TouchableOpacity style={styles.backButton} onPress={onClose}>
+              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+            <Text style={styles.title}>Notifications</Text>
+            <View style={styles.placeholder} />
+          </View>
+          <ScrollView
+            style={styles.content}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+          >
             <View style={styles.permissionContainer}>
-              <Ionicons name="notifications-off" size={64} color="#666" style={styles.permissionIcon} />
-              <Text style={styles.permissionTitle}>Notifications désactivées</Text>
+              <Ionicons name="notifications-off" size={64} color="rgba(255, 255, 255, 0.3)" />
+              <Text style={styles.permissionTitle}>Notifications disabled</Text>
               <Text style={styles.permissionText}>
-                Autorisez les notifications pour recevoir des rappels d'entraînement et de streak.
+                Enable notifications to receive reminders for your scheduled workouts.
               </Text>
               <TouchableOpacity style={styles.permissionButton} onPress={handlePermissionRequest}>
-                <Text style={styles.permissionButtonText}>Activer les notifications</Text>
+                <Text style={styles.permissionButtonText}>Enable notifications</Text>
               </TouchableOpacity>
             </View>
-          ) : (
-            /* Main content */
-            <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-              {/* Rappels d'entraînement */}
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <View style={styles.sectionTitleContainer}>
-                    <Ionicons name="fitness" size={20} color="#FFFFFF" />
-                    <Text style={styles.sectionTitle}>Rappels d'entraînement</Text>
-                  </View>
-                  <Switch
-                    value={localSettings.workoutReminders.enabled}
-                    onValueChange={(enabled) =>
-                      updateLocalSettings({
-                        workoutReminders: { ...localSettings.workoutReminders, enabled },
-                      })
-                    }
-                    trackColor={{ false: '#3A3A3C', true: '#FFFFFF' }}
-                    thumbColor={localSettings.workoutReminders.enabled ? '#0D0D0F' : '#FFFFFF'}
-                  />
-                </View>
+          </ScrollView>
+        </Animated.View>
+      </Modal>
+    );
+  }
 
-                {localSettings.workoutReminders.enabled && (
-                  <>
-                    <Text style={styles.sectionDescription}>
-                      Recevez des rappels pour maintenir votre routine d'entraînement
-                    </Text>
+  return (
+    <Modal
+      visible={modalVisible}
+      transparent
+      animationType="none"
+      onRequestClose={onClose}
+    >
+      <TouchableWithoutFeedback onPress={onClose}>
+        <Animated.View
+          style={[
+            styles.overlay,
+            {
+              opacity: fadeAnim,
+            },
+          ]}
+        >
+          <View style={styles.overlayTouchable} />
+        </Animated.View>
+      </TouchableWithoutFeedback>
 
-                    {/* Jours de la semaine */}
-                    <View style={styles.daysContainer}>
-                      <Text style={styles.subTitle}>Jours de rappel</Text>
-                      <View style={styles.daysGrid}>
-                        {DAYS_OF_WEEK.map((day) => (
-                          <TouchableOpacity
-                            key={day.key}
-                            style={[
-                              styles.dayButton,
-                              localSettings.workoutReminders.days.includes(day.key) && styles.dayButtonActive,
-                            ]}
-                            onPress={() => toggleWorkoutDay(day.key)}
-                          >
-                            <Text
-                              style={[
-                                styles.dayButtonText,
-                                localSettings.workoutReminders.days.includes(day.key) && styles.dayButtonTextActive,
-                              ]}
-                            >
-                              {day.short}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    </View>
+      <Animated.View
+        style={[
+          styles.bottomSheet,
+          {
+            transform: [{ translateX: slideAnim }],
+          },
+        ]}
+      >
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} onPress={onClose}>
+            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+          <Text style={styles.title}>Notifications</Text>
+          <View style={styles.placeholder} />
+        </View>
 
-                    {/* Heure */}
-                    <TouchableOpacity style={styles.timeSelector} onPress={() => showTimeSelector('workout')}>
-                      <Text style={styles.subTitle}>Heure du rappel</Text>
-                      <View style={styles.timeSelectorRight}>
-                        <Text style={styles.timeText}>{localSettings.workoutReminders.time}</Text>
-                        <Ionicons name="chevron-forward" size={16} color="#666" />
-                      </View>
-                    </TouchableOpacity>
-                  </>
-                )}
-              </View>
+        <ScrollView
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          <Text style={styles.subtitle}>Workout reminders</Text>
 
-              {/* Rappels de streak */}
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <View style={styles.sectionTitleContainer}>
-                    <Ionicons name="flame" size={20} color="#FF6B35" />
-                    <Text style={styles.sectionTitle}>Rappels de streak</Text>
-                  </View>
-                  <Switch
-                    value={localSettings.streakReminders.enabled}
-                    onValueChange={(enabled) =>
-                      updateLocalSettings({
-                        streakReminders: { ...localSettings.streakReminders, enabled },
-                      })
-                    }
-                    trackColor={{ false: '#3A3A3C', true: '#FFFFFF' }}
-                    thumbColor={localSettings.streakReminders.enabled ? '#0D0D0F' : '#FFFFFF'}
-                  />
-                </View>
-
-                {localSettings.streakReminders.enabled && (
-                  <>
-                    <Text style={styles.sectionDescription}>
-                      Soyez alerté quand vos streaks sont sur le point d'expirer
-                    </Text>
-
-                    {/* Heure */}
-                    <TouchableOpacity style={styles.timeSelector} onPress={() => showTimeSelector('streak')}>
-                      <Text style={styles.subTitle}>Heure du rappel</Text>
-                      <View style={styles.timeSelectorRight}>
-                        <Text style={styles.timeText}>{localSettings.streakReminders.time}</Text>
-                        <Ionicons name="chevron-forward" size={16} color="#666" />
-                      </View>
-                    </TouchableOpacity>
-                  </>
-                )}
-              </View>
-
-              {/* Information */}
-              <View style={styles.infoSection}>
-                <Ionicons name="information-circle" size={16} color="#666" />
-                <Text style={styles.infoText}>
-                  Les notifications seront automatiquement replanifiées lorsque vous modifiez vos paramètres.
+          {/* Section principale */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionContent}>
+                <Text style={styles.sectionTitle}>Workout reminders</Text>
+                <Text style={styles.sectionDescription}>
+                  Receive one reminder per day when you have a scheduled workout
                 </Text>
               </View>
-            </ScrollView>
-          )}
-        </Animated.View>
-      </View>
+              <Switch
+                value={workoutRemindersEnabled}
+                onValueChange={handleToggle}
+                trackColor={{ false: 'rgba(255, 255, 255, 0.2)', true: 'rgba(255, 255, 255, 0.3)' }}
+                thumbColor={workoutRemindersEnabled ? '#FFFFFF' : 'rgba(255, 255, 255, 0.5)'}
+              />
+            </View>
+          </View>
+
+          {/* Information */}
+          <View style={styles.infoSection}>
+            <Ionicons name="information-circle" size={20} color="rgba(255, 255, 255, 0.6)" />
+            <Text style={styles.infoText}>
+              You will receive one notification per day maximum, only on days when you have a scheduled workout.
+            </Text>
+          </View>
+        </ScrollView>
+      </Animated.View>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
   overlay: {
-    flex: 1,
-  },
-  backdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
   },
-  modalContainer: {
+  overlayTouchable: {
+    flex: 1,
+  },
+  bottomSheet: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    top: 100,
     backgroundColor: '#0D0D0F',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
+    maxHeight: height * 0.9,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 0,
   },
   handle: {
     width: 40,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    height: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    borderRadius: 2,
     alignSelf: 'center',
-    marginTop: 8,
-    marginBottom: 16,
+    marginTop: 12,
+    marginBottom: 8,
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 20,
     paddingTop: 8,
-  },
-  closeButton: {
-    alignSelf: 'flex-start',
-    padding: 8,
-  },
-  titleContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 24,
+    paddingBottom: 20,
   },
   title: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '600',
     color: '#FFFFFF',
   },
-  saveButton: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  saveButtonText: {
-    color: '#0D0D0F',
-    fontSize: 14,
-    fontWeight: '600',
+  closeButton: {
+    padding: 8,
   },
   content: {
     flex: 1,
   },
+  scrollContent: {
+    paddingBottom: 40,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.6)',
+    paddingHorizontal: 20,
+    marginBottom: 32,
+  },
   loadingContainer: {
-    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 40,
+    paddingVertical: 60,
   },
   loadingText: {
-    fontSize: 16,
-    color: '#FFFFFF',
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.6)',
     marginTop: 16,
   },
   permissionContainer: {
-    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 40,
-  },
-  permissionIcon: {
-    marginBottom: 20,
+    paddingVertical: 60,
   },
   permissionTitle: {
     fontSize: 20,
     fontWeight: '600',
     color: '#FFFFFF',
+    marginTop: 20,
     marginBottom: 10,
     textAlign: 'center',
   },
   permissionText: {
     fontSize: 14,
-    color: '#888888',
+    color: 'rgba(255, 255, 255, 0.6)',
     textAlign: 'center',
     marginBottom: 30,
     lineHeight: 20,
   },
   permissionButton: {
-    backgroundColor: '#34C759',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 30,
+    paddingVertical: 15,
+    borderRadius: 12,
   },
   permissionButtonText: {
-    color: '#FFFFFF',
+    color: '#0D0D0F',
     fontSize: 16,
     fontWeight: '600',
   },
   section: {
-    paddingHorizontal: 20,
-    paddingVertical: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 16,
+    padding: 20,
+    marginHorizontal: 20,
+    marginBottom: 20,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
   },
-  sectionTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  sectionContent: {
+    flex: 1,
+    marginRight: 16,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
-    marginLeft: 8,
+    marginBottom: 8,
   },
   sectionDescription: {
-    fontSize: 13,
-    color: '#888888',
-    marginBottom: 20,
-    lineHeight: 18,
-  },
-  daysContainer: {
-    marginBottom: 20,
-  },
-  subTitle: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#FFFFFF',
-    marginBottom: 12,
-  },
-  daysGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  dayButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#1A1A1D',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  dayButtonActive: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#FFFFFF',
-  },
-  dayButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#888888',
-  },
-  dayButtonTextActive: {
-    color: '#0D0D0F',
-  },
-  timeSelector: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  timeSelectorRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  timeText: {
-    fontSize: 14,
-    color: '#FFFFFF',
-    marginRight: 4,
-    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.6)',
+    lineHeight: 20,
   },
   infoSection: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    marginBottom: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    marginHorizontal: 20,
+    borderRadius: 16,
+    padding: 20,
   },
   infoText: {
-    fontSize: 12,
-    color: '#666',
-    lineHeight: 16,
-    marginLeft: 8,
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.6)',
+    lineHeight: 20,
+    marginLeft: 12,
     flex: 1,
   },
 });
-
-export default NotificationSettingsModal;

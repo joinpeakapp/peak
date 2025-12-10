@@ -11,7 +11,7 @@ import { useWorkout } from '../../hooks/useWorkout';
 import { ExerciseSettingsModal } from './ExerciseSettingsModal';
 import { ExerciseFilterModal } from './ExerciseFilterModal';
 import { ContextMenu, ContextMenuItem } from '../../components/common/ContextMenu';
-import { useActiveWorkout, TrackingSet, TrackingData } from '../contexts/ActiveWorkoutContext';
+import { useActiveWorkout, TrackingSet, TrackingData, TrackingTime } from '../contexts/ActiveWorkoutContext';
 import { useRestTimer } from '../contexts/RestTimerContext';
 import RestTimer from './RestTimer';
 import { ExerciseCreateNameScreen } from '../screens/ExerciseCreateNameScreen';
@@ -37,6 +37,7 @@ import type { ExerciseSelectionMode } from '../hooks/useExerciseSelection';
 import { WorkoutView } from './views/WorkoutView';
 import { ExerciseSelectionView } from './views/ExerciseSelectionView';
 import { ExerciseTrackingView } from './views/ExerciseTrackingView';
+import { TimeTrackingView } from './TimeTrackingView';
 import { ExerciseReplacementView } from './views/ExerciseReplacementView';
 import { FinishWorkoutModal } from './modals/FinishWorkoutModal';
 import { EmptyWorkoutState } from './common/EmptyWorkoutState';
@@ -120,7 +121,8 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     activeWorkout, 
     startWorkout, 
     finishWorkout, 
-    updateTrackingData, 
+    updateTrackingData,
+    updateTrackingTimeData,
     updateElapsedTime, 
     resumeWorkout, 
     isTrackingWorkout,
@@ -197,9 +199,11 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     startWorkout,
     finishWorkout,
     updateTrackingData,
+    updateTrackingTimeData,
     updateElapsedTime,
     isTrackingWorkout,
     setActiveWorkoutExercises,
+    updateExercise,
     startRestTimer,
     stopTimer,
     getPreviousWorkoutData,
@@ -308,9 +312,16 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   useEffect(() => {
     if (exerciseSelection.modalMode === 'exercise-tracking' && modalManagement.selectedExerciseId && activeWorkout) {
       // Lors du passage en mode tracking d'exercice, on charge les données existantes
-      exerciseTracking.initializeSets(activeWorkout.trackingData[modalManagement.selectedExerciseId]?.sets || []);
+      const selectedExercise = exercises.find(ex => ex.id === modalManagement.selectedExerciseId);
+      if (selectedExercise?.tracking === 'trackedOnTime') {
+        // Pour les exercices trackés par temps, les données sont gérées par TimeTrackingView
+        // Pas besoin d'initialiser ici
+      } else {
+        // Pour les exercices trackés par sets, initialiser les sets
+        exerciseTracking.initializeSets(activeWorkout.trackingData[modalManagement.selectedExerciseId]?.sets || []);
+      }
     }
-  }, [exerciseSelection.modalMode, modalManagement.selectedExerciseId]);
+  }, [exerciseSelection.modalMode, modalManagement.selectedExerciseId, exercises]);
   
   // Sauvegarder les données de tracking lorsqu'on change d'exercice
   useEffect(() => {
@@ -351,6 +362,13 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     }
   }, [exercises.length, visible, isTrackingWorkout, activeWorkout?.workoutId]);
 
+  // Callback stable pour mettre à jour les durées de tracking
+  const handleTimesUpdate = useCallback((times: TrackingTime[], completedTimes: number) => {
+    if (modalManagement.selectedExerciseId) {
+      updateTrackingTimeData(modalManagement.selectedExerciseId, times, completedTimes);
+    }
+  }, [modalManagement.selectedExerciseId, updateTrackingTimeData]);
+
   useEffect(() => {
     if (modalManagement.isFinishModalVisible) {
       animations.animateSlideIn();
@@ -390,7 +408,8 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
         setSelectedExerciseForMenu(null);
       },
     },
-    {
+    // Ne pas afficher l'option rest timer pour les exercices trackés par temps
+    ...(selectedExerciseForMenu.tracking !== 'trackedOnTime' ? [{
       key: 'timer',
       label: 'Configure rest timer',
       icon: 'timer-outline',
@@ -401,7 +420,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
         }
         setSelectedExerciseForMenu(null);
       },
-    },
+    }] : []),
     {
       key: 'delete',
       label: 'Delete exercise',
@@ -489,26 +508,41 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
                 onExercisesSelected={handlers.handleExercisesSelected}
               />
             ) : exerciseSelection.modalMode === 'exercise-tracking' ? (
-              <ExerciseTrackingView
-                exercise={selectedExercise ?? null}
-                exerciseSets={exerciseTracking.exerciseSets}
-                setAnimations={Object.values(exerciseTracking.setAnimations)}
-                prResults={workoutSession.prResults}
-                exercisePRResults={workoutSession.exercisePRResults}
-                selectedExerciseId={modalManagement.selectedExerciseId}
-                prBadgeAnim={animations.prBadgeAnim}
-                onBack={handlers.handleBackToWorkout}
-                onOpenTimerSettings={() => {
-                  if (selectedExercise) {
-                    modalManagement.showExerciseSettingsModal(selectedExercise, true);
-                  }
-                }}
-                onSetToggle={handlers.handleSetToggle}
-                onWeightChange={handlers.handleWeightChange}
-                onRepsChange={handlers.handleRepsChange}
-                onRemoveSet={handlers.handleRemoveSet}
-                onAddSet={handlers.handleAddSet}
-              />
+              // Afficher le bon composant selon le type de tracking
+              selectedExercise?.tracking === 'trackedOnTime' ? (
+                <TimeTrackingView
+                  exercise={selectedExercise ?? null}
+                  times={activeWorkout?.trackingData[modalManagement.selectedExerciseId || '']?.times || []}
+                  onBack={handlers.handleBackToWorkout}
+                  onOpenTimerSettings={() => {
+                    if (selectedExercise) {
+                      modalManagement.showExerciseSettingsModal(selectedExercise, true);
+                    }
+                  }}
+                  onTimesUpdate={handleTimesUpdate}
+                />
+              ) : (
+                <ExerciseTrackingView
+                  exercise={selectedExercise ?? null}
+                  exerciseSets={exerciseTracking.exerciseSets}
+                  setAnimations={Object.values(exerciseTracking.setAnimations)}
+                  prResults={workoutSession.prResults}
+                  exercisePRResults={workoutSession.exercisePRResults}
+                  selectedExerciseId={modalManagement.selectedExerciseId}
+                  prBadgeAnim={animations.prBadgeAnim}
+                  onBack={handlers.handleBackToWorkout}
+                  onOpenTimerSettings={() => {
+                    if (selectedExercise) {
+                      modalManagement.showExerciseSettingsModal(selectedExercise, true);
+                    }
+                  }}
+                  onSetToggle={handlers.handleSetToggle}
+                  onWeightChange={handlers.handleWeightChange}
+                  onRepsChange={handlers.handleRepsChange}
+                  onRemoveSet={handlers.handleRemoveSet}
+                  onAddSet={handlers.handleAddSet}
+                />
+              )
             ) : exerciseSelection.modalMode === 'exercise-creation' ? (
               // Mode création d'exercice - Flow multi-étapes
               <>
@@ -572,6 +606,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
         }}
         exercise={modalManagement.currentExercise}
         onRestTimeUpdate={handlers.handleRestTimeUpdate}
+        onTrackingTypeChange={handlers.handleTrackingTypeChange}
         openTimerDirectly={modalManagement.openTimerDirectly}
       />
       

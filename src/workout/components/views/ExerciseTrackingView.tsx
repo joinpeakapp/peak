@@ -69,20 +69,21 @@ export const ExerciseTrackingView: React.FC<ExerciseTrackingViewProps> = ({
         </View>
       </View>
       
-      <Text style={styles.exerciseTrackingTitle}>
-        {exercise?.name || 'Exercise'}
-      </Text>
-      
-      <Text style={styles.exerciseTrackingSubtitle}>
-        Tick checkboxes as you complete the sets
-      </Text>
-      
       <View style={styles.scrollableContainer}>
         <ScrollView 
           style={[styles.content, { overflow: 'visible' }]}
-          contentContainerStyle={{ overflow: 'visible' }}
+          contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {/* Titre maintenant dans le ScrollView */}
+          <Text style={styles.exerciseTrackingTitle}>
+            {exercise?.name || 'Exercise'}
+          </Text>
+          
+          <Text style={styles.exerciseTrackingSubtitle}>
+            Tick checkboxes as you complete the sets
+          </Text>
+          
           <View style={[styles.setsContainer, { overflow: 'visible' }]}>
             {exerciseSets.map((set, index) => {
               // Déterminer les données PR pour ce set
@@ -163,7 +164,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '600',
     color: '#FFFFFF',
-    marginTop: 32,
+    paddingTop: 32,
     paddingHorizontal: 16,
   },
   exerciseTrackingSubtitle: {
@@ -173,6 +174,10 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 24,
     paddingHorizontal: 16,
+  },
+  scrollContent: {
+    paddingBottom: 80, // Pour le bottomPadding
+    overflow: 'visible',
   },
   scrollableContainer: {
     flex: 1,

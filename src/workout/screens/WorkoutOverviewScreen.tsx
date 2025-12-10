@@ -81,6 +81,19 @@ export const WorkoutOverviewScreen: React.FC = () => {
     return `${minutes} min`;
   };
 
+  // Format time for display (MM:SS)
+  const formatTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
+  // Format total minutes for time-based exercises
+  const formatTotalMinutes = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    return `${minutes} min`;
+  };
+
   // État pour les stickers du workout principal
   const [stickers, setStickers] = useState<Sticker[]>([]);
 
@@ -264,7 +277,13 @@ export const WorkoutOverviewScreen: React.FC = () => {
               <View style={styles.statDivider} />
               
               <View style={styles.statItem}>
-                <Text style={styles.statValue}>{currentWorkout.exercises.filter(ex => ex.sets.some(set => set.completed)).length}</Text>
+                <Text style={styles.statValue}>
+                  {currentWorkout.exercises.filter(ex => 
+                    ex.tracking === 'trackedOnSets' 
+                      ? ex.sets.some(set => set.completed)
+                      : ex.times && ex.times.some(time => time.completed)
+                  ).length}
+                </Text>
                 <Text style={styles.statLabel}>Exercises</Text>
               </View>
               
@@ -280,19 +299,26 @@ export const WorkoutOverviewScreen: React.FC = () => {
             
             {/* Exercices */}
             {currentWorkout.exercises
-              .filter(exercise => exercise.sets.some(set => set.completed))
+              .filter(exercise => 
+                exercise.tracking === 'trackedOnSets' 
+                  ? exercise.sets.some(set => set.completed)
+                  : exercise.times && exercise.times.some(time => time.completed)
+              )
               .map((exercise, index) => (
               <View key={exercise.id} style={styles.exerciseContainer}>
                 <View style={styles.exerciseHeader}>
                   <Text style={styles.exerciseName}>{exercise.name}</Text>
                   <View style={styles.headerRightContainer}>
                     <Text style={styles.exerciseSetsCount}>
-                      {exercise.sets.filter(set => set.completed).length} sets
+                      {exercise.tracking === 'trackedOnSets' 
+                        ? `${exercise.sets.filter(set => set.completed).length} sets`
+                        : formatTotalMinutes(exercise.duration || 0)
+                      }
                     </Text>
                   </View>
                 </View>
                 
-                {/* Sets */}
+                {/* Sets ou Times */}
                 <View style={styles.setsListContainer}>
                   {exercise.tracking === 'trackedOnSets' ? (
                     exercise.sets
@@ -347,9 +373,18 @@ export const WorkoutOverviewScreen: React.FC = () => {
                         </View>
                       ))
                   ) : (
-                    <View style={styles.dataContainer}>
-                      <Text style={styles.dataText}>{formatDuration(exercise.duration || 0)}</Text>
-                    </View>
+                    exercise.times
+                      ?.filter(time => time.completed)
+                      .map((time, timeIndex) => (
+                        <View 
+                          key={`${exercise.id}-time-${timeIndex}`} 
+                          style={styles.setContainer}
+                        >
+                          <View style={styles.dataContainer}>
+                            <Text style={styles.dataText}>{formatTime(time.duration)}</Text>
+                          </View>
+                        </View>
+                      ))
                   )}
                 </View>
               </View>
@@ -502,19 +537,26 @@ export const WorkoutOverviewScreen: React.FC = () => {
           
           {/* Exercises */}
           {workout.exercises
-            .filter(exercise => exercise.sets.some(set => set.completed))
+            .filter(exercise => 
+              exercise.tracking === 'trackedOnSets' 
+                ? exercise.sets.some(set => set.completed)
+                : exercise.times && exercise.times.some(time => time.completed)
+            )
             .map((exercise, index) => (
             <View key={exercise.id} style={styles.exerciseContainer}>
               <View style={styles.exerciseHeader}>
                 <Text style={styles.exerciseName}>{exercise.name}</Text>
                 <View style={styles.headerRightContainer}>
                   <Text style={styles.exerciseSetsCount}>
-                    {exercise.sets.filter(set => set.completed).length} sets
+                    {exercise.tracking === 'trackedOnSets' 
+                      ? `${exercise.sets.filter(set => set.completed).length} sets`
+                      : formatTotalMinutes(exercise.duration || 0)
+                    }
                   </Text>
                 </View>
               </View>
               
-              {/* Sets */}
+              {/* Sets ou Times */}
               <View style={styles.setsListContainer}>
                 {exercise.tracking === 'trackedOnSets' ? (
                   exercise.sets
@@ -569,9 +611,18 @@ export const WorkoutOverviewScreen: React.FC = () => {
                       </View>
                     ))
                 ) : (
-                  <View style={styles.dataContainer}>
-                    <Text style={styles.dataText}>{formatDuration(exercise.duration || 0)}</Text>
-                  </View>
+                  exercise.times
+                    ?.filter(time => time.completed)
+                    .map((time, timeIndex) => (
+                      <View 
+                        key={`${exercise.id}-time-${timeIndex}`} 
+                        style={styles.setContainer}
+                      >
+                        <View style={styles.dataContainer}>
+                          <Text style={styles.dataText}>{formatTime(time.duration)}</Text>
+                        </View>
+                      </View>
+                    ))
                 )}
               </View>
             </View>

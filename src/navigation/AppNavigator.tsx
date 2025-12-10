@@ -10,6 +10,8 @@ import { WorkoutPhotoScreen } from '../workout/screens/WorkoutPhotoScreen';
 import { WorkoutOverviewScreen } from '../workout/screens/WorkoutOverviewScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { ExerciseDetailScreen } from '../screens/ExerciseDetailScreen';
+import { SettingsScreen } from '../screens/SettingsScreen';
+import { RestTimerSettingsScreen } from '../screens/RestTimerSettingsScreen';
 import { NotificationSettingsScreen } from '../screens/NotificationSettingsScreen';
 import {
   WorkoutStackParamList,
@@ -67,6 +69,8 @@ const ProfileNavigator = () => (
   >
     <ProfileStack.Screen name="Profile" component={ProfileScreen} />
     <ProfileStack.Screen name="ExerciseDetail" component={ExerciseDetailScreen} />
+    <ProfileStack.Screen name="Settings" component={SettingsScreen} />
+    <ProfileStack.Screen name="RestTimerSettings" component={RestTimerSettingsScreen} />
     <ProfileStack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
   </ProfileStack.Navigator>
 );

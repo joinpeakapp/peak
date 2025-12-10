@@ -198,11 +198,15 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
             </TouchableOpacity>
           </View>
 
-          <View style={styles.titleContainer}>
-            <Text style={styles.title}>Edit Profile</Text>
-          </View>
-
-          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView 
+            style={styles.content} 
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Titre maintenant dans le ScrollView */}
+            <View style={styles.titleContainer}>
+              <Text style={styles.title}>Edit Profile</Text>
+            </View>
             {/* Photo de profil */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Profile Photo</Text>
@@ -288,7 +292,7 @@ const styles = StyleSheet.create({
   },
   titleContainer: {
     paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingTop: 32,
     paddingBottom: 24,
   },
   title: {
@@ -314,6 +318,9 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 40,
   },
   section: {
     paddingHorizontal: 20,

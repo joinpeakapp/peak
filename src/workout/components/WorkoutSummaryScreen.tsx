@@ -71,6 +71,19 @@ export const WorkoutSummaryScreen: React.FC = () => {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
+  // Format time for display (MM:SS)
+  const formatTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
+  // Format total minutes for time-based exercises
+  const formatTotalMinutes = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    return `${minutes} min`;
+  };
+
   // Textes spécifiques pour chaque type de badge
   const badgeInfo: Record<string, StepInfo> = {
     "Endurance": {
@@ -398,7 +411,13 @@ export const WorkoutSummaryScreen: React.FC = () => {
             
             {/* Exercices */}
             <Animated.View style={{ opacity: exercisesOpacity }}>
-              {showExercises && workout.exercises.map((exercise, index) => (
+              {showExercises && workout.exercises
+                .filter(exercise => 
+                  exercise.tracking === 'trackedOnSets' 
+                    ? exercise.sets.some(set => set.completed)
+                    : exercise.times && exercise.times.some(time => time.completed)
+                )
+                .map((exercise, index) => (
                 <View key={exercise.id} style={styles.exerciseContainer}>
                   <View style={styles.exerciseHeader}>
                     <Text style={styles.exerciseName}>{exercise.name}</Text>
@@ -410,12 +429,15 @@ export const WorkoutSummaryScreen: React.FC = () => {
                         </View>
                       )}
                       <Text style={styles.exerciseSetsCount}>
-                        {exercise.sets.filter(set => set.completed).length} sets
+                        {exercise.tracking === 'trackedOnSets' 
+                          ? `${exercise.sets.filter(set => set.completed).length} sets`
+                          : formatTotalMinutes(exercise.duration || 0)
+                        }
                       </Text>
                     </View>
                   </View>
                   
-                  {/* Sets */}
+                  {/* Sets ou Times */}
                   <View style={styles.setsListContainer}>
                     {exercise.tracking === 'trackedOnSets' ? (
                       exercise.sets
@@ -438,9 +460,18 @@ export const WorkoutSummaryScreen: React.FC = () => {
                           ) : null
                         ).filter(Boolean)
                     ) : (
-                      <View style={styles.dataContainer}>
-                        <Text style={styles.dataText}>{formatDuration(exercise.duration || 0)}</Text>
-                      </View>
+                      exercise.times
+                        ?.filter(time => time.completed)
+                        .map((time, timeIndex) => (
+                          <View 
+                            key={`${exercise.id}-time-${timeIndex}`} 
+                            style={styles.setContainer}
+                          >
+                            <View style={styles.dataContainer}>
+                              <Text style={styles.dataText}>{formatTime(time.duration)}</Text>
+                            </View>
+                          </View>
+                        ))
                     )}
                   </View>
                 </View>

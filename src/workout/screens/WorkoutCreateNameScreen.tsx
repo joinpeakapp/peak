@@ -8,7 +8,8 @@ import {
   Platform,
   TouchableWithoutFeedback,
   Keyboard,
-  KeyboardAvoidingView
+  KeyboardAvoidingView,
+  ScrollView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useWorkout } from '../../hooks/useWorkout';
@@ -79,35 +80,43 @@ export const WorkoutCreateNameScreen: React.FC<WorkoutCreateNameScreenProps> = (
             <Ionicons name="chevron-down" size={24} color="#FFFFFF" />
           </TouchableOpacity>
 
-          <View style={styles.titleContainer}>
-            <Text style={styles.title}>Name your workout</Text>
-            <Text style={styles.subtitle}>Give your session a name to track it easily!</Text>
-          </View>
+          <ScrollView 
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Titre et sous-titre maintenant dans le ScrollView */}
+            <View style={styles.titleContainer}>
+              <Text style={styles.title}>Name your workout</Text>
+              <Text style={styles.subtitle}>Give your session a name to track it easily!</Text>
+            </View>
 
-          <View>
-            <TextInput
-              style={[styles.input, error ? styles.inputError : null]}
-              placeholder="e.g. Upper Body, Cardio..."
-              placeholderTextColor="rgba(255, 255, 255, 0.6)"
-              value={name}
-              onChangeText={handleNameChange}
-              autoCapitalize="words"
-              returnKeyType="done"
-              onSubmitEditing={handleNext}
-              testID="workout-name-input"
-            />
+            <View>
+              <TextInput
+                style={[styles.input, error ? styles.inputError : null]}
+                placeholder="e.g. Upper Body, Cardio..."
+                placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                value={name}
+                onChangeText={handleNameChange}
+                autoCapitalize="words"
+                returnKeyType="done"
+                onSubmitEditing={handleNext}
+                testID="workout-name-input"
+              />
 
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+              {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-            <TouchableOpacity 
-              style={[styles.continueButton, !name.trim() && styles.continueButtonDisabled]} 
-              onPress={handleNext}
-              disabled={!name.trim()}
-              testID="continue-button"
-            >
-              <Text style={styles.continueButtonText}>Continue</Text>
-            </TouchableOpacity>
-          </View>
+              <TouchableOpacity 
+                style={[styles.continueButton, !name.trim() && styles.continueButtonDisabled]} 
+                onPress={handleNext}
+                disabled={!name.trim()}
+                testID="continue-button"
+              >
+                <Text style={styles.continueButtonText}>Continue</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
         </View>
       </TouchableWithoutFeedback>
     </KeyboardAvoidingView>
@@ -123,16 +132,22 @@ const styles = StyleSheet.create({
     backgroundColor: '#0D0D0F',
     paddingHorizontal: 24,
     paddingTop: 0,
-    paddingBottom: 48,
   },
   closeButton: {
     alignSelf: 'flex-start',
     marginTop: 16,
     padding: 8,
+    zIndex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 48,
   },
   titleContainer: {
     alignItems: 'flex-start',
-    marginTop: 24, 
+    paddingTop: 32, 
   },
   title: {
     fontSize: 24,

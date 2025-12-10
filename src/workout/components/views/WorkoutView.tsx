@@ -81,28 +81,34 @@ export const WorkoutView: React.FC<WorkoutViewProps> = ({
         </View>
       </View>
       
-      {isTrackingWorkout && activeWorkout && (
-        <Text style={styles.workoutTimer}>
-          {formatElapsedTime(activeWorkout.elapsedTime)}
-        </Text>
-      )}
-      
-      <View style={styles.workoutHeaderContainer}>
-        <Text 
-          style={[
-            styles.workoutName,
-            isTrackingWorkout && styles.workoutNameSmall
-          ]}
-        >
-          {workout.name}
-        </Text>
-      </View>
-      
       <View style={styles.scrollableContainer}>
         <ScrollView 
           style={styles.content}
+          contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {/* Timer dans le ScrollView quand en mode tracking */}
+          {isTrackingWorkout && activeWorkout && (
+            <Text style={styles.workoutTimer}>
+              {formatElapsedTime(activeWorkout.elapsedTime)}
+            </Text>
+          )}
+          
+          {/* Titre maintenant dans le ScrollView */}
+          <View style={[
+            styles.workoutHeaderContainer,
+            isTrackingWorkout && activeWorkout && styles.workoutHeaderContainerWithTimer
+          ]}>
+            <Text 
+              style={[
+                styles.workoutName,
+                isTrackingWorkout && styles.workoutNameSmall
+              ]}
+            >
+              {workout.name}
+            </Text>
+          </View>
+          
           {exercises.length === 0 ? (
             renderEmptyState()
           ) : (
@@ -269,27 +275,29 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '600',
     color: '#FFFFFF',
-    marginTop: 32,
+    paddingTop: 32,
     paddingHorizontal: 16,
+    marginBottom: 8,
   },
   workoutHeaderContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: -8,
     paddingHorizontal: 16,
+    paddingTop: 32,
+  },
+  workoutHeaderContainerWithTimer: {
+    paddingTop: 0,
   },
   workoutName: {
     fontSize: 24,
     fontWeight: '600',
     color: '#FFFFFF',
-    marginTop: 32,
     marginBottom: 24,
   },
   workoutNameSmall: {
     fontSize: 14,
     fontWeight: '400',
-    marginTop: 8,
     marginBottom: 24,
   },
   scrollableContainer: {
@@ -300,6 +308,9 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 0,
     overflow: 'visible',
+  },
+  scrollContent: {
+    paddingBottom: 80, // Pour le bottomPadding
   },
   exercisesList: {
     paddingTop: 24,

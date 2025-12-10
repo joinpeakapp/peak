@@ -22,6 +22,8 @@ export type JournalStackParamList = {
 export type ProfileStackParamList = {
   Profile: undefined;
   ExerciseDetail: { exerciseName: string };
+  Settings: undefined;
+  RestTimerSettings: undefined;
   NotificationSettings: undefined;
 };
 

@@ -126,12 +126,25 @@ export interface CompletedSet {
   };
 }
 
+// Type pour le tracking par temps (similaire à TrackingSet mais avec durée)
+export interface TrackingTime {
+  completed: boolean;
+  duration: number; // Durée en secondes
+}
+
+// Type pour les durées complétées (similaire à CompletedSet mais avec durée)
+export interface CompletedTime {
+  duration: number; // Durée en secondes
+  completed: boolean;
+}
+
 export interface CompletedExercise {
   id: string;
   name: string;
   sets: CompletedSet[];
   tracking: TrackingType;
-  duration?: number;
+  duration?: number; // Durée totale pour les exercices trackés par temps (somme des durées)
+  times?: CompletedTime[]; // Liste des durées enregistrées pour les exercices trackés par temps
   personalRecord?: {
     maxWeight: number;
     maxReps: number;

@@ -15,10 +15,18 @@ export interface TrackingSet {
   repsPlaceholder?: string;
 }
 
+// Type pour le tracking par temps
+export interface TrackingTime {
+  completed: boolean;
+  duration: number; // Durée en secondes
+}
+
 export interface TrackingData {
   [exerciseId: string]: {
-    completedSets: number;
-    sets: TrackingSet[];
+    completedSets?: number; // Pour les exercices trackés par sets
+    sets?: TrackingSet[]; // Pour les exercices trackés par sets
+    completedTimes?: number; // Pour les exercices trackés par temps
+    times?: TrackingTime[]; // Pour les exercices trackés par temps
   };
 }
 
@@ -43,6 +51,7 @@ interface ActiveWorkoutContextValue {
   finishWorkout: (updateStreak?: boolean) => Promise<void>;
   forceCleanupSession: () => Promise<void>; // Nouvelle fonction de nettoyage d'urgence
   updateTrackingData: (exerciseId: string, sets: TrackingSet[], completedSets: number) => void;
+  updateTrackingTimeData: (exerciseId: string, times: TrackingTime[], completedTimes: number) => void;
   updateElapsedTime: (newElapsedTime: number) => void;
   updatePhotoUri: (photoUri: string) => void; // Nouvelle fonction pour mettre à jour la photo
   updatePhotoInfo: (photoUri: string, isFrontCamera: boolean) => void; // Fonction pour mettre à jour photo et caméra
@@ -60,6 +69,7 @@ const defaultContextValue: ActiveWorkoutContextValue = {
   finishWorkout: async () => {},
   forceCleanupSession: async () => {}, // Ajout de la nouvelle fonction
   updateTrackingData: () => {},
+  updateTrackingTimeData: () => {},
   updateElapsedTime: () => {},
   updatePhotoUri: () => {}, // Ajout de la nouvelle fonction
   updatePhotoInfo: () => {}, // Ajout de la nouvelle fonction
@@ -268,14 +278,26 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
     const trackingData = initialTrackingData || (() => {
       const defaultTrackingData: TrackingData = {};
       exercises.forEach(exercise => {
-        defaultTrackingData[exercise.id] = {
-          completedSets: 0,
-          sets: Array(exercise.sets || 1).fill(0).map(() => ({
-            completed: false,
-            weight: '',
-            reps: '',
-          }))
-        };
+        if (exercise.tracking === 'trackedOnTime') {
+          // Initialiser avec une durée vide pour les exercices trackés par temps
+          defaultTrackingData[exercise.id] = {
+            completedTimes: 0,
+            times: [{
+              completed: false,
+              duration: 0
+            }]
+          };
+        } else {
+          // Initialiser avec des sets pour les exercices trackés par sets
+          defaultTrackingData[exercise.id] = {
+            completedSets: 0,
+            sets: Array(exercise.sets || 1).fill(0).map(() => ({
+              completed: false,
+              weight: '',
+              reps: '',
+            }))
+          };
+        }
       });
       return defaultTrackingData;
     })();
@@ -365,7 +387,7 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, []);
 
-  // Mettre à jour les données de tracking pour un exercice
+  // Mettre à jour les données de tracking pour un exercice (sets)
   const updateTrackingData = (exerciseId: string, sets: TrackingSet[], completedSets: number) => {
     if (!activeWorkout) return;
 
@@ -377,8 +399,30 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
         trackingData: {
           ...prev.trackingData,
           [exerciseId]: {
+            ...prev.trackingData[exerciseId],
             completedSets,
             sets
+          }
+        }
+      };
+    });
+  };
+
+  // Mettre à jour les données de tracking pour un exercice (temps)
+  const updateTrackingTimeData = (exerciseId: string, times: TrackingTime[], completedTimes: number) => {
+    if (!activeWorkout) return;
+
+    setActiveWorkout(prev => {
+      if (!prev) return null;
+      
+      return {
+        ...prev,
+        trackingData: {
+          ...prev.trackingData,
+          [exerciseId]: {
+            ...prev.trackingData[exerciseId],
+            completedTimes,
+            times
           }
         }
       };
@@ -505,6 +549,7 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
         finishWorkout,
         forceCleanupSession,
         updateTrackingData,
+        updateTrackingTimeData,
         updateElapsedTime,
         updatePhotoUri,
         updatePhotoInfo,

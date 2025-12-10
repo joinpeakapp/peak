@@ -8,15 +8,16 @@ import {
   Animated,
   Dimensions,
   BackHandler,
-  TextInput,
-  KeyboardAvoidingView,
   TouchableWithoutFeedback,
   Keyboard,
+  KeyboardAvoidingView,
   Platform,
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Exercise } from '../../types/workout';
+import { Picker } from '@react-native-picker/picker';
+import { SettingsService } from '../../services/settingsService';
 
 interface ExerciseSettingsModalProps {
   /** Whether the modal is visible */
@@ -31,6 +32,8 @@ interface ExerciseSettingsModalProps {
   exercise?: Exercise;
   /** Callback function when rest time is updated */
   onRestTimeUpdate?: (seconds: number) => void;
+  /** Callback function when tracking type is changed */
+  onTrackingTypeChange?: (trackingType: 'trackedOnSets' | 'trackedOnTime') => void;
   /** Whether to open directly in timer mode */
   openTimerDirectly?: boolean;
 }
@@ -63,51 +66,43 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
   onDelete,
   exercise,
   onRestTimeUpdate,
+  onTrackingTypeChange,
   openTimerDirectly = false,
 }) => {
   const slideAnim = React.useRef(new Animated.Value(height)).current;
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
   
-  // État pour gérer le temps de repos (par défaut 3 minutes = 180 secondes)
-  const [restTimeMinutes, setRestTimeMinutes] = useState('3');
-  const [restTimeSeconds, setRestTimeSeconds] = useState('00');
+  // État pour gérer le temps de repos (en minutes seulement, comme dans SettingsModal)
+  const [selectedMinutes, setSelectedMinutes] = useState(3);
   // État pour savoir si on est en mode configuration de timer
   const [timerMode, setTimerMode] = useState(openTimerDirectly);
+  // État pour savoir si on est en mode sélection du type de tracking
+  const [trackingTypeMode, setTrackingTypeMode] = useState(false);
   // État pour suivre si le clavier est visible
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
 
-  // Mettre à jour les champs de temps de repos quand l'exercice change
+  // Mettre à jour le temps de repos quand l'exercice change
   useEffect(() => {
-    if (exercise && exercise.restTimeSeconds) {
-      const minutes = Math.floor(exercise.restTimeSeconds / 60);
-      const seconds = exercise.restTimeSeconds % 60;
-      setRestTimeMinutes(minutes.toString());
-      setRestTimeSeconds(seconds.toString().padStart(2, '0'));
-    } else {
-      // Valeur par défaut: 3 minutes
-      setRestTimeMinutes('3');
-      setRestTimeSeconds('00');
+    const loadRestTime = async () => {
+      if (exercise && exercise.restTimeSeconds) {
+        // Si l'exercice a un rest timer personnalisé, l'utiliser
+        const minutes = Math.floor(exercise.restTimeSeconds / 60);
+        setSelectedMinutes(minutes);
+      } else {
+        // Sinon, utiliser le rest timer par défaut depuis les settings
+        const defaultRestTime = await SettingsService.getDefaultRestTimer();
+        const minutes = Math.floor(defaultRestTime / 60);
+        setSelectedMinutes(minutes);
+      }
+    };
+    
+    if (visible && exercise) {
+      loadRestTime();
     }
     
     // Mettre à jour le mode timer en fonction de openTimerDirectly
     setTimerMode(openTimerDirectly);
   }, [exercise, visible, openTimerDirectly]);
-
-  // Effet séparé pour réinitialiser les valeurs quand la modale s'ouvre
-  useEffect(() => {
-    if (visible && exercise) {
-      // Réinitialiser les valeurs à chaque ouverture de la modale
-      if (exercise.restTimeSeconds) {
-        const minutes = Math.floor(exercise.restTimeSeconds / 60);
-        const seconds = exercise.restTimeSeconds % 60;
-        setRestTimeMinutes(minutes.toString());
-        setRestTimeSeconds(seconds.toString().padStart(2, '0'));
-      } else {
-        setRestTimeMinutes('3');
-        setRestTimeSeconds('00');
-      }
-    }
-  }, [visible, exercise]);
 
   // Effet pour réinitialiser le mode timer quand la modale s'ouvre
   useEffect(() => {
@@ -178,7 +173,10 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
           Keyboard.dismiss();
           return true;
         }
-        if (timerMode) {
+        if (trackingTypeMode) {
+          // Si on est en mode sélection du type de tracking, revenir au menu principal
+          setTrackingTypeMode(false);
+        } else if (timerMode) {
           // Si on est en mode timer, revenir au menu principal
           // Si on a ouvert directement en mode timer, fermer la modale
           if (openTimerDirectly) {
@@ -201,10 +199,8 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
   // Fonction pour mettre à jour le temps de repos
   const handleRestTimeUpdate = () => {
     if (onRestTimeUpdate) {
-      // Convertir les minutes et secondes en secondes
-      const minutes = parseInt(restTimeMinutes) || 0;
-      const seconds = parseInt(restTimeSeconds) || 0;
-      const totalSeconds = (minutes * 60) + seconds;
+      // Convertir les minutes en secondes
+      const totalSeconds = selectedMinutes * 60;
       onRestTimeUpdate(totalSeconds);
     }
     handleClose();
@@ -256,30 +252,21 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
     });
   };
 
-  // Fonction pour valider les entrées du temps de repos
-  const validateTimeInput = (text: string, isMinutes: boolean) => {
-    // Accepter uniquement les nombres
-    const numericValue = text.replace(/[^0-9]/g, '');
-    
-    if (isMinutes) {
-      // Pas de limite spécifique pour les minutes, mais convertir en entier
-      setRestTimeMinutes(numericValue);
-    } else {
-      // Pour les secondes, limiter à 59
-      const value = parseInt(numericValue);
-      if (numericValue === '' || isNaN(value)) {
-        setRestTimeSeconds('00');
-      } else if (value > 59) {
-        setRestTimeSeconds('59');
-      } else {
-        setRestTimeSeconds(value.toString().padStart(2, '0'));
-      }
-    }
-  };
-
   // Permettre de basculer en mode configuration de timer
   const handleShowTimerMode = () => {
     setTimerMode(true);
+  };
+
+  const handleShowTrackingTypeMode = () => {
+    setTrackingTypeMode(true);
+  };
+
+  const handleTrackingTypeSelect = (trackingType: 'trackedOnSets' | 'trackedOnTime') => {
+    if (onTrackingTypeChange) {
+      onTrackingTypeChange(trackingType);
+    }
+    setTrackingTypeMode(false);
+    handleClose();
   };
 
   // Revenir au menu principal
@@ -329,7 +316,86 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
               },
             ]}
           >
-            {timerMode ? (
+            {trackingTypeMode ? (
+              // Mode sélection du type de tracking
+              <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                <ScrollView
+                  style={styles.scrollContent}
+                  contentContainerStyle={styles.scrollContentContainer}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  <View style={styles.timerHeader}>
+                    <Text style={styles.timerTitle}>Tracking Type</Text>
+                    <TouchableOpacity 
+                      style={styles.backButton}
+                      onPress={() => setTrackingTypeMode(false)}
+                    >
+                      <Ionicons name="chevron-down" size={24} color="#FFFFFF" />
+                    </TouchableOpacity>
+                  </View>
+                  
+                  <Text style={styles.timerSubtitle}>
+                    Choose how you want to track {exercise?.name}.
+                  </Text>
+                  
+                  <View style={styles.trackingTypeOptions}>
+                    <TouchableOpacity
+                      style={[
+                        styles.trackingTypeOptionCard,
+                        exercise?.tracking === 'trackedOnSets' && styles.trackingTypeOptionCardActive
+                      ]}
+                      onPress={() => handleTrackingTypeSelect('trackedOnSets')}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons 
+                        name="repeat-outline" 
+                        size={32} 
+                        color={exercise?.tracking === 'trackedOnSets' ? '#0D0D0F' : '#FFFFFF'} 
+                      />
+                      <Text style={[
+                        styles.trackingTypeOptionText,
+                        exercise?.tracking === 'trackedOnSets' && styles.trackingTypeOptionTextActive
+                      ]}>
+                        Track by sets
+                      </Text>
+                      <Text style={[
+                        styles.trackingTypeOptionDescription,
+                        exercise?.tracking === 'trackedOnSets' && styles.trackingTypeOptionDescriptionActive
+                      ]}>
+                        Weight and reps per set
+                      </Text>
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity
+                      style={[
+                        styles.trackingTypeOptionCard,
+                        exercise?.tracking === 'trackedOnTime' && styles.trackingTypeOptionCardActive
+                      ]}
+                      onPress={() => handleTrackingTypeSelect('trackedOnTime')}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons 
+                        name="time-outline" 
+                        size={32} 
+                        color={exercise?.tracking === 'trackedOnTime' ? '#0D0D0F' : '#FFFFFF'} 
+                      />
+                      <Text style={[
+                        styles.trackingTypeOptionText,
+                        exercise?.tracking === 'trackedOnTime' && styles.trackingTypeOptionTextActive
+                      ]}>
+                        Track by time
+                      </Text>
+                      <Text style={[
+                        styles.trackingTypeOptionDescription,
+                        exercise?.tracking === 'trackedOnTime' && styles.trackingTypeOptionDescriptionActive
+                      ]}>
+                        Duration with timer
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </ScrollView>
+              </TouchableWithoutFeedback>
+            ) : timerMode ? (
               // Mode configuration du timer de repos
               <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
                 <ScrollView
@@ -351,30 +417,22 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
                     Set a specific rest time between sets for {exercise?.name}.
                   </Text>
                   
-                  <View style={styles.timeInputContainer}>
-                    <View style={styles.timeInput}>
-                      <TextInput
-                        style={styles.timeInputField}
-                        value={restTimeMinutes}
-                        onChangeText={(text) => validateTimeInput(text, true)}
-                        keyboardType="numeric"
-                        maxLength={2}
-                      />
-                      <Text style={styles.timeInputLabel}>min</Text>
-                    </View>
-                    
-                    <Text style={styles.timeSeparator}>:</Text>
-                    
-                    <View style={styles.timeInput}>
-                      <TextInput
-                        style={styles.timeInputField}
-                        value={restTimeSeconds}
-                        onChangeText={(text) => validateTimeInput(text, false)}
-                        keyboardType="numeric"
-                        maxLength={2}
-                      />
-                      <Text style={styles.timeInputLabel}>sec</Text>
-                    </View>
+                  {/* Picker pour sélectionner les minutes - même format que SettingsModal */}
+                  <View style={styles.pickerWrapper}>
+                    <Picker
+                      selectedValue={selectedMinutes}
+                      onValueChange={(itemValue) => setSelectedMinutes(itemValue)}
+                      style={styles.picker}
+                      itemStyle={styles.pickerItem}
+                    >
+                      {Array.from({ length: 10 }, (_, i) => i + 1).map((min) => (
+                        <Picker.Item
+                          key={min}
+                          label={`${min} min`}
+                          value={min}
+                        />
+                      ))}
+                    </Picker>
                   </View>
                   
                   <TouchableOpacity
@@ -403,7 +461,7 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
                       <Text style={styles.optionText}>Replace exercise</Text>
                     </TouchableOpacity>
                     
-                    {onRestTimeUpdate && (
+                    {onRestTimeUpdate && exercise?.tracking !== 'trackedOnTime' && (
                       <TouchableOpacity
                         style={[styles.option, styles.timerOption]}
                         onPress={handleShowTimerMode}
@@ -411,6 +469,17 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
                       >
                         <Ionicons name="timer-outline" size={24} color="#FFFFFF" />
                         <Text style={styles.optionText}>Configure rest timer</Text>
+                      </TouchableOpacity>
+                    )}
+                    
+                    {onTrackingTypeChange && (
+                      <TouchableOpacity
+                        style={[styles.option, styles.trackingTypeOption]}
+                        onPress={handleShowTrackingTypeMode}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="swap-horizontal" size={24} color="#FFFFFF" />
+                        <Text style={styles.optionText}>Change tracking type</Text>
                       </TouchableOpacity>
                     )}
                     
@@ -499,6 +568,9 @@ const styles = StyleSheet.create({
   deleteOption: {
     backgroundColor: '#FF3B30',
   },
+  trackingTypeOption: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
   optionText: {
     fontSize: 16,
     fontWeight: '600',
@@ -529,35 +601,20 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     paddingHorizontal: 24,
   },
-  timeInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 32,
-    paddingHorizontal: 24,
+  pickerWrapper: {
+    paddingVertical: 16,
+    marginHorizontal: 24,
+    marginBottom: 24,
   },
-  timeInput: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  timeInputField: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 18,
+  picker: {
+    width: '100%',
     color: '#FFFFFF',
-    width: 60,
-    textAlign: 'center',
   },
-  timeInputLabel: {
-    color: 'rgba(255, 255, 255, 0.6)',
-    marginLeft: 8,
-    fontSize: 16,
-  },
-  timeSeparator: {
+  pickerItem: {
+    fontSize: 48,
+    fontWeight: '700',
     color: '#FFFFFF',
-    fontSize: 24,
-    marginHorizontal: 8,
+    height: 100,
   },
   saveButton: {
     backgroundColor: '#FFFFFF',
@@ -570,5 +627,41 @@ const styles = StyleSheet.create({
     color: '#000000',
     fontSize: 16,
     fontWeight: '600',
+  },
+  // Styles pour le mode sélection du type de tracking
+  trackingTypeOptions: {
+    gap: 16,
+    marginTop: 24,
+    paddingHorizontal: 24,
+  },
+  trackingTypeOptionCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  trackingTypeOptionCardActive: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#FFFFFF',
+  },
+  trackingTypeOptionText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginTop: 12,
+  },
+  trackingTypeOptionTextActive: {
+    color: '#0D0D0F',
+  },
+  trackingTypeOptionDescription: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginTop: 4,
+  },
+  trackingTypeOptionDescriptionActive: {
+    color: 'rgba(13, 13, 15, 0.6)',
   },
 }); 

@@ -14,7 +14,7 @@ import { useNavigation, useScrollToTop } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { usePersonalRecords } from '../hooks/usePersonalRecords';
 import UserProfileService, { UserProfile } from '../services/userProfileService';
-import { NotificationSettingsModal } from '../components/common/NotificationSettingsModal';
+import { SettingsModal } from '../components/common/SettingsModal';
 import { EditProfileModal } from '../components/common/EditProfileModal';
 import { ContextMenu, ContextMenuItem } from '../components/common/ContextMenu';
 import { WorkoutMiniCard } from '../workout/components/WorkoutMiniCard';
@@ -35,7 +35,7 @@ export const ProfileScreen: React.FC = () => {
   const { records } = usePersonalRecords();
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [isNotificationModalVisible, setIsNotificationModalVisible] = useState(false);
+  const [isSettingsModalVisible, setIsSettingsModalVisible] = useState(false);
   const [isEditProfileModalVisible, setIsEditProfileModalVisible] = useState(false);
   const [isContextMenuVisible, setIsContextMenuVisible] = useState(false);
   const [settingsButtonLayout, setSettingsButtonLayout] = useState<{
@@ -90,10 +90,10 @@ export const ProfileScreen: React.FC = () => {
       onPress: () => setIsEditProfileModalVisible(true),
     },
     {
-      key: 'notifications',
-      label: 'Notifications',
-      icon: 'notifications-outline',
-      onPress: () => setIsNotificationModalVisible(true),
+      key: 'settings',
+      label: 'Settings',
+      icon: 'settings-outline',
+      onPress: () => setIsSettingsModalVisible(true),
     },
   ];
 
@@ -444,10 +444,10 @@ export const ProfileScreen: React.FC = () => {
         />
       )}
 
-      {/* Notification Settings Modal */}
-      <NotificationSettingsModal
-        visible={isNotificationModalVisible}
-        onClose={() => setIsNotificationModalVisible(false)}
+      {/* Settings Modal */}
+      <SettingsModal
+        visible={isSettingsModalVisible}
+        onClose={() => setIsSettingsModalVisible(false)}
       />
     </View>
   );
