@@ -25,6 +25,8 @@ const LEGACY_KEYS = {
 interface ActiveSessionData {
   activeWorkout?: any;
   restTimer?: any;
+  originalRecords?: any; // Records originaux capturés au début de la séance
+  exercisePRResults?: any; // PRs détectés pendant la séance (pour afficher +1, +2, etc.)
   lastUpdated: string;
 }
 

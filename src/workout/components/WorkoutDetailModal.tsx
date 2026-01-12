@@ -127,7 +127,8 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     resumeWorkout, 
     isTrackingWorkout,
     updateExercise,
-    setExercises: setActiveWorkoutExercises
+    setExercises: setActiveWorkoutExercises,
+    updateSessionData
   } = useActiveWorkout();
   
   // Hook unifié pour gérer le tracking des exercices et séries
@@ -242,7 +243,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     }
   }, [workout?.exercises, workout?.updatedAt]);
 
-  // 🔧 CORRECTIF : Restaurer les originalRecords quand un workout actif est restauré après un redémarrage
+  // 🔧 CORRECTIF : Restaurer les originalRecords et exercisePRResults quand un workout actif est restauré après un redémarrage
   useEffect(() => {
     const restoreSessionRecords = async () => {
       // Si on est en mode tracking avec un workout actif et que les originalRecords sont vides,
@@ -254,30 +255,51 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
         Object.keys(workoutSession.originalRecords).length === 0 &&
         !recordsRestoredRef.current
       ) {
-        console.log('[WorkoutDetailModal] 🔄 Restoring originalRecords after app restart');
+        console.log('[WorkoutDetailModal] 🔄 Restoring session data after app restart');
         recordsRestoredRef.current = true; // Marquer comme restauré pour éviter les appels multiples
         
         try {
-          // Charger les records actuels depuis le service
-          await personalRecords.loadRecords();
+          // 🔧 CORRECTIF : Restaurer les données depuis activeWorkout si disponibles
+          if (activeWorkout.originalRecords && Object.keys(activeWorkout.originalRecords).length > 0) {
+            console.log('[WorkoutDetailModal] ✅ Restoring originalRecords from activeWorkout');
+            workoutSession.setOriginalRecords(activeWorkout.originalRecords);
+          } else {
+            // Sinon, charger depuis le service
+            await personalRecords.loadRecords();
+            const capturedRecords = JSON.parse(JSON.stringify(personalRecords.records));
+            workoutSession.initializeSession(capturedRecords);
+            
+            // Synchroniser les originalRecords avec tous les exercices de la séance
+            const exerciseNames = activeWorkout.exercises
+              .map(ex => ex.name)
+              .filter(Boolean) as string[];
+            
+            if (exerciseNames.length > 0) {
+              await workoutSession.syncOriginalRecordsWithExercises(exerciseNames);
+              console.log(`[WorkoutDetailModal] ✅ Synced originalRecords for ${exerciseNames.length} exercises`);
+            }
+          }
           
-          // Capturer les records actuels qui serviront de référence pour toute la séance
-          const capturedRecords = JSON.parse(JSON.stringify(personalRecords.records));
-          
-          // Initialiser la session avec les records capturés
-          workoutSession.initializeSession(capturedRecords);
-          
-          // Synchroniser les originalRecords avec tous les exercices de la séance
-          const exerciseNames = activeWorkout.exercises
-            .map(ex => ex.name)
-            .filter(Boolean) as string[];
-          
-          if (exerciseNames.length > 0) {
-            await workoutSession.syncOriginalRecordsWithExercises(exerciseNames);
-            console.log(`[WorkoutDetailModal] ✅ Restored originalRecords for ${exerciseNames.length} exercises after app restart`);
+          // 🔧 CORRECTIF : Restaurer les exercisePRResults depuis activeWorkout si disponibles
+          if (activeWorkout.exercisePRResults && Object.keys(activeWorkout.exercisePRResults).length > 0) {
+            console.log('[WorkoutDetailModal] ✅ Restoring exercisePRResults from activeWorkout');
+            // Restaurer chaque PR result dans workoutSession
+            Object.keys(activeWorkout.exercisePRResults).forEach(key => {
+              const prResult = activeWorkout.exercisePRResults[key];
+              if (prResult) {
+                // Extraire exerciseId et setIndex de la clé (format: "exerciseId_set_index")
+                const parts = key.split('_set_');
+                if (parts.length === 2) {
+                  const exerciseId = parts[0];
+                  const setIndex = parseInt(parts[1]);
+                  workoutSession.safeSetExercisePRResults(exerciseId, setIndex, prResult);
+                }
+              }
+            });
+            console.log(`[WorkoutDetailModal] ✅ Restored ${Object.keys(activeWorkout.exercisePRResults).length} exercisePRResults`);
           }
         } catch (error) {
-          console.error('[WorkoutDetailModal] ❌ Error restoring originalRecords after app restart:', error);
+          console.error('[WorkoutDetailModal] ❌ Error restoring session data after app restart:', error);
           recordsRestoredRef.current = false; // Réinitialiser en cas d'erreur pour réessayer
         }
       }
@@ -286,6 +308,34 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     restoreSessionRecords();
   }, [visible, isTrackingWorkout, activeWorkout, workoutSession, personalRecords]);
   
+  // 🔧 CORRECTIF : Sauvegarder automatiquement les données de session dans activeWorkout
+  // Utiliser useRef pour éviter les boucles infinies en comparant les valeurs précédentes
+  const prevOriginalRecordsRef = useRef<string>('');
+  const prevExercisePRResultsRef = useRef<string>('');
+  
+  useEffect(() => {
+    if (isTrackingWorkout && activeWorkout) {
+      // Convertir en JSON pour comparer le contenu plutôt que la référence
+      const currentOriginalRecords = JSON.stringify(workoutSession.originalRecords);
+      const currentExercisePRResults = JSON.stringify(workoutSession.exercisePRResults);
+      
+      // Ne sauvegarder que si les données ont réellement changé
+      if (
+        currentOriginalRecords !== prevOriginalRecordsRef.current ||
+        currentExercisePRResults !== prevExercisePRResultsRef.current
+      ) {
+        prevOriginalRecordsRef.current = currentOriginalRecords;
+        prevExercisePRResultsRef.current = currentExercisePRResults;
+        
+        // Sauvegarder les originalRecords et exercisePRResults dans activeWorkout
+        updateSessionData(
+          workoutSession.originalRecords,
+          workoutSession.exercisePRResults
+        );
+      }
+    }
+  }, [isTrackingWorkout, activeWorkout, workoutSession.originalRecords, workoutSession.exercisePRResults, updateSessionData]);
+
   // Réinitialiser le flag quand le workout se termine ou que le modal se ferme
   useEffect(() => {
     if (!isTrackingWorkout || !visible) {
@@ -384,8 +434,8 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     {
       key: 'reposition',
       label: 'Reposition exercise',
-      icon: 'swap-vertical-outline',
-          onPress: () => {
+      icon: 'swap-vertical-outline' as keyof typeof Ionicons.glyphMap,
+      onPress: () => {
         // Le ContextMenu ferme déjà le menu et attend 400ms sur iOS avant d'appeler onPress
         // S'assurer que le menu est fermé pour éviter les conflits d'état
         setIsExerciseMenuVisible(false);
@@ -399,7 +449,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     {
       key: 'replace',
       label: 'Replace exercise',
-      icon: 'swap-horizontal-outline',
+      icon: 'swap-horizontal-outline' as keyof typeof Ionicons.glyphMap,
       onPress: () => {
         setIsExerciseMenuVisible(false);
         if (selectedExerciseForMenu) {
@@ -412,7 +462,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     ...(selectedExerciseForMenu.tracking !== 'trackedOnTime' ? [{
       key: 'timer',
       label: 'Configure rest timer',
-      icon: 'timer-outline',
+      icon: 'timer-outline' as keyof typeof Ionicons.glyphMap,
       onPress: () => {
         setIsExerciseMenuVisible(false);
         if (selectedExerciseForMenu) {
@@ -424,7 +474,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
     {
       key: 'delete',
       label: 'Delete exercise',
-      icon: 'trash-outline',
+      icon: 'trash-outline' as keyof typeof Ionicons.glyphMap,
       onPress: () => {
         setIsExerciseMenuVisible(false);
         if (selectedExerciseForMenu) {

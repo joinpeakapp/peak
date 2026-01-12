@@ -8,6 +8,9 @@ import {
   setLoading,
   setError,
   reorderWorkouts,
+  addWorkoutWithNotifications,
+  updateWorkoutWithNotifications,
+  deleteWorkoutWithNotifications,
 } from '../store/slices/workoutSlice';
 import { Workout, Exercise } from '../types/workout';
 
@@ -69,26 +72,30 @@ export const useWorkout = () => {
 
   /**
    * Creates a new workout and adds it to the store.
+   * Replanifie automatiquement les notifications si nécessaire.
    * @param workout - The workout to create (without ID)
    */
   const createWorkout = (workout: Omit<Workout, 'id'>) => {
-    dispatch(addWorkout(workout));
+    dispatch(addWorkoutWithNotifications(workout) as any);
   };
 
   /**
    * Updates an existing workout in the store.
+   * Replanifie automatiquement les notifications si nécessaire.
    * @param workout - The updated workout
+   * @param previousWorkout - Optional previous workout state to detect frequency changes
    */
-  const updateWorkoutFn = (workout: Workout) => {
-    dispatch(updateWorkout(workout));
+  const updateWorkoutFn = (workout: Workout, previousWorkout?: Workout) => {
+    dispatch(updateWorkoutWithNotifications(workout, previousWorkout) as any);
   };
 
   /**
    * Removes a workout from the store.
+   * Annule automatiquement les notifications associées.
    * @param workoutId - The ID of the workout to remove
    */
   const removeWorkout = (workoutId: string) => {
-    dispatch(deleteWorkout(workoutId));
+    dispatch(deleteWorkoutWithNotifications(workoutId) as any);
   };
 
   /**

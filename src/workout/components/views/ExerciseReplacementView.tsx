@@ -204,7 +204,7 @@ export const ExerciseReplacementView: React.FC<ExerciseReplacementViewProps> = (
                   ? 'Select an exercise' 
                   : isSameExercise
                     ? 'Cannot replace with same exercise'
-                    : 'Replace with selected exercise'}
+                    : `Replace with ${selectedExercise?.name || 'selected exercise'}`}
               </Text>
             </TouchableOpacity>
           );

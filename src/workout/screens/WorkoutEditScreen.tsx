@@ -137,7 +137,8 @@ export const WorkoutEditScreen: React.FC<WorkoutEditScreenProps> = ({
         updatedAt: new Date().toISOString()
       };
 
-      updateWorkoutFn(updatedWorkout);
+      // Passer le workout précédent pour détecter les changements de fréquence
+      updateWorkoutFn(updatedWorkout, workout);
 
       // Complete the flow
       onSave();

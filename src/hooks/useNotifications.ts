@@ -131,20 +131,6 @@ export const useNotifications = () => {
     setScheduledNotifications(updated);
   }, [isInitialized]);
 
-  // Planifier un rappel de streak
-  const scheduleStreakReminder = useCallback(async (workoutId: string, workoutName: string, lastCompletedDate: string, frequency: number) => {
-    if (!isInitialized) {
-      console.warn('🔔 [useNotifications] Service not initialized');
-      return;
-    }
-
-    await NotificationService.scheduleStreakReminder(workoutId, workoutName, lastCompletedDate, frequency);
-    
-    // Mettre à jour la liste locale
-    const updated = await NotificationService.getScheduledNotifications();
-    setScheduledNotifications(updated);
-  }, [isInitialized]);
-
   return {
     // État
     isInitialized,
@@ -160,6 +146,5 @@ export const useNotifications = () => {
     saveSettings,
     requestPermissions,
     scheduleWorkoutReminders,
-    scheduleStreakReminder,
   };
 };

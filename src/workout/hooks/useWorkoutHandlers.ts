@@ -1,8 +1,8 @@
 import { useState, useCallback } from 'react';
 import { Alert, LayoutAnimation, UIManager, Platform } from 'react-native';
 import { CommonActions, NavigationProp } from '@react-navigation/native';
-import { Workout, Exercise, CompletedWorkout, TrackingSet, TrackingData, CompletedTime } from '../../types/workout';
-import { TrackingTime } from '../contexts/ActiveWorkoutContext';
+import { Workout, Exercise, CompletedWorkout, CompletedTime } from '../../types/workout';
+import { TrackingTime, TrackingSet, TrackingData } from '../contexts/ActiveWorkoutContext';
 import { RootStackParamList, WorkoutStackParamList } from '../../types/navigation';
 import CustomExerciseService from '../../services/customExerciseService';
 import { StickerService } from '../../services/stickerService';
@@ -193,30 +193,69 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
       // Recharger la liste des exercices personnalisés dans le hook
       await exerciseSelection.reloadCustomExercises();
       
-      // Reset et retourner au mode sélection d'exercices AVANT de sélectionner
-      setExerciseCreationStep('name');
-      setExerciseCreationData({});
-      exerciseSelection.startExerciseSelection();
-      
       // Convertir l'exercice personnalisé en Exercise pour la sélection
       const exerciseForSelection = CustomExerciseService.convertToExercise(newExercise);
       
-      // Attendre un court instant pour que le mode soit bien changé
-      setTimeout(() => {
-        // Sélectionner automatiquement l'exercice nouvellement créé
-        console.log('[WorkoutDetailModal] Auto-selecting exercise:', exerciseForSelection.name);
-        exerciseSelection.toggleExerciseSelection(exerciseForSelection);
-        
-        // Stocker l'ID du nouvel exercice pour le highlight
-        setNewlyCreatedExerciseId(newExercise.id);
-        
-        // Supprimer le highlight après 3 secondes
-        setTimeout(() => {
-          setNewlyCreatedExerciseId(null);
-        }, 3000);
-      }, 100);
+      // 🔧 CORRECTIF : Vérifier si on était en mode remplacement en vérifiant exerciseToReplaceId
+      // exerciseToReplaceId persiste même si le modalMode change pendant la création
+      const exerciseIdToReplace = exerciseSelection.exerciseToReplaceId;
+      const wasInReplacementMode = exerciseIdToReplace !== null;
       
-      Alert.alert('Success', `Exercise "${name}" created successfully! It has been selected for you.`);
+      if (wasInReplacementMode && exerciseIdToReplace) {
+        // En mode remplacement, sélectionner directement l'exercice créé
+        console.log('[WorkoutDetailModal] Exercise created during replacement, selecting for replacement...');
+        
+        // Reset les états de création
+        setExerciseCreationStep('name');
+        setExerciseCreationData({});
+        
+        // 🔧 CORRECTIF CRITIQUE : Remettre le mode à 'exercise-replacement' pour afficher la bonne interface
+        // Le mode a été changé à 'exercise-creation' pendant la création, il faut le remettre
+        exerciseSelection.startExerciseReplacement(exerciseIdToReplace);
+        
+        // Attendre que les exercices soient rechargés et que le mode soit bien changé
+        setTimeout(async () => {
+          // Attendre un peu plus pour que reloadCustomExercises ait fini de charger les nouveaux exercices
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          // Sélectionner l'exercice créé (en mode remplacement, toggleExerciseSelection sélectionne directement)
+          console.log('[WorkoutDetailModal] Selecting created exercise for replacement:', exerciseForSelection.name);
+          exerciseSelection.toggleExerciseSelection(exerciseForSelection);
+          
+          // Stocker l'ID du nouvel exercice pour le highlight
+          setNewlyCreatedExerciseId(newExercise.id);
+          
+          // Supprimer le highlight après 3 secondes
+          setTimeout(() => {
+            setNewlyCreatedExerciseId(null);
+          }, 3000);
+        }, 200);
+        
+        Alert.alert('Success', `Exercise "${name}" created successfully! It has been selected for replacement.`);
+      } else {
+        // Mode normal : ajout d'exercice
+        // Reset et retourner au mode sélection d'exercices AVANT de sélectionner
+        setExerciseCreationStep('name');
+        setExerciseCreationData({});
+        exerciseSelection.startExerciseSelection();
+        
+        // Attendre un court instant pour que le mode soit bien changé
+        setTimeout(() => {
+          // Sélectionner automatiquement l'exercice nouvellement créé
+          console.log('[WorkoutDetailModal] Auto-selecting exercise:', exerciseForSelection.name);
+          exerciseSelection.toggleExerciseSelection(exerciseForSelection);
+          
+          // Stocker l'ID du nouvel exercice pour le highlight
+          setNewlyCreatedExerciseId(newExercise.id);
+          
+          // Supprimer le highlight après 3 secondes
+          setTimeout(() => {
+            setNewlyCreatedExerciseId(null);
+          }, 3000);
+        }, 100);
+        
+        Alert.alert('Success', `Exercise "${name}" created successfully! It has been selected for you.`);
+      }
     } catch (error: any) {
       console.error('[WorkoutDetailModal] Error creating exercise:', error);
       Alert.alert('Error', error.message || 'Failed to create exercise');
@@ -231,7 +270,14 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
   const handleCancelCreateExercise = useCallback(() => {
     setExerciseCreationStep('name');
     setExerciseCreationData({});
-    exerciseSelection.startExerciseSelection();
+    
+    // 🔧 CORRECTIF : Si on était en mode remplacement, y retourner au lieu du mode sélection normale
+    const exerciseIdToReplace = exerciseSelection.exerciseToReplaceId;
+    if (exerciseIdToReplace) {
+      exerciseSelection.startExerciseReplacement(exerciseIdToReplace);
+    } else {
+      exerciseSelection.startExerciseSelection();
+    }
   }, [setExerciseCreationStep, setExerciseCreationData, exerciseSelection]);
 
   // Fonction pour gérer le long press sur un exercice dans la bibliothèque
@@ -273,7 +319,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
     console.log('[WorkoutDetailModal] Adding exercises:', exerciseSelection.selectedExercises.length);
     // Ajouter seulement les exercices qui ne sont pas déjà présents dans le workout
     const newExercises = exerciseSelection.selectedExercises.filter(
-      newEx => !exercises.some(existingEx => existingEx.id === newEx.id)
+      (newEx: Exercise) => !exercises.some(existingEx => existingEx.id === newEx.id)
     );
     
     if (newExercises.length > 0) {
@@ -295,7 +341,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
       // Si on est en mode tracking, initialiser les trackingData avec 3 sets vides pour chaque nouvel exercice
       if (isTrackingWorkout && activeWorkout) {
         console.log('[WorkoutDetailModal] Initializing tracking data for new exercises');
-        newExercises.forEach(exercise => {
+        newExercises.forEach((exercise: Exercise) => {
           const emptySets: TrackingSet[] = [
             { completed: false, weight: '', reps: '', weightPlaceholder: '0', repsPlaceholder: '0' },
             { completed: false, weight: '', reps: '', weightPlaceholder: '0', repsPlaceholder: '0' },
@@ -305,7 +351,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
         });
         
         // 🔧 CORRECTIF ROBUSTE : Synchroniser les originalRecords avec les nouveaux exercices ajoutés
-        const newExerciseNames = newExercises.map(ex => ex.name).filter(Boolean) as string[];
+        const newExerciseNames = newExercises.map((ex: Exercise) => ex.name).filter(Boolean) as string[];
         if (newExerciseNames.length > 0) {
           await workoutSession.syncOriginalRecordsWithExercises(newExerciseNames);
           console.log(`[WorkoutDetailModal] Synced originalRecords with ${newExerciseNames.length} newly added exercises`);
@@ -349,7 +395,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
     // Vérifier si on est en mode tracking et si l'exercice a des sets validés ou des PR
     if (isTrackingWorkout && activeWorkout) {
       const trackingData = activeWorkout.trackingData?.[exerciseId];
-      const hasCompletedSets = trackingData && trackingData.sets && trackingData.sets.some(set => set.completed);
+      const hasCompletedSets = trackingData && trackingData.sets && trackingData.sets.some((set: TrackingSet) => set.completed);
       const prResult = workoutSession.exercisePRResults?.[exerciseId];
       const hasPR = prResult && (prResult.weightPR?.isNew || prResult.repsPR?.isNew);
       
@@ -390,7 +436,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
     // Vérifier si on est en mode tracking et si l'exercice a des sets validés ou des PR
     if (isTrackingWorkout && activeWorkout) {
       const trackingData = activeWorkout.trackingData?.[exerciseId];
-      const hasCompletedSets = trackingData && trackingData.sets && trackingData.sets.some(set => set.completed);
+      const hasCompletedSets = trackingData && trackingData.sets && trackingData.sets.some((set: TrackingSet) => set.completed);
       const prResult = workoutSession.exercisePRResults?.[exerciseId];
       const hasPR = prResult && (prResult.weightPR?.isNew || prResult.repsPR?.isNew);
       
@@ -759,7 +805,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
     try {
       // 🔧 FIX: S'assurer que toutes les données de tracking sont sauvegardées avant de terminer
       if (modalManagement.selectedExerciseId && exerciseTracking.exerciseSets.length > 0) {
-        const completedCount = exerciseTracking.exerciseSets.filter(set => set.completed).length;
+        const completedCount = exerciseTracking.exerciseSets.filter((set: TrackingSet) => set.completed).length;
         updateTrackingData(modalManagement.selectedExerciseId, exerciseTracking.exerciseSets, completedCount);
       }
       
@@ -795,7 +841,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
             
             return {
               name: exercise.name,
-              sets: sets.map(set => ({
+              sets: sets.map((set: TrackingSet) => ({
                 weight: parseInt(set.weight) || 0,
                 reps: parseInt(set.reps) || 0,
                 completed: set.completed
@@ -831,8 +877,8 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
           // Gérer les exercices trackés par temps
           if (exercise.tracking === 'trackedOnTime') {
             const times = trackingData?.times || [];
-            const completedTimes = times.filter(time => time.completed);
-            const totalDuration = completedTimes.reduce((sum, time) => sum + time.duration, 0);
+            const completedTimes = times.filter((time: TrackingTime) => time.completed);
+            const totalDuration = completedTimes.reduce((sum: number, time: TrackingTime) => sum + time.duration, 0);
             
             return {
               id: exercise.id,
@@ -840,7 +886,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
               sets: [], // Pas de sets pour les exercices trackés par temps
               tracking: 'trackedOnTime' as const,
               duration: totalDuration,
-              times: completedTimes.map(time => ({
+              times: completedTimes.map((time: TrackingTime) => ({
                 duration: time.duration,
                 completed: time.completed
               } as CompletedTime)),
@@ -864,7 +910,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
           return {
             id: exercise.id,
             name: exercise.name,
-            sets: finalSets.map((set, setIndex) => {
+            sets: finalSets.map((set: TrackingSet, setIndex: number) => {
               // Récupérer les données PR pour ce set depuis workoutSession.exercisePRResults
               const prResultKey = `${exercise.id}_set_${setIndex}`;
               const prResult = workoutSession.exercisePRResults[prResultKey];
@@ -991,7 +1037,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
     // Sauvegarder les modifications de tracking actuelles avant de revenir
     if (modalManagement.selectedExerciseId) {
       const newSets = [...exerciseTracking.exerciseSets];
-      const completedCount = newSets.filter(set => set.completed).length;
+      const completedCount = newSets.filter((set: TrackingSet) => set.completed).length;
       
       updateTrackingData(modalManagement.selectedExerciseId, newSets, completedCount);
       
@@ -1064,8 +1110,8 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
     
     // Calculer le poids max parmi toutes les séries complétées
     const maxWeight = completedSets
-      .filter(set => set.completed)
-      .reduce((max, set) => {
+      .filter((set: TrackingSet) => set.completed)
+      .reduce((max: number, set: TrackingSet) => {
         const setWeight = parseInt(set.weight) || 0;
         return Math.max(max, setWeight);
       }, 0);
@@ -1136,7 +1182,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
     if (!toggleResult || !modalManagement.selectedExerciseId) return;
     
     const { newSets, isNowCompleted } = toggleResult;
-    const completedCount = newSets.filter(set => set.completed).length;
+    const completedCount = newSets.filter((set: TrackingSet) => set.completed).length;
     
     // Mettre à jour les données de tracking
     updateTrackingData(modalManagement.selectedExerciseId, newSets, completedCount);
@@ -1169,7 +1215,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
         // Si nous avons un nouveau PR de poids, vérifier si c'est la première série avec ce poids max
         if (weightPR) {
           // Trouver l'index de la première série complétée avec ce poids max
-          const firstMaxWeightIndex = newSets.findIndex((set, idx) => 
+          const firstMaxWeightIndex = newSets.findIndex((set: TrackingSet, idx: number) => 
             set.completed && parseInt(set.weight) === weightPR.weight
           );
           
@@ -1402,7 +1448,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
     if (currentSets.length <= 1) return;
     
     // Calculer les nouveaux sets localement avant d'appeler removeSet
-    const newSets = currentSets.filter((_, i) => i !== index);
+    const newSets = currentSets.filter((_: TrackingSet, i: number) => i !== index);
     
     // Vérifier si la série à supprimer avait un PR
     const hasPR = workoutSession.prResults && workoutSession.prResults.setIndex === index;
@@ -1460,7 +1506,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
         }
         
         // Mettre à jour les données de tracking avec les sets restants calculés localement
-        const completedCount = newSets.filter(set => set.completed).length;
+        const completedCount = newSets.filter((set: TrackingSet) => set.completed).length;
         updateTrackingData(modalManagement.selectedExerciseId, newSets, completedCount);
         
         // 🔧 CORRECTIF : Recalculer le poids maximum de la séance après suppression
@@ -1555,7 +1601,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
         }
         
         // Mettre à jour les données de tracking avec les nouveaux sets calculés localement
-        const completedCount = newSets.filter(set => set.completed).length;
+        const completedCount = newSets.filter((set: TrackingSet) => set.completed).length;
         updateTrackingData(modalManagement.selectedExerciseId, newSets, completedCount);
       }
     }

@@ -336,8 +336,9 @@ export const NotificationSettingsModal: React.FC<NotificationSettingsModalProps>
               <Switch
                 value={workoutRemindersEnabled}
                 onValueChange={handleToggle}
-                trackColor={{ false: 'rgba(255, 255, 255, 0.2)', true: 'rgba(255, 255, 255, 0.3)' }}
-                thumbColor={workoutRemindersEnabled ? '#FFFFFF' : 'rgba(255, 255, 255, 0.5)'}
+                trackColor={{ false: 'rgba(255, 255, 255, 0.25)', true: '#4CD964' }}
+                thumbColor={workoutRemindersEnabled ? '#FFFFFF' : 'rgba(255, 255, 255, 0.8)'}
+                ios_backgroundColor="rgba(255, 255, 255, 0.25)"
               />
             </View>
           </View>

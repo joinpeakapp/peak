@@ -1,6 +1,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { Workout, WorkoutState, Exercise } from '../../types/workout';
 import { RobustStorageService } from '../../services/storage';
+import NotificationService from '../../services/notificationService';
 
 // État initial
 const initialState: WorkoutState = {
@@ -166,6 +167,84 @@ export const loadInitialData = () => async (dispatch: any) => {
     dispatch(setError('Erreur lors du chargement des données'));
   } finally {
     dispatch(setLoading(false));
+  }
+};
+
+// Action thunk pour ajouter un workout et replanifier les notifications
+export const addWorkoutWithNotifications = (workout: Omit<Workout, 'id'>) => async (dispatch: any) => {
+  dispatch(addWorkout(workout));
+  
+  // Replanifier les notifications si le workout a une fréquence
+  if (workout.frequency && workout.frequency.type !== 'none') {
+    try {
+      if (workout.frequency.type === 'weekly') {
+        await NotificationService.scheduleWorkoutReminders();
+      }
+      // Les workouts à intervalles seront planifiés lors de leur complétion
+    } catch (error) {
+      console.error('[addWorkoutWithNotifications] Failed to replan notifications:', error);
+    }
+  }
+};
+
+// Action thunk pour mettre à jour un workout et replanifier les notifications
+export const updateWorkoutWithNotifications = (workout: Workout, previousWorkout?: Workout) => async (dispatch: any) => {
+  dispatch(updateWorkout(workout));
+  
+  // Annuler les notifications pour l'ancien workout si nécessaire
+  if (previousWorkout) {
+    try {
+      // Si c'était un workout à intervalle, annuler sa notification
+      if (previousWorkout.frequency?.type === 'interval') {
+        await NotificationService.cancelWorkoutReminder(previousWorkout.id);
+      }
+    } catch (error) {
+      console.error('[updateWorkoutWithNotifications] Failed to cancel old notifications:', error);
+    }
+  }
+  
+  // Replanifier les notifications selon la nouvelle fréquence
+  if (workout.frequency && workout.frequency.type !== 'none') {
+    try {
+      if (workout.frequency.type === 'weekly') {
+        // Replanifier toutes les notifications hebdomadaires
+        await NotificationService.scheduleWorkoutReminders();
+      }
+      // Les workouts à intervalles seront planifiés lors de leur complétion
+      // (pas besoin de replanifier ici car ils n'ont pas encore été complétés avec la nouvelle fréquence)
+    } catch (error) {
+      console.error('[updateWorkoutWithNotifications] Failed to replan notifications:', error);
+    }
+  } else {
+    // Si le workout n'a plus de fréquence, replanifier pour nettoyer les notifications mixtes
+    try {
+      await NotificationService.scheduleWorkoutReminders();
+    } catch (error) {
+      console.error('[updateWorkoutWithNotifications] Failed to replan notifications:', error);
+    }
+  }
+};
+
+// Action thunk pour supprimer un workout et annuler ses notifications
+export const deleteWorkoutWithNotifications = (workoutId: string) => async (dispatch: any, getState: any) => {
+  // Récupérer le workout avant de le supprimer pour connaître son type
+  const state = getState();
+  const workoutToDelete = state.workout.workouts.find((w: Workout) => w.id === workoutId);
+  
+  dispatch(deleteWorkout(workoutId));
+  
+  // Annuler les notifications pour ce workout
+  if (workoutToDelete) {
+    try {
+      if (workoutToDelete.frequency?.type === 'interval') {
+        // Annuler la notification d'intervalle spécifique
+        await NotificationService.cancelWorkoutReminder(workoutId);
+      }
+      // Replanifier les notifications hebdomadaires (pour gérer les notifications mixtes)
+      await NotificationService.scheduleWorkoutReminders();
+    } catch (error) {
+      console.error('[deleteWorkoutWithNotifications] Failed to cancel notifications:', error);
+    }
   }
 };
 

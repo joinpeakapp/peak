@@ -33,6 +33,35 @@ export const NotificationSettingsScreen: React.FC = () => {
     setIsLoading(false);
   };
 
+  const handlePermissionRequest = async () => {
+    const granted = await requestPermissions();
+    if (!granted) {
+      Alert.alert(
+        'Permissions requises',
+        'Veuillez autoriser les notifications dans les paramètres de votre appareil pour recevoir des rappels.',
+        [
+          { text: 'Annuler', style: 'cancel' },
+          {
+            text: 'Paramètres',
+            onPress: () => {
+              if (Platform.OS === 'ios') {
+                Alert.alert(
+                  'Ouvrir Réglages',
+                  'Allez dans Réglages > Notifications > Peak pour autoriser les notifications'
+                );
+              } else {
+                Alert.alert(
+                  'Ouvrir Paramètres',
+                  'Allez dans Paramètres > Applications > Peak > Notifications pour autoriser les notifications'
+                );
+              }
+            },
+          },
+        ]
+      );
+    }
+  };
+
   const handleToggle = async (value: boolean) => {
     if (!hasPermission && value) {
       const granted = await requestPermissions();
@@ -131,35 +160,6 @@ export const NotificationSettingsScreen: React.FC = () => {
     );
   }
 
-  const handlePermissionRequest = async () => {
-    const granted = await requestPermissions();
-    if (!granted) {
-      Alert.alert(
-        'Permissions requises',
-        'Veuillez autoriser les notifications dans les paramètres de votre appareil pour recevoir des rappels.',
-        [
-          { text: 'Annuler', style: 'cancel' },
-          {
-            text: 'Paramètres',
-            onPress: () => {
-              if (Platform.OS === 'ios') {
-                Alert.alert(
-                  'Ouvrir Réglages',
-                  'Allez dans Réglages > Notifications > Peak pour autoriser les notifications'
-                );
-              } else {
-                Alert.alert(
-                  'Ouvrir Paramètres',
-                  'Allez dans Paramètres > Applications > Peak > Notifications pour autoriser les notifications'
-                );
-              }
-            },
-          },
-        ]
-      );
-    }
-  };
-
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -189,8 +189,9 @@ export const NotificationSettingsScreen: React.FC = () => {
             <Switch
               value={workoutRemindersEnabled}
               onValueChange={handleToggle}
-              trackColor={{ false: 'rgba(255, 255, 255, 0.2)', true: 'rgba(255, 255, 255, 0.3)' }}
-              thumbColor={workoutRemindersEnabled ? '#FFFFFF' : 'rgba(255, 255, 255, 0.5)'}
+              trackColor={{ false: 'rgba(255, 255, 255, 0.25)', true: '#4CD964' }}
+              thumbColor={workoutRemindersEnabled ? '#FFFFFF' : 'rgba(255, 255, 255, 0.8)'}
+              ios_backgroundColor="rgba(255, 255, 255, 0.25)"
             />
           </View>
         </View>

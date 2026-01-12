@@ -1,6 +1,5 @@
 export type NotificationType = 
-  | 'workout_reminder'
-  | 'streak_reminder';
+  | 'workout_reminder';
 
 export interface NotificationData {
   type: NotificationType;
@@ -9,6 +8,7 @@ export interface NotificationData {
   streakCount?: number;
   daysUntilLoss?: number;
   dayOfWeek?: number;
+  date?: string; // Date au format YYYY-MM-DD pour les notifications de workout
 }
 
 export interface ScheduledNotification {
@@ -38,10 +38,10 @@ export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   workoutReminders: {
     enabled: false,
     days: [1, 3, 5], // Mon, Wed, Fri
-    time: '18:00',
+    time: '09:00', // Toutes les notifications sont envoyées à 9h du matin
   },
   streakReminders: {
     enabled: false,
-    time: '20:00',
+    time: '09:00', // Toutes les notifications sont envoyées à 9h du matin
   },
 };

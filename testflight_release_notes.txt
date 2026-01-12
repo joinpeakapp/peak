@@ -1,0 +1,35 @@
+Corrections critiques et améliorations
+
+CORRECTIONS CRITIQUES:
+
+• Bug "Maximum update depth exceeded" corrigé
+  Correction d'une boucle infinie qui causait des crashes lors du démarrage d'un workout. Le problème venait de la sauvegarde automatique des données de session.
+
+• Remplacement d'exercice par un exercice créé
+  Correction du comportement lors de la création d'un exercice en mode remplacement. L'exercice créé est maintenant correctement utilisé pour remplacer l'exercice existant au lieu d'être ajouté au workout.
+
+• Interface de remplacement améliorée
+  Le bouton affiche maintenant "Replace with [nom de l'exercice]" au lieu de "Replace with selected exercise" pour plus de clarté.
+
+AMÉLIORATIONS:
+
+• Persistance complète des données de workout
+  Toutes les données sont maintenant sauvegardées automatiquement et restaurées au redémarrage :
+  - Tous les sets complétés
+  - Tous les poids et répétitions
+  - Tous les PR détectés
+  - Toutes les durées trackées
+  - La durée totale du workout
+
+• Personal Records (PR)
+  Les records personnels sont correctement sauvegardés et restaurés. Plus de réinitialisation des PR lors de la fermeture de l'app.
+
+• Badges de progression (+1, +2, etc.)
+  Les badges de progression sont maintenant persistés et visibles après redémarrage dans WorkoutSummary, WorkoutOverview et le journal.
+
+• Durée du workout
+  Correction du calcul de la durée même si l'application est fermée complètement. La durée continue de s'incrémenter correctement au retour au premier plan.
+
+IMPACT UTILISATEUR:
+
+Vous pouvez maintenant fermer et rouvrir l'application en toute sécurité pendant un workout sans perdre aucune donnée. Toutes ces données seront correctement présentes lors de la validation finale du workout.

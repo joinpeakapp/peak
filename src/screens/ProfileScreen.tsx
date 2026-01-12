@@ -376,6 +376,7 @@ export const ProfileScreen: React.FC = () => {
           </View>
         </View>
 
+
         {/* Section Last Workouts */}
         {recentWorkouts.length > 0 && (
           <View style={styles.lastWorkoutsSection}>

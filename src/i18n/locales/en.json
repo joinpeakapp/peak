@@ -1,0 +1,378 @@
+{
+  "onboarding": {
+    "splash": {
+      "appName": "peak"
+    },
+    "language": {
+      "title": "Choose your language",
+      "subtitle": "Select the language you prefer for Peak",
+      "english": "English",
+      "french": "Français",
+      "continue": "Continue"
+    },
+    "carousel": {
+      "slide1": {
+        "title": "Track your workouts like never before",
+        "description": "Peak tracks your progress in real time - get instant feedback when you lift more.",
+        "button": "Continue"
+      },
+      "slide2": {
+        "title": "Progress that feels rewarding",
+        "description": "Earn stickers when you hit milestones - new records, streaks, consistency",
+        "button": "Continue"
+      },
+      "slide3": {
+        "title": "Turn your workouts into memories",
+        "description": "Each session becomes a card: your photo, your stats, your achievements, all in one place.",
+        "button": "Start now"
+      }
+    },
+    "notifications": {
+      "title": "Never miss a workout",
+      "description": "Notifications help us remind you of your planned sessions and keep you motivated to stay consistent.",
+      "benefit1": "Workout reminders",
+      "benefit2": "Streak alerts",
+      "benefit3": "Daily motivation",
+      "enableButton": "Enable notifications",
+      "skipButton": "Skip this step",
+      "disabledTitle": "Notifications disabled",
+      "disabledMessage": "You can enable notifications later in the app settings.",
+      "continueAnyway": "Continue anyway",
+      "error": "An error occurred while requesting permission."
+    },
+    "camera": {
+      "title": "Capture your moments",
+      "description": "Take a photo at the end of each session to create workout memory cards and track your progress visually.",
+      "benefit1": "Workout memory cards",
+      "benefit2": "Visual progress tracking",
+      "benefit3": "Share your achievements",
+      "allowButton": "Allow camera access",
+      "skipButton": "Skip this step",
+      "deniedTitle": "Camera access denied",
+      "deniedMessage": "We need access to your camera to take workout photos. You can enable it later in settings.",
+      "continueAnyway": "Continue anyway",
+      "error": "An error occurred while requesting permission."
+    },
+    "profile": {
+      "title": "Create your profile",
+      "description": "Let's start by personalizing your profile with your name and a photo.",
+      "firstNameLabel": "Your first name",
+      "firstNamePlaceholder": "Enter your first name",
+      "continueButton": "Continue",
+      "permissionRequired": "Permission required",
+      "photoPermissionMessage": "We need access to your photos to set your profile picture.",
+      "choosePhoto": "Choose a photo",
+      "choosePhotoMessage": "Where would you like to take your photo from?",
+      "gallery": "Gallery",
+      "camera": "Camera",
+      "cancel": "Cancel",
+      "cameraPermissionMessage": "We need access to your camera to take a photo.",
+      "error": "Error",
+      "photoError": "An error occurred while selecting the photo.",
+      "nameError": "Please enter your first name."
+    },
+    "profileSuccess": {
+      "title": "You're all set!",
+      "description": "You can now create your workouts and start tracking your progress.",
+      "button": "Get started"
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "How to track workouts and metrics",
+    "restTimer": {
+      "title": "Rest timer",
+      "subtitle": "Rest {{minutes}} min between sets",
+      "defaultTitle": "Rest timer",
+      "defaultSubtitle": "Default rest time between sets",
+      "save": "Save"
+    },
+    "notifications": {
+      "title": "Notifications",
+      "subtitle": "Workout reminders",
+      "permissionTitle": "Notifications disabled",
+      "permissionMessage": "Enable notifications to receive workout reminders",
+      "enableButton": "Enable notifications",
+      "loading": "Loading...",
+      "permissionsNotGranted": "Permissions not granted",
+      "enabled": "Enabled for scheduled workouts",
+      "disabled": "Disabled",
+      "sectionDescription": "Receive one reminder per day when you have a scheduled workout",
+      "infoText": "You will receive one notification per day maximum, only on days when you have a scheduled workout."
+    },
+    "language": {
+      "title": "Language",
+      "subtitle": "Choose your preferred language",
+      "english": "English",
+      "french": "Français",
+      "current": "Current language"
+    },
+    "dev": {
+      "sectionTitle": "Developer",
+      "resetOnboarding": "Reset onboarding",
+      "resetOnboardingTitle": "Reset Onboarding",
+      "resetOnboardingMessage": "This will reset your onboarding and show it again on next app launch. Continue?",
+      "resetOnboardingSuccess": "Onboarding will be shown on next app launch.",
+      "resetOnboardingError": "Failed to reset onboarding."
+    }
+  },
+  "profile": {
+    "workouts": "workouts",
+    "exercises": "exercises",
+    "sets": "sets",
+    "lastWorkouts": "Last workouts",
+    "seeMore": "See more",
+    "exercisesTitle": "Exercises",
+    "noExercises": "No recorded exercises",
+    "editProfile": "Edit profile",
+    "settings": "Settings",
+    "currentPR": "Current PR"
+  },
+  "workout": {
+    "createName": {
+      "title": "Name your workout",
+      "subtitle": "Give your session a name to track it easily!",
+      "placeholder": "e.g. Upper Body, Cardio...",
+      "continue": "Continue",
+      "error": "Please enter a workout name"
+    },
+    "creation": {
+      "success": {
+        "title": "Workout created!",
+        "description": "Your workout has been successfully created and will be added to your workouts list.",
+        "button": "Continue"
+      }
+    },
+    "edit": {
+      "title": "Edit workout",
+      "subtitle": "Update your workout details",
+      "nameLabel": "Workout name",
+      "scheduleLabel": "Workout schedule",
+      "placeholder": "e.g. Upper Body, Cardio..."
+    },
+    "exercise": {
+      "createTitle": "Create an exercise",
+      "createSubtitle": "Choose a clear and recognizable name",
+      "placeholder": "e.g., Barbell Squat, Pull-ups...",
+      "characters": "characters",
+      "error": "Please enter an exercise name"
+    },
+    "summary": {
+      "complete": {
+        "title": "Workout Complete",
+        "subtitle": "Great job on completing your workout!"
+      },
+      "perfectExecution": {
+        "title": "Perfect Execution!",
+        "subtitle": "You completed every single set - no shortcuts, just pure dedication"
+      },
+      "pr": {
+        "title": "New Personal Record!",
+        "subtitle": "You've broken through your limits - this is what progress looks like"
+      },
+      "star": {
+        "title": "Session Master!",
+        "subtitle": "Another completion of this workout - your consistency is building strength"
+      },
+      "streak": {
+        "title": "{{count}} Day Streak!",
+        "subtitle": "You're building consistency - keep that momentum going!"
+      },
+      "volume": {
+        "title": "Volume Beast!",
+        "subtitle": "You've pushed more weight than ever before - your strength is growing"
+      },
+      "viewInJournal": "View in Journal",
+      "tapToContinue": "Tap to continue"
+    },
+    "list": {
+      "empty": "No workouts yet",
+      "emptySubtitle": "Start your fitness journey today!"
+    }
+  },
+  "exercise": {
+    "detail": {
+      "loading": "Loading records...",
+      "maxWeight": "Max Weight",
+      "kg": "kg",
+      "repRecords": "Repetition records by weight",
+      "reps": "reps"
+    }
+  },
+  "common": {
+    "continue": "Continue",
+    "save": "Save",
+    "cancel": "Cancel",
+    "back": "Back",
+    "next": "Next",
+    "done": "Done",
+    "error": "Error",
+    "success": "Success",
+    "loading": "Loading...",
+    "minutes": "min"
+  },
+  "userProfile": {
+    "fitnessLevel": {
+      "beginner": "Beginner",
+      "intermediate": "Intermediate",
+      "advanced": "Advanced",
+      "unknown": "Unknown"
+    },
+    "goal": {
+      "strength": "Build Strength",
+      "consistency": "Stay Consistent",
+      "progress": "Track Progress",
+      "unknown": "Unknown"
+    }
+  },
+  "notifications": {
+    "messages": [
+      {
+        "title": "We go gym today!",
+        "body": "It's {{workoutName}} day! Let's get it! 💪"
+      },
+      {
+        "title": "Yeah buddy!",
+        "body": "You have {{workoutName}} planned today! Time to shine! 🔥"
+      },
+      {
+        "title": "Lightweight baby!",
+        "body": "{{workoutName}} is waiting for you today. Let's go! 💪"
+      },
+      {
+        "title": "Time to grind!",
+        "body": "Your {{workoutName}} session is calling. No excuses! 🏋️"
+      },
+      {
+        "title": "Let's get it!",
+        "body": "It's {{workoutName}} day. Time to build that physique! 💪"
+      },
+      {
+        "title": "Workout time!",
+        "body": "You scheduled {{workoutName}} today. Let's make it happen! 🔥"
+      },
+      {
+        "title": "Rise and grind!",
+        "body": "{{workoutName}} is on the agenda today. Stay consistent! 💪"
+      },
+      {
+        "title": "No days off!",
+        "body": "Today is {{workoutName}} day. Your future self will thank you! 🏋️"
+      },
+      {
+        "title": "Time to train!",
+        "body": "Your {{workoutName}} session awaits. Let's crush it! 💪"
+      },
+      {
+        "title": "Workout reminder!",
+        "body": "Don't forget your {{workoutName}} today. Stay disciplined! 🔥"
+      },
+      {
+        "title": "Gains don't wait!",
+        "body": "It's {{workoutName}} time. Every rep counts! 💪"
+      },
+      {
+        "title": "Your turn to shine!",
+        "body": "{{workoutName}} is scheduled for today. Make it count! 🏋️"
+      },
+      {
+        "title": "Discipline = Freedom",
+        "body": "Time for {{workoutName}}. Stay consistent, stay strong! 💪"
+      },
+      {
+        "title": "The grind continues!",
+        "body": "Your {{workoutName}} session is today. Let's go! 🔥"
+      },
+      {
+        "title": "Workout mode: ON",
+        "body": "{{workoutName}} is on your schedule today. Time to perform! 💪"
+      }
+    ]
+  },
+  "errors": {
+    "workoutSummary": "Error: Unable to load workout summary.",
+    "generic": "An error occurred"
+  },
+  "exercises": {
+    "flat_bench_press": "Flat Bench Press",
+    "incline_bench_press": "Incline Bench Press",
+    "decline_bench_press": "Decline Bench Press",
+    "dumbbell_bench_press": "Dumbbell Bench Press",
+    "dumbbell_fly": "Dumbbell Fly",
+    "cable_crossover": "Cable Crossover",
+    "chest_dips": "Chest Dips",
+    "machine_chest_press": "Machine Chest Press",
+    "push-up": "Push-up",
+    "wide_push-up": "Wide Push-up",
+    "diamond_push-up": "Diamond Push-up",
+    "back_squat": "Back Squat",
+    "front_squat": "Front Squat",
+    "bulgarian_split_squat": "Bulgarian Split Squat",
+    "leg_press": "Leg Press",
+    "hack_squat": "Hack Squat",
+    "walking_lunge": "Walking Lunge",
+    "step-up": "Step-up",
+    "leg_extension": "Leg Extension",
+    "leg_curl": "Leg Curl",
+    "deadlift": "Deadlift",
+    "sumo_deadlift": "Sumo Deadlift",
+    "romanian_deadlift": "Romanian Deadlift",
+    "glute_bridge": "Glute Bridge",
+    "hip_thrust": "Hip Thrust",
+    "standing_calf_raise": "Standing Calf Raise",
+    "seated_calf_raise": "Seated Calf Raise",
+    "box_jump": "Box Jump",
+    "jump_squat": "Jump Squat",
+    "barbell_curl": "Barbell Curl",
+    "dumbbell_curl": "Dumbbell Curl",
+    "hammer_curl": "Hammer Curl",
+    "preacher_curl": "Preacher Curl",
+    "concentration_curl": "Concentration Curl",
+    "tricep_pushdown": "Tricep Pushdown",
+    "overhead_tricep_extension": "Overhead Tricep Extension",
+    "skullcrusher": "Skullcrusher",
+    "close-grip_bench_press": "Close-grip Bench Press",
+    "tricep_dips": "Tricep Dips",
+    "pull-up": "Pull-up",
+    "chin-up": "Chin-up",
+    "lat_pulldown": "Lat Pulldown",
+    "bent_over_row": "Bent Over Row",
+    "seated_cable_row": "Seated Cable Row",
+    "t-bar_row": "T-bar Row",
+    "face_pull": "Face Pull",
+    "single-arm_dumbbell_row": "Single-arm Dumbbell Row",
+    "overhead_press": "Overhead Press",
+    "dumbbell_shoulder_press": "Dumbbell Shoulder Press",
+    "lateral_raise": "Lateral Raise",
+    "front_raise": "Front Raise",
+    "rear_delt_fly": "Rear Delt Fly",
+    "reverse_pec_deck": "Reverse Pec Deck",
+    "arnold_press": "Arnold Press",
+    "upright_row": "Upright Row",
+    "crunch": "Crunch",
+    "cable_crunch": "Cable Crunch",
+    "plank": "Plank",
+    "side_plank": "Side Plank",
+    "russian_twist": "Russian Twist",
+    "hanging_leg_raise": "Hanging Leg Raise",
+    "toes_to_bar": "Toes to Bar",
+    "mountain_climber": "Mountain Climber",
+    "ab_wheel_rollout": "Ab Wheel Rollout",
+    "leg_raise": "Leg Raise",
+    "v-up": "V-up",
+    "sit-up": "Sit-up",
+    "jumping_jack": "Jumping Jack",
+    "treadmill": "Treadmill",
+    "elliptical": "Elliptical",
+    "stairmaster": "Stairmaster",
+    "stationary_bike": "Stationary Bike",
+    "rowing_machine": "Rowing Machine",
+    "stepper": "Stepper",
+    "cross_trainer": "Cross Trainer",
+    "skierg": "SkiErg",
+    "jump_rope": "Jump Rope",
+    "burpees": "Burpees",
+    "hiit": "HIIT"
+  }
+}
+

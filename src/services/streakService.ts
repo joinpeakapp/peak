@@ -254,22 +254,29 @@ export const StreakService = {
         console.error(`[StreakService] ❌ Streak verification failed: expected ${streakData.current}, got ${verifiedData?.current}`);
       }
 
-      // Planifier un rappel de streak si la streak est active
-      // Mais pas pour les workouts flexible schedule (pas de notifications)
-      if (streakData.current > 0 && workout.frequency && workout.frequency.type !== 'none') {
+      // 🔧 REFACTO : Planifier les notifications selon le type de fréquence
+      if (workout.frequency && workout.frequency.type !== 'none') {
         try {
-          await NotificationService.scheduleStreakReminder(
-            workout.id,
-            workout.name,
-            formattedDate,
-            workout.frequency.value
-          );
-          console.log(`[StreakService] 🔔 Scheduled streak reminder for ${workout.name}`);
+          if (workout.frequency.type === 'interval') {
+            // Workout à intervalle : planifier dynamiquement la prochaine notification
+            // La notification sera planifiée pour : date de complétion + intervalle, à 09h00
+            await NotificationService.scheduleIntervalWorkoutReminder(
+              workout.id,
+              workout.name,
+              completionDate,
+              workout.frequency.value
+            );
+            console.log(`[StreakService] 🔔 Scheduled interval reminder for ${workout.name} (${workout.frequency.value} days)`);
+          } else if (workout.frequency.type === 'weekly') {
+            // Workout hebdomadaire : recalculer toutes les notifications hebdomadaires
+            // (car la complétion peut affecter les calculs si on veut éviter les doublons)
+            await NotificationService.scheduleWorkoutReminders();
+            console.log(`[StreakService] 🔔 Replanned weekly workout reminders after completion`);
+          }
+          // 'none' : pas de notifications
         } catch (error) {
-          console.warn(`[StreakService] Failed to schedule streak reminder:`, error);
+          console.warn(`[StreakService] Failed to plan workout reminders:`, error);
         }
-      } else if (workout.frequency.type === 'none') {
-        console.log(`[StreakService] Flexible schedule workout - no notifications scheduled`);
       }
       
       return streakData;

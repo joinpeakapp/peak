@@ -1,0 +1,378 @@
+{
+  "onboarding": {
+    "splash": {
+      "appName": "peak"
+    },
+    "language": {
+      "title": "Choisissez votre langue",
+      "subtitle": "Sélectionnez la langue que vous préférez pour Peak",
+      "english": "English",
+      "french": "Français",
+      "continue": "Continuer"
+    },
+    "carousel": {
+      "slide1": {
+        "title": "Trackez vos entraînements comme jamais",
+        "description": "Peak suit votre progression en temps réel - obtenez des feedbacks quand vous battez un record.",
+        "button": "Continuer"
+      },
+      "slide2": {
+        "title": "Des progrès gratifiants",
+        "description": "Gagnez des stickers quand vous atteignez des objectifs - nouveaux records, séries, régularité",
+        "button": "Continuer"
+      },
+      "slide3": {
+        "title": "Transformez vos entraînements en souvenirs",
+        "description": "Chaque session devient une carte : votre photo, vos stats, vos accomplissements, tout au même endroit.",
+        "button": "Commencer"
+      }
+    },
+    "notifications": {
+      "title": "Ne manquez jamais un entraînement",
+      "description": "Les notifications nous aident à vous rappeler vos sessions planifiées et vous maintiennent motivé pour rester régulier.",
+      "benefit1": "Rappels d'entraînement",
+      "benefit2": "Alertes de série",
+      "benefit3": "Motivation quotidienne",
+      "enableButton": "Activer les notifications",
+      "skipButton": "Passer cette étape",
+      "disabledTitle": "Notifications désactivées",
+      "disabledMessage": "Vous pouvez activer les notifications plus tard dans les paramètres de l'application.",
+      "continueAnyway": "Continuer quand même",
+      "error": "Une erreur s'est produite lors de la demande d'autorisation."
+    },
+    "camera": {
+      "title": "Capturez vos efforts",
+      "description": "Prenez une photo à la fin de chaque session pour créer des cartes d'entraînement et suivre visuellement votre progression.",
+      "benefit1": "Cartes d'entraînement",
+      "benefit2": "Suivi visuel de la progression",
+      "benefit3": "Partagez vos accomplissements",
+      "allowButton": "Autoriser l'accès à la caméra",
+      "skipButton": "Passer cette étape",
+      "deniedTitle": "Accès à la caméra refusé",
+      "deniedMessage": "Nous avons besoin d'accéder à votre caméra pour prendre des photos d'entraînement. Vous pouvez l'activer plus tard dans les paramètres.",
+      "continueAnyway": "Continuer quand même",
+      "error": "Une erreur s'est produite lors de la demande d'autorisation."
+    },
+    "profile": {
+      "title": "Créez votre profil",
+      "description": "Commençons par personnaliser votre profil avec votre nom et une photo.",
+      "firstNameLabel": "Votre prénom",
+      "firstNamePlaceholder": "Entrez votre prénom",
+      "continueButton": "Continuer",
+      "permissionRequired": "Autorisation requise",
+      "photoPermissionMessage": "Nous avons besoin d'accéder à vos photos pour définir votre photo de profil.",
+      "choosePhoto": "Choisir une photo",
+      "choosePhotoMessage": "D'où souhaitez-vous prendre votre photo ?",
+      "gallery": "Galerie",
+      "camera": "Appareil photo",
+      "cancel": "Annuler",
+      "cameraPermissionMessage": "Nous avons besoin d'accéder à votre appareil photo pour prendre une photo.",
+      "error": "Erreur",
+      "photoError": "Une erreur s'est produite lors de la sélection de la photo.",
+      "nameError": "Veuillez entrer votre prénom."
+    },
+    "profileSuccess": {
+      "title": "Tout est prêt !",
+      "description": "Vous pouvez maintenant créer vos entraînements et commencer à suivre votre progression.",
+      "button": "Commencer"
+    }
+  },
+  "settings": {
+    "title": "Paramètres",
+    "subtitle": "Comment suivre les entraînements et les métriques",
+    "restTimer": {
+      "title": "Minuteur de repos",
+      "subtitle": "Repos de {{minutes}} min entre les séries",
+      "defaultTitle": "Minuteur de repos",
+      "defaultSubtitle": "Temps de repos par défaut entre les séries",
+      "save": "Enregistrer"
+    },
+    "notifications": {
+      "title": "Notifications",
+      "subtitle": "Rappels d'entraînement",
+      "permissionTitle": "Notifications désactivées",
+      "permissionMessage": "Activez les notifications pour recevoir des rappels d'entraînement",
+      "enableButton": "Activer les notifications",
+      "loading": "Chargement...",
+      "permissionsNotGranted": "Autorisations non accordées",
+      "enabled": "Activé pour les entraînements planifiés",
+      "disabled": "Désactivé",
+      "sectionDescription": "Recevez un rappel par jour lorsque vous avez un entraînement planifié",
+      "infoText": "Vous recevrez une notification maximum par jour, uniquement les jours où vous avez un entraînement planifié."
+    },
+    "language": {
+      "title": "Langue",
+      "subtitle": "Choisissez votre langue préférée",
+      "english": "English",
+      "french": "Français",
+      "current": "Langue actuelle"
+    },
+    "dev": {
+      "sectionTitle": "Développeur",
+      "resetOnboarding": "Réinitialiser l'onboarding",
+      "resetOnboardingTitle": "Réinitialiser l'onboarding",
+      "resetOnboardingMessage": "Cela réinitialisera votre onboarding et l'affichera à nouveau au prochain lancement de l'application. Continuer ?",
+      "resetOnboardingSuccess": "L'onboarding sera affiché au prochain lancement de l'application.",
+      "resetOnboardingError": "Échec de la réinitialisation de l'onboarding."
+    }
+  },
+  "profile": {
+    "workouts": "entraînements",
+    "exercises": "exercices",
+    "sets": "séries",
+    "lastWorkouts": "Derniers entraînements",
+    "seeMore": "Voir plus",
+    "exercisesTitle": "Exercices",
+    "noExercises": "Aucun exercice enregistré",
+    "editProfile": "Modifier le profil",
+    "settings": "Paramètres",
+    "currentPR": "PR actuel"
+  },
+  "workout": {
+    "createName": {
+      "title": "Nommez votre entraînement",
+      "subtitle": "Donnez un nom à votre session pour la suivre facilement !",
+      "placeholder": "ex. Haut du corps, Cardio...",
+      "continue": "Continuer",
+      "error": "Veuillez entrer un nom d'entraînement"
+    },
+    "creation": {
+      "success": {
+        "title": "Entraînement créé !",
+        "description": "Votre entraînement a été créé avec succès et sera ajouté à votre liste d'entraînements.",
+        "button": "Continuer"
+      }
+    },
+    "edit": {
+      "title": "Modifier l'entraînement",
+      "subtitle": "Mettez à jour les détails de votre entraînement",
+      "nameLabel": "Nom de l'entraînement",
+      "scheduleLabel": "Planification de l'entraînement",
+      "placeholder": "ex. Haut du corps, Cardio..."
+    },
+    "exercise": {
+      "createTitle": "Créer un exercice",
+      "createSubtitle": "Choisissez un nom clair et reconnaissable",
+      "placeholder": "ex. Squat barre, Tractions...",
+      "characters": "caractères",
+      "error": "Veuillez entrer un nom d'exercice"
+    },
+    "summary": {
+      "complete": {
+        "title": "Entraînement terminé",
+        "subtitle": "Excellent travail pour avoir terminé votre entraînement !"
+      },
+      "perfectExecution": {
+        "title": "Exécution parfaite !",
+        "subtitle": "Vous avez terminé chaque série - pas de raccourcis, juste de la dévotion pure"
+      },
+      "pr": {
+        "title": "Nouveau record personnel !",
+        "subtitle": "Vous avez franchi vos limites - c'est ça la progression"
+      },
+      "star": {
+        "title": "Maître de session !",
+        "subtitle": "Une autre réalisation de cet entraînement - votre régularité construit la force"
+      },
+      "streak": {
+        "title": "Série de {{count}} jours !",
+        "subtitle": "Vous construisez la régularité - maintenez cet élan !"
+      },
+      "volume": {
+        "title": "Bête de volume !",
+        "subtitle": "Vous avez poussé plus de poids que jamais - votre force grandit"
+      },
+      "viewInJournal": "Voir dans le journal",
+      "tapToContinue": "Appuyez pour continuer"
+    },
+    "list": {
+      "empty": "Aucun entraînement pour le moment",
+      "emptySubtitle": "Commencez votre parcours fitness aujourd'hui !"
+    }
+  },
+  "exercise": {
+    "detail": {
+      "loading": "Chargement des records...",
+      "maxWeight": "Poids max",
+      "kg": "kg",
+      "repRecords": "Records de répétitions par poids",
+      "reps": "rép"
+    }
+  },
+  "common": {
+    "continue": "Continuer",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "back": "Retour",
+    "next": "Suivant",
+    "done": "Terminé",
+    "error": "Erreur",
+    "success": "Succès",
+    "loading": "Chargement...",
+    "minutes": "min"
+  },
+  "userProfile": {
+    "fitnessLevel": {
+      "beginner": "Débutant",
+      "intermediate": "Intermédiaire",
+      "advanced": "Avancé",
+      "unknown": "Inconnu"
+    },
+    "goal": {
+      "strength": "Développer la force",
+      "consistency": "Rester régulier",
+      "progress": "Suivre la progression",
+      "unknown": "Inconnu"
+    }
+  },
+  "notifications": {
+    "messages": [
+      {
+        "title": "On va à la salle aujourd'hui !",
+        "body": "C'est le jour de {{workoutName}} ! Allons-y ! 💪"
+      },
+      {
+        "title": "Ouais mon pote !",
+        "body": "Vous avez {{workoutName}} prévu aujourd'hui ! Il est temps de briller ! 🔥"
+      },
+      {
+        "title": "Léger mon pote !",
+        "body": "{{workoutName}} vous attend aujourd'hui. Allons-y ! 💪"
+      },
+      {
+        "title": "Il est temps de s'entraîner !",
+        "body": "Votre session {{workoutName}} vous appelle. Pas d'excuses ! 🏋️"
+      },
+      {
+        "title": "Allons-y !",
+        "body": "C'est le jour de {{workoutName}}. Il est temps de construire ce physique ! 💪"
+      },
+      {
+        "title": "Heure d'entraînement !",
+        "body": "Vous avez programmé {{workoutName}} aujourd'hui. Faisons-le ! 🔥"
+      },
+      {
+        "title": "Lève-toi et entraîne-toi !",
+        "body": "{{workoutName}} est à l'ordre du jour aujourd'hui. Restez régulier ! 💪"
+      },
+      {
+        "title": "Pas de jours de repos !",
+        "body": "Aujourd'hui c'est le jour de {{workoutName}}. Votre futur vous remerciera ! 🏋️"
+      },
+      {
+        "title": "Il est temps de s'entraîner !",
+        "body": "Votre session {{workoutName}} vous attend. Écrasons-la ! 💪"
+      },
+      {
+        "title": "Rappel d'entraînement !",
+        "body": "N'oubliez pas votre {{workoutName}} aujourd'hui. Restez discipliné ! 🔥"
+      },
+      {
+        "title": "Les gains n'attendent pas !",
+        "body": "C'est l'heure de {{workoutName}}. Chaque répétition compte ! 💪"
+      },
+      {
+        "title": "Votre tour de briller !",
+        "body": "{{workoutName}} est programmé pour aujourd'hui. Faites-en quelque chose ! 🏋️"
+      },
+      {
+        "title": "Discipline = Liberté",
+        "body": "Il est temps pour {{workoutName}}. Restez régulier, restez fort ! 💪"
+      },
+      {
+        "title": "L'entraînement continue !",
+        "body": "Votre session {{workoutName}} est aujourd'hui. Allons-y ! 🔥"
+      },
+      {
+        "title": "Mode entraînement : ON",
+        "body": "{{workoutName}} est dans votre planning aujourd'hui. Il est temps de performer ! 💪"
+      }
+    ]
+  },
+  "errors": {
+    "workoutSummary": "Erreur : Impossible de charger le résumé d'entraînement.",
+    "generic": "Une erreur s'est produite"
+  },
+  "exercises": {
+    "flat_bench_press": "Développé couché",
+    "incline_bench_press": "Développé incliné",
+    "decline_bench_press": "Développé décliné",
+    "dumbbell_bench_press": "Développé couché haltères",
+    "dumbbell_fly": "Écarté couché haltères",
+    "cable_crossover": "Écarté poulie",
+    "chest_dips": "Dips pectoraux",
+    "machine_chest_press": "Développé couché machine",
+    "push-up": "Pompes",
+    "wide_push-up": "Pompes larges",
+    "diamond_push-up": "Pompes diamant",
+    "back_squat": "Squat",
+    "front_squat": "Squat avant",
+    "bulgarian_split_squat": "Fente bulgare",
+    "leg_press": "Presse à cuisses",
+    "hack_squat": "Hack squat",
+    "walking_lunge": "Fente marchée",
+    "step-up": "Step-up",
+    "leg_extension": "Extension de jambes",
+    "leg_curl": "Curl de jambes",
+    "deadlift": "Soulevé de terre",
+    "sumo_deadlift": "Soulevé de terre sumo",
+    "romanian_deadlift": "Soulevé de terre roumain",
+    "glute_bridge": "Pont fessier",
+    "hip_thrust": "Hip thrust",
+    "standing_calf_raise": "Mollets debout",
+    "seated_calf_raise": "Mollets assis",
+    "box_jump": "Box jump",
+    "jump_squat": "Squat sauté",
+    "barbell_curl": "Curl barre",
+    "dumbbell_curl": "Curl haltères",
+    "hammer_curl": "Curl marteau",
+    "preacher_curl": "Curl pupitre",
+    "concentration_curl": "Curl concentration",
+    "tricep_pushdown": "Extension triceps poulie",
+    "overhead_tricep_extension": "Extension triceps au-dessus",
+    "skullcrusher": "Skullcrusher",
+    "close-grip_bench_press": "Développé couché prise serrée",
+    "tricep_dips": "Dips triceps",
+    "pull-up": "Tractions",
+    "chin-up": "Chin-up",
+    "lat_pulldown": "Tirage vertical",
+    "bent_over_row": "Rowing barre",
+    "seated_cable_row": "Rowing assis poulie",
+    "t-bar_row": "Rowing T-bar",
+    "face_pull": "Face pull",
+    "single-arm_dumbbell_row": "Rowing haltère unilatéral",
+    "overhead_press": "Développé militaire",
+    "dumbbell_shoulder_press": "Développé épaules haltères",
+    "lateral_raise": "Élévation latérale",
+    "front_raise": "Élévation frontale",
+    "rear_delt_fly": "Écarté deltoïdes postérieurs",
+    "reverse_pec_deck": "Pec deck inversé",
+    "arnold_press": "Arnold press",
+    "upright_row": "Rowing debout",
+    "crunch": "Crunch",
+    "cable_crunch": "Crunch poulie",
+    "plank": "Planche",
+    "side_plank": "Planche latérale",
+    "russian_twist": "Russian twist",
+    "hanging_leg_raise": "Relevé de jambes suspendu",
+    "toes_to_bar": "Toes to bar",
+    "mountain_climber": "Mountain climber",
+    "ab_wheel_rollout": "Roulette abdominale",
+    "leg_raise": "Relevé de jambes",
+    "v-up": "V-up",
+    "sit-up": "Relevé de buste",
+    "jumping_jack": "Saut avec écart",
+    "treadmill": "Tapis de course",
+    "elliptical": "Élliptique",
+    "stairmaster": "Stepper",
+    "stationary_bike": "Vélo stationnaire",
+    "rowing_machine": "Rameur",
+    "stepper": "Stepper",
+    "cross_trainer": "Cross trainer",
+    "skierg": "SkiErg",
+    "jump_rope": "Corde à sauter",
+    "burpees": "Burpees",
+    "hiit": "HIIT"
+  }
+}
+
