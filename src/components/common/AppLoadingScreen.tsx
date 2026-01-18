@@ -3,7 +3,9 @@ import {
   View,
   StyleSheet,
   Image,
+  Animated,
 } from 'react-native';
+import { usePreload } from '../../contexts/PreloadContext';
 
 interface AppLoadingScreenProps {
   onLoadingComplete?: () => void;
@@ -12,17 +14,25 @@ interface AppLoadingScreenProps {
 export const AppLoadingScreen: React.FC<AppLoadingScreenProps> = ({
   onLoadingComplete,
 }) => {
-  useEffect(() => {
-    // Simuler le temps de chargement minimum
-    const timer = setTimeout(() => {
-      onLoadingComplete?.();
-    }, 2500); // 2.5 secondes minimum
+  const { state } = usePreload();
+  const fadeAnim = React.useRef(new Animated.Value(1)).current;
 
-    return () => clearTimeout(timer);
-  }, [onLoadingComplete]);
+  // Gérer la complétion du chargement
+  useEffect(() => {
+    if (!state.isPreloading && state.progress === 100) {
+      // Fade out rapide avant de fermer
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start(() => {
+        onLoadingComplete?.();
+      });
+    }
+  }, [state.isPreloading, state.progress, fadeAnim, onLoadingComplete]);
 
   return (
-    <View style={styles.container}>
+    <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
       <View style={styles.logoContainer}>
         <Image
           source={require('../../../assets/splash-icon.png')}
@@ -30,7 +40,7 @@ export const AppLoadingScreen: React.FC<AppLoadingScreenProps> = ({
           resizeMode="contain"
         />
       </View>
-    </View>
+    </Animated.View>
   );
 };
 

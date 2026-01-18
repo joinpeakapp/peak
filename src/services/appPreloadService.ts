@@ -7,17 +7,64 @@ import { RobustStorageService } from './storage';
 import { CompletedWorkout } from '../types/workout';
 import { Image } from 'react-native';
 
+// Type pour les callbacks de progrès
+export interface PreloadProgressCallback {
+  onProgress?: (progress: number) => void;
+  onStepChange?: (step: string, message: string) => void;
+  onComplete?: () => void;
+  onError?: (error: string) => void;
+}
+
 export class AppPreloadService {
   private static isPreloaded = false;
   // Cache mémoire pour les données préchargées (disponible immédiatement)
   private static preloadedWorkoutHistory: CompletedWorkout[] | null = null;
+  // Callbacks pour reporter le progrès
+  private static progressCallbacks: PreloadProgressCallback | null = null;
+
+  /**
+   * Configure les callbacks pour le reporting de progrès
+   */
+  static setProgressCallbacks(callbacks: PreloadProgressCallback): void {
+    this.progressCallbacks = callbacks;
+  }
+
+  /**
+   * Reporte le progrès du préchargement
+   */
+  private static reportProgress(progress: number): void {
+    this.progressCallbacks?.onProgress?.(progress);
+  }
+
+  /**
+   * Reporte le changement d'étape
+   */
+  private static reportStep(step: string, message: string): void {
+    this.progressCallbacks?.onStepChange?.(step, message);
+  }
+
+  /**
+   * Reporte une erreur
+   */
+  private static reportError(error: string): void {
+    this.progressCallbacks?.onError?.(error);
+  }
+
+  /**
+   * Reporte la complétion
+   */
+  private static reportComplete(): void {
+    this.progressCallbacks?.onComplete?.();
+  }
 
   /**
    * Précharge toutes les données critiques de l'application
    */
   static async preloadAppData(): Promise<void> {
     if (this.isPreloaded) {
-      // Data already preloaded
+      console.log('[AppPreloadService] Data already preloaded, skipping...');
+      this.reportProgress(100);
+      this.reportComplete();
       return;
     }
 
@@ -25,32 +72,65 @@ export class AppPreloadService {
 
     try {
       // Étape 1: Précharger en parallèle les données qui ne dépendent pas des photos
+      this.reportStep('user-profile', 'Loading your profile...');
+      this.reportProgress(10);
+      
       await Promise.allSettled([
         this.preloadUserProfile(),
         this.preloadPersonalRecords(),
         this.preloadStreakData(),
-        this.preloadWorkoutHistory(),
-        this.preloadStickers(), // Préchargement des stickers
-        this.migrateStickerHistoricalData(), // Migration des données historiques des stickers
+      ]);
+
+      this.reportStep('workout-history', 'Loading workout history...');
+      this.reportProgress(25);
+      
+      await this.preloadWorkoutHistory();
+
+      this.reportStep('stickers', 'Preparing achievements...');
+      this.reportProgress(40);
+      
+      await Promise.allSettled([
+        this.preloadStickers(),
+        this.migrateStickerHistoricalData(),
       ]);
 
       // Étape 2: Migrer les photos AVANT de précharger les images
-      // Cela garantit que les URIs sont mises à jour dans le stockage avant le préchargement
+      this.reportStep('photos', 'Organizing workout photos...');
+      this.reportProgress(60);
+      
       await Promise.allSettled([
-        this.preloadPhotos(), // Préchargement et migration des photos de workout
-        this.migrateProfilePhoto(), // Migration de la photo de profil
+        this.preloadPhotos(),
+        this.migrateProfilePhoto(),
       ]);
 
       // Étape 3: Précharger les images avec les URIs migrées et vérifiées
-      // Les photos sont maintenant dans documentDirectory avec des URIs permanentes
-      await this.preloadImages();
+      this.reportStep('images', 'Loading images...');
+      this.reportProgress(80);
+      
+      // Précharger les images de manière non bloquante
+      // Si ça prend trop de temps, on continue quand même
+      try {
+        await Promise.race([
+          this.preloadImages(),
+          new Promise(resolve => setTimeout(resolve, 5000)) // Timeout 5s
+        ]);
+      } catch (error) {
+        console.warn('[AppPreloadService] Image preload took too long or failed, continuing...');
+      }
 
+      this.reportProgress(100);
       this.isPreloaded = true;
+      
       const loadTime = Date.now() - startTime;
-      // Preload completed
+      console.log(`[AppPreloadService] ✅ Preload completed in ${loadTime}ms`);
+      
+      this.reportStep('complete', 'Ready to go!');
+      this.reportComplete();
     } catch (error) {
       console.error('[AppPreloadService] ❌ Preload failed:', error);
+      this.reportError('Failed to load some data. The app may not work properly.');
       // Ne pas bloquer l'app si le préchargement échoue
+      this.reportComplete(); // Continuer malgré l'erreur
     }
   }
 

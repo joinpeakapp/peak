@@ -17,8 +17,8 @@ export const imageCache = new Map<string, {
   timestamp: number;
 }>();
 
-// Durée de vie du cache (30 minutes)
-export const CACHE_DURATION = 30 * 60 * 1000;
+// Durée de vie du cache (1 heure pour éviter les rechargements fréquents)
+export const CACHE_DURATION = 60 * 60 * 1000;
 
 // Nettoyer le cache périodiquement
 const cleanupCache = () => {
@@ -43,13 +43,21 @@ export const CachedImage: React.FC<CachedImageProps> = ({
   style,
   ...imageProps
 }) => {
+  // Vérifier le cache immédiatement pour initialiser correctement l'état
+  const initialCacheState = imageCache.get(uri);
+  const now = Date.now();
+  const isCached = initialCacheState && (now - initialCacheState.timestamp < CACHE_DURATION);
+  
   const [isLoading, setIsLoading] = useState(() => {
-    const cached = imageCache.get(uri);
-    return !cached?.loaded;
+    // Si l'image est déjà en cache et chargée, ne pas mettre isLoading à true
+    if (isCached && initialCacheState.loaded) {
+      return false;
+    }
+    return true;
   });
+  
   const [hasError, setHasError] = useState(() => {
-    const cached = imageCache.get(uri);
-    return cached?.error || false;
+    return isCached ? (initialCacheState.error || false) : false;
   });
   
   const mountedRef = useRef(true);
@@ -61,6 +69,8 @@ export const CachedImage: React.FC<CachedImageProps> = ({
     };
   }, []);
 
+  // Plus de prefetch dans useEffect - on laisse le composant Image gérer le chargement
+  // Le cache sera mis à jour via onLoad/onError
   useEffect(() => {
     if (!uri) {
       setHasError(true);
@@ -68,37 +78,16 @@ export const CachedImage: React.FC<CachedImageProps> = ({
       return;
     }
 
-    // Vérifier le cache
+    // Vérifier le cache au montage et à chaque changement d'URI
     const cached = imageCache.get(uri);
-    const now = Date.now();
+    const currentTime = Date.now();
     
-    if (cached && (now - cached.timestamp < CACHE_DURATION)) {
-      // Image en cache et valide
+    if (cached && (currentTime - cached.timestamp < CACHE_DURATION)) {
+      // Image en cache et valide - mettre à jour l'état immédiatement
       if (mountedRef.current) {
-        setIsLoading(false);
+        setIsLoading(!cached.loaded);
         setHasError(cached.error);
       }
-      return;
-    }
-
-    // Précharger l'image pour vérifier qu'elle existe
-    const imageToPreload = Image.resolveAssetSource({ uri });
-    if (imageToPreload) {
-      Image.prefetch(uri)
-        .then(() => {
-          if (mountedRef.current) {
-            imageCache.set(uri, { loaded: true, error: false, timestamp: now });
-            setIsLoading(false);
-            setHasError(false);
-          }
-        })
-        .catch(() => {
-          if (mountedRef.current) {
-            imageCache.set(uri, { loaded: false, error: true, timestamp: now });
-            setIsLoading(false);
-            setHasError(true);
-          }
-        });
     }
   }, [uri]);
 
@@ -196,32 +185,80 @@ const styles = StyleSheet.create({
 // Export des utilitaires de cache
 export const ImageCacheUtils = {
   preloadImages: async (uris: string[]): Promise<void> => {
-    const promises = uris.map(uri => {
+    const now = Date.now();
+    
+    // Filtrer les URIs valides et non déjà en cache
+    const urisToLoad = uris.filter(uri => {
+      if (!uri || uri.includes('placeholder')) return false;
+      
       const cached = imageCache.get(uri);
-      const now = Date.now();
-      
-      // Skip si déjà en cache et valide
-      if (cached && (now - cached.timestamp < CACHE_DURATION)) {
-        return Promise.resolve();
+      // Skip si déjà en cache, chargé et valide
+      if (cached && cached.loaded && (now - cached.timestamp < CACHE_DURATION)) {
+        return false;
       }
-      
-      return Image.prefetch(uri)
-        .then(() => {
-          imageCache.set(uri, { loaded: true, error: false, timestamp: now });
-        })
-        .catch(() => {
-          imageCache.set(uri, { loaded: false, error: true, timestamp: now });
-        });
+      return true;
     });
     
-    await Promise.all(promises);
+    if (urisToLoad.length === 0) {
+      console.log('[ImageCacheUtils] All images already cached');
+      return;
+    }
+    
+    console.log(`[ImageCacheUtils] Preloading ${urisToLoad.length} images...`);
+    
+    // Précharger en parallèle avec un batch pour éviter de surcharger le système
+    const BATCH_SIZE = 10;
+    const batches: string[][] = [];
+    
+    for (let i = 0; i < urisToLoad.length; i += BATCH_SIZE) {
+      batches.push(urisToLoad.slice(i, i + BATCH_SIZE));
+    }
+    
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const batch of batches) {
+      const promises = batch.map(uri => 
+        Image.prefetch(uri)
+          .then(() => {
+            imageCache.set(uri, { loaded: true, error: false, timestamp: now });
+            successCount++;
+          })
+          .catch((error) => {
+            console.warn(`[ImageCacheUtils] Failed to preload image: ${uri}`, error);
+            imageCache.set(uri, { loaded: false, error: true, timestamp: now });
+            errorCount++;
+          })
+      );
+      
+      await Promise.allSettled(promises);
+    }
+    
+    console.log(`[ImageCacheUtils] Preload complete: ${successCount} success, ${errorCount} errors`);
   },
   
   clearCache: (): void => {
     imageCache.clear();
+    console.log('[ImageCacheUtils] Cache cleared');
   },
   
   getCacheSize: (): number => {
     return imageCache.size;
-  }
+  },
+  
+  getCacheStats: (): { total: number; loaded: number; errors: number } => {
+    let loaded = 0;
+    let errors = 0;
+    
+    for (const [, value] of imageCache.entries()) {
+      if (value.loaded) loaded++;
+      if (value.error) errors++;
+    }
+    
+    return {
+      total: imageCache.size,
+      loaded,
+      errors,
+    };
+  },
 };

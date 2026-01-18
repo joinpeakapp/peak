@@ -22,13 +22,21 @@ export const CachedImageBackground: React.FC<CachedImageBackgroundProps> = ({
   children,
   ...imageProps
 }) => {
+  // Vérifier le cache immédiatement pour initialiser correctement l'état
+  const initialCacheState = imageCache.get(uri);
+  const now = Date.now();
+  const isCached = initialCacheState && (now - initialCacheState.timestamp < CACHE_DURATION);
+  
   const [isLoading, setIsLoading] = useState(() => {
-    const cached = imageCache.get(uri);
-    return !cached?.loaded;
+    // Si l'image est déjà en cache et chargée, ne pas mettre isLoading à true
+    if (isCached && initialCacheState.loaded) {
+      return false;
+    }
+    return true;
   });
+  
   const [hasError, setHasError] = useState(() => {
-    const cached = imageCache.get(uri);
-    return cached?.error || false;
+    return isCached ? (initialCacheState.error || false) : false;
   });
   
   const mountedRef = useRef(true);
@@ -40,6 +48,8 @@ export const CachedImageBackground: React.FC<CachedImageBackgroundProps> = ({
     };
   }, []);
 
+  // Plus de prefetch dans useEffect - on laisse le composant Image gérer le chargement
+  // Le cache sera mis à jour via onLoad/onError
   useEffect(() => {
     if (!uri) {
       setHasError(true);
@@ -47,36 +57,17 @@ export const CachedImageBackground: React.FC<CachedImageBackgroundProps> = ({
       return;
     }
 
-    // Vérifier le cache
+    // Vérifier le cache au montage et à chaque changement d'URI
     const cached = imageCache.get(uri);
-    const now = Date.now();
+    const currentTime = Date.now();
     
-    if (cached && (now - cached.timestamp < CACHE_DURATION)) {
-      // Image en cache et valide
+    if (cached && (currentTime - cached.timestamp < CACHE_DURATION)) {
+      // Image en cache et valide - mettre à jour l'état immédiatement
       if (mountedRef.current) {
-        setIsLoading(false);
+        setIsLoading(!cached.loaded);
         setHasError(cached.error);
       }
-      return;
     }
-
-    // Précharger l'image avec Image.prefetch directement
-    const { Image } = require('react-native');
-    Image.prefetch(uri)
-      .then(() => {
-        if (mountedRef.current) {
-          imageCache.set(uri, { loaded: true, error: false, timestamp: now });
-          setIsLoading(false);
-          setHasError(false);
-        }
-      })
-      .catch(() => {
-        if (mountedRef.current) {
-          imageCache.set(uri, { loaded: false, error: true, timestamp: now });
-          setIsLoading(false);
-          setHasError(true);
-        }
-      });
   }, [uri]);
 
   const handleImageLoad = () => {
