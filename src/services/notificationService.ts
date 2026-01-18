@@ -12,14 +12,14 @@ import {
 } from '../types/notifications';
 import { SettingsService } from './settingsService';
 import { RobustStorageService } from './storage';
-import { Workout } from '../types/workout';
+import { Workout, CompletedWorkout } from '../types/workout';
 import { StreakService } from './streakService';
 import { 
   getRandomSingleWorkoutMessage, 
   getRandomMultipleWorkoutsMessage, 
   type NotificationMessage 
 } from '../utils/notificationMessages';
-import { addDays, format, startOfDay, isBefore } from 'date-fns';
+import { addDays, format, startOfDay, isBefore, parseISO } from 'date-fns';
 
 // Configuration des notifications
 Notifications.setNotificationHandler({
@@ -32,9 +32,22 @@ Notifications.setNotificationHandler({
   }),
 });
 
+interface ScheduledNotificationDate {
+  date: Date; // Date à 09:00 heure locale
+  dateKey: string; // Format YYYY-MM-DD
+  workouts: Array<{
+    id: string;
+    name: string;
+    type: 'weekly' | 'interval';
+  }>;
+}
+
 class NotificationService {
   private static readonly SETTINGS_KEY = 'notification_settings';
   private static readonly SCHEDULED_KEY = 'scheduled_notifications';
+  private static readonly NOTIFICATION_HOUR = 9; // 09:00
+  private static readonly NOTIFICATION_MINUTE = 0;
+  private static readonly MAX_DAYS_AHEAD = 30; // Planifier 30 jours à l'avance
 
   /**
    * Initialise le service de notifications
@@ -86,184 +99,289 @@ class NotificationService {
   }
 
   /**
-   * Planifier les rappels d'entraînement pour les workouts HEBDOMADAIRES uniquement
-   * Les workouts à intervalles sont gérés par scheduleIntervalWorkoutReminder()
+   * 🔔 FONCTION PRINCIPALE : Replanifier toutes les notifications
    * 
-   * Règles importantes :
-   * - Une seule notification par jour maximum (à 9h du matin par défaut)
-   * - Toutes les notifications sont envoyées à la même heure (09:00)
-   * - Si 1 seul workout le jour : notification avec le nom du workout
-   * - Si 2+ workouts le jour : notification mixte (remplace les notifications individuelles)
+   * Cette fonction est la seule entrée pour mettre à jour les notifications.
+   * Elle implémente une logique centralisée, simple et fiable :
+   * 
+   * 1. Maximum 1 notification par jour à 09:00
+   * 2. Workouts hebdomadaires : notification le jour prévu
+   * 3. Workouts à intervalle : notification calculée depuis la dernière séance
+   * 4. Workouts flexibles : aucune notification
+   * 5. Plusieurs workouts le même jour : une seule notification mixte
    */
   static async scheduleWorkoutReminders(): Promise<void> {
     try {
-      // Vérifier si les notifications sont activées dans les settings
+      console.log('🔔 [NotificationService] ═══ Starting notification scheduling ═══');
+
+      // 1. Vérifier si les notifications sont activées
       const remindersEnabled = await SettingsService.getWorkoutRemindersEnabled();
       if (!remindersEnabled) {
-        await this.cancelAllWorkoutReminders();
+        console.log('🔔 [NotificationService] Reminders disabled, cancelling all');
+        await this.cancelAllWorkoutNotifications();
         return;
       }
 
-      // Charger tous les workouts
+      // 2. Charger tous les workouts
       const workoutsResult = await RobustStorageService.loadWorkoutTemplates();
       if (!workoutsResult.success || !workoutsResult.data) {
-        console.warn('🔔 [NotificationService] No workouts found');
+        console.log('🔔 [NotificationService] No workouts found');
+        await this.cancelAllWorkoutNotifications();
         return;
       }
 
       const workouts: Workout[] = workoutsResult.data;
 
-      // Récupérer l'heure depuis les settings de notifications (par défaut 09:00)
-      const notificationSettings = await this.getSettings();
-      const time = notificationSettings.workoutReminders.time || '09:00';
-      const [hour, minute] = time.split(':').map(Number);
+      // 3. Charger l'historique des séances (pour les workouts à intervalle)
+      const historyResult = await RobustStorageService.loadWorkoutHistory();
+      const completedWorkouts: CompletedWorkout[] = historyResult.success && historyResult.data 
+        ? historyResult.data 
+        : [];
 
-      // Map pour grouper les workouts HEBDOMADAIRES par date (YYYY-MM-DD)
-      // Clé : date au format YYYY-MM-DD, Valeur : liste des workouts pour cette date
-      const workoutsByDate = new Map<string, Workout[]>();
-      const now = new Date();
-      const maxDaysAhead = 30; // Planifier jusqu'à 30 jours à l'avance
+      // 4. Calculer toutes les dates où une notification doit être envoyée
+      const scheduledDates = await this.calculateScheduledDates(workouts, completedWorkouts);
 
-      // 🔧 REFACTO : Ne calculer QUE les workouts hebdomadaires
-      // Les workouts à intervalles sont gérés dynamiquement par scheduleIntervalWorkoutReminder()
-      for (const workout of workouts) {
-        if (workout.frequency.type === 'weekly') {
-          // Workout hebdomadaire : calculer les prochaines dates pour ce jour de la semaine
-          const dayOfWeek = workout.frequency.value;
-          let currentDate = this.getNextDateForDay(dayOfWeek, hour, minute);
-          
-          // Planifier pour les prochaines semaines (jusqu'à maxDaysAhead jours)
-          while (isBefore(currentDate, addDays(now, maxDaysAhead))) {
-            const dateKey = format(startOfDay(currentDate), 'yyyy-MM-dd');
-            if (!workoutsByDate.has(dateKey)) {
-              workoutsByDate.set(dateKey, []);
-            }
-            workoutsByDate.get(dateKey)!.push(workout);
-            
-            // Passer à la semaine suivante
-            currentDate = addDays(currentDate, 7);
-          }
-        }
-        // 'interval' : ignoré ici, géré par scheduleIntervalWorkoutReminder()
-        // 'none' : pas de notifications
+      console.log(`🔔 [NotificationService] Calculated ${scheduledDates.length} notification dates`);
+
+      // 5. Annuler TOUTES les notifications existantes
+      await this.cancelAllWorkoutNotifications();
+
+      // 6. Créer les nouvelles notifications
+      for (const scheduledDate of scheduledDates) {
+        await this.createNotificationForDate(scheduledDate);
       }
 
-      // 🔧 REFACTO : Annuler uniquement les notifications hebdomadaires
-      // Les notifications d'intervalles sont gérées séparément
-      await this.cancelWeeklyWorkoutReminders();
-
-      if (workoutsByDate.size === 0) {
-        console.log('🔔 [NotificationService] No weekly workouts to schedule');
-        return;
-      }
-
-      // Planifier une notification pour chaque jour avec workout(s) planifié(s)
-      for (const [dateKey, dayWorkouts] of workoutsByDate.entries()) {
-        // Parser la date depuis YYYY-MM-DD
-        const [year, month, day] = dateKey.split('-').map(Number);
-        const scheduledDate = new Date(year, month - 1, day, hour, minute, 0);
-        
-        // Vérifier que la date est dans le futur
-        if (scheduledDate <= now) {
-          continue;
-        }
-
-        // 🔧 SÉCURITÉ : Vérifier s'il y a déjà une notification pour cette date (intervalle, hebdomadaire ou mixte)
-        // On doit garantir qu'il n'y a qu'une seule notification par jour
-        const existingNotification = await this.getNotificationForDate(dateKey);
-        
-        if (existingNotification) {
-          // Il y a déjà une notification pour cette date
-          const isIntervalNotification = existingNotification.identifier.startsWith('workout_reminder_interval_');
-          const isWeeklyNotification = existingNotification.identifier.startsWith('workout_reminder_weekly_');
-          const isMixedNotification = existingNotification.identifier.startsWith('workout_reminder_mixed_');
-          
-          // Si c'est une notification mixte existante, on la garde et on ne fait rien
-          // (elle inclut déjà tous les workouts pour ce jour)
-          if (isMixedNotification) {
-            console.log(`🔔 [NotificationService] Mixed notification already exists for ${dateKey}, skipping`);
-            continue;
-          }
-          
-          // Si c'est une notification d'intervalle ou hebdomadaire, on doit créer une notification mixte
-          // qui remplace l'existante
-          if (isIntervalNotification || isWeeklyNotification) {
-            // Annuler la notification existante
-            await Notifications.cancelScheduledNotificationAsync(existingNotification.identifier);
-            await this.removeScheduledNotification(existingNotification.identifier);
-            
-            // Créer une notification mixte
-            const mixedMessage = getRandomMultipleWorkoutsMessage();
-            await this.scheduleNotification({
-              id: `workout_reminder_mixed_${dateKey}`,
-              type: 'workout_reminder',
-              title: mixedMessage.title,
-              body: mixedMessage.body,
-              scheduledTime: scheduledDate,
-              data: { 
-                type: 'workout_reminder' as NotificationType, 
-                workoutId: dayWorkouts[0]?.id || '',
-                workoutName: 'Multiple Workouts',
-                date: dateKey
-              },
-            });
-            
-            console.log(`🔔 [NotificationService] Created mixed notification for ${dateKey} (replacing existing)`);
-            continue;
-          }
-        }
-
-        // Pas de notification existante pour cette date
-        let message: NotificationMessage;
-        let notificationId: string;
-        let workoutId: string;
-        let workoutName: string;
-
-        if (dayWorkouts.length === 1) {
-          // Un seul workout hebdomadaire → notification individuelle avec le nom du workout
-          const workout = dayWorkouts[0];
-          message = getRandomSingleWorkoutMessage(workout.name);
-          notificationId = `workout_reminder_weekly_${dateKey}`;
-          workoutId = workout.id;
-          workoutName = workout.name;
-        } else {
-          // Plusieurs workouts hebdomadaires → notification mixte
-          message = getRandomMultipleWorkoutsMessage();
-          notificationId = `workout_reminder_mixed_${dateKey}`;
-          workoutId = dayWorkouts[0]?.id || '';
-          workoutName = 'Multiple Workouts';
-        }
-
-        await this.scheduleNotification({
-          id: notificationId,
-          type: 'workout_reminder',
-          title: message.title,
-          body: message.body,
-          scheduledTime: scheduledDate,
-          data: { 
-            type: 'workout_reminder' as NotificationType, 
-            workoutId,
-            workoutName,
-            date: dateKey
-          },
-        });
-      }
-
-      console.log(`🔔 [NotificationService] Scheduled ${workoutsByDate.size} weekly workout reminders`);
-
-      } catch (error) {
-      console.error('🔔 [NotificationService] Error scheduling workout reminders:', error);
+      console.log(`🔔 [NotificationService] ✅ Successfully scheduled ${scheduledDates.length} notifications`);
+    } catch (error) {
+      console.error('🔔 [NotificationService] ❌ Error scheduling reminders:', error);
     }
   }
 
   /**
-   * Planifier une notification pour un workout à intervalle
-   * Appelée uniquement après complétion d'un workout à intervalle
-   * 
-   * @param workoutId - ID du workout
-   * @param workoutName - Nom du workout
-   * @param completionDate - Date de complétion du workout
-   * @param intervalDays - Nombre de jours d'intervalle
+   * 📅 Calculer toutes les dates où une notification doit être envoyée
+   * Retourne une liste de dates avec les workouts associés
+   */
+  private static async calculateScheduledDates(
+    workouts: Workout[],
+    completedWorkouts: CompletedWorkout[]
+  ): Promise<ScheduledNotificationDate[]> {
+    const now = new Date();
+    const scheduledDatesMap = new Map<string, ScheduledNotificationDate>();
+
+    for (const workout of workouts) {
+      // Ignorer les workouts sans fréquence ou flexibles
+      if (!workout.frequency || workout.frequency.type === 'none') {
+        console.log(`🔔 [NotificationService] Skipping flexible workout: ${workout.name}`);
+        continue;
+      }
+
+      if (workout.frequency.type === 'weekly') {
+        // 📌 Workouts hebdomadaires : notification le jour prévu
+        const dates = this.calculateWeeklyDates(workout, now);
+        this.addDatesToMap(scheduledDatesMap, dates, workout, 'weekly');
+      } else if (workout.frequency.type === 'interval') {
+        // 📌 Workouts à intervalle : calculer depuis la dernière séance
+        const dates = this.calculateIntervalDates(workout, completedWorkouts, now);
+        this.addDatesToMap(scheduledDatesMap, dates, workout, 'interval');
+      }
+    }
+
+    // Convertir la Map en tableau et trier par date
+    return Array.from(scheduledDatesMap.values())
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+  }
+
+  /**
+   * 📆 Calculer les dates pour un workout hebdomadaire
+   */
+  private static calculateWeeklyDates(workout: Workout, now: Date): Date[] {
+    const dates: Date[] = [];
+    const dayOfWeek = workout.frequency.value; // 0 = dimanche, 1 = lundi, etc.
+    
+    const nowDay = now.getDay();
+    console.log(`🔔 [DEBUG] calculateWeeklyDates for "${workout.name}"`);
+    console.log(`🔔 [DEBUG] - Now: ${format(now, 'yyyy-MM-dd HH:mm:ss EEEE')} (day ${nowDay})`);
+    console.log(`🔔 [DEBUG] - Target day: ${dayOfWeek} (${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayOfWeek]})`);
+    
+    let currentDate = new Date(now);
+    currentDate.setHours(this.NOTIFICATION_HOUR, this.NOTIFICATION_MINUTE, 0, 0);
+    console.log(`🔔 [DEBUG] - currentDate after setHours: ${format(currentDate, 'yyyy-MM-dd HH:mm:ss EEEE')}`);
+
+    // Trouver le prochain jour de la semaine correspondant
+    const daysUntilNext = (dayOfWeek - currentDate.getDay() + 7) % 7;
+    console.log(`🔔 [DEBUG] - daysUntilNext: ${daysUntilNext}`);
+    
+    if (daysUntilNext === 0 && currentDate <= now) {
+      // Si c'est aujourd'hui mais l'heure est passée, passer à la semaine prochaine
+      console.log(`🔔 [DEBUG] - Same day but time passed, adding 7 days`);
+      currentDate = addDays(currentDate, 7);
+    } else if (daysUntilNext === 0) {
+      // Si c'est aujourd'hui et l'heure n'est pas passée, programmer pour aujourd'hui
+      console.log(`🔔 [DEBUG] - Same day and time not passed, keeping today`);
+    } else {
+      console.log(`🔔 [DEBUG] - Different day, adding ${daysUntilNext} days`);
+      currentDate = addDays(currentDate, daysUntilNext);
+    }
+    
+    console.log(`🔔 [DEBUG] - First notification date: ${format(currentDate, 'yyyy-MM-dd HH:mm:ss EEEE')}`);
+
+    // Planifier pour les N prochaines semaines
+    const maxDate = addDays(now, this.MAX_DAYS_AHEAD);
+    while (currentDate < maxDate) {
+      dates.push(new Date(currentDate));
+      console.log(`🔔 [DEBUG] - Added date: ${format(currentDate, 'yyyy-MM-dd HH:mm:ss EEEE')}`);
+      currentDate = addDays(currentDate, 7);
+    }
+
+    console.log(`🔔 [NotificationService] Weekly workout "${workout.name}": ${dates.length} dates`);
+    return dates;
+  }
+
+  /**
+   * 📆 Calculer les dates pour un workout à intervalle
+   * RÈGLE : La notification est calculée depuis la dernière séance effectuée
+   */
+  private static calculateIntervalDates(
+    workout: Workout,
+    completedWorkouts: CompletedWorkout[],
+    now: Date
+  ): Date[] {
+    const intervalDays = workout.frequency.value;
+
+    // Trouver la dernière séance de ce workout
+    const workoutSessions = completedWorkouts
+      .filter(cw => cw.workoutId === workout.id)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    if (workoutSessions.length === 0) {
+      // Aucune séance effectuée → aucune notification
+      console.log(`🔔 [NotificationService] Interval workout "${workout.name}": no sessions yet, no notification`);
+      return [];
+    }
+
+    // Calculer la date de notification depuis la dernière séance
+    const lastSession = workoutSessions[0];
+    const lastSessionDate = parseISO(lastSession.date);
+    
+    // Date de notification = dernière séance + intervalle, à 09:00
+    const notificationDate = addDays(lastSessionDate, intervalDays);
+    notificationDate.setHours(this.NOTIFICATION_HOUR, this.NOTIFICATION_MINUTE, 0, 0);
+
+    // Ne planifier que si la date est dans le futur et dans les MAX_DAYS_AHEAD jours
+    const maxDate = addDays(now, this.MAX_DAYS_AHEAD);
+    if (notificationDate > now && notificationDate < maxDate) {
+      console.log(`🔔 [NotificationService] Interval workout "${workout.name}": 1 date (${format(notificationDate, 'yyyy-MM-dd')})`);
+      return [notificationDate];
+    }
+
+    console.log(`🔔 [NotificationService] Interval workout "${workout.name}": no valid date`);
+    return [];
+  }
+
+  /**
+   * 📝 Ajouter des dates à la Map (en gérant les collisions)
+   */
+  private static addDatesToMap(
+    map: Map<string, ScheduledNotificationDate>,
+    dates: Date[],
+    workout: Workout,
+    type: 'weekly' | 'interval'
+  ): void {
+    for (const date of dates) {
+      // ⚠️ FIX: Ne pas utiliser startOfDay() car cela peut causer des décalages
+      // Utiliser directement format() sur la date qui a déjà l'heure à 09:00
+      const dateKey = format(date, 'yyyy-MM-dd');
+      
+      if (!map.has(dateKey)) {
+        map.set(dateKey, {
+          date,
+          dateKey,
+          workouts: [],
+        });
+      }
+
+      map.get(dateKey)!.workouts.push({
+        id: workout.id,
+        name: workout.name,
+        type,
+      });
+    }
+  }
+
+  /**
+   * 🔔 Créer une notification pour une date donnée
+   */
+  private static async createNotificationForDate(scheduledDate: ScheduledNotificationDate): Promise<void> {
+    try {
+      let message: NotificationMessage;
+      let notificationId: string;
+
+      console.log(`🔔 [DEBUG] createNotificationForDate:`);
+      console.log(`🔔 [DEBUG] - dateKey: ${scheduledDate.dateKey}`);
+      console.log(`🔔 [DEBUG] - date object: ${format(scheduledDate.date, 'yyyy-MM-dd HH:mm:ss EEEE')}`);
+      console.log(`🔔 [DEBUG] - date ISO: ${scheduledDate.date.toISOString()}`);
+      console.log(`🔔 [DEBUG] - workouts: ${scheduledDate.workouts.map(w => w.name).join(', ')}`);
+
+      if (scheduledDate.workouts.length === 1) {
+        // 📌 Un seul workout → notification avec le nom
+        message = getRandomSingleWorkoutMessage(scheduledDate.workouts[0].name);
+        notificationId = `workout_reminder_${scheduledDate.dateKey}`;
+      } else {
+        // 📌 Plusieurs workouts → notification mixte
+        message = getRandomMultipleWorkoutsMessage();
+        notificationId = `workout_reminder_mixed_${scheduledDate.dateKey}`;
+      }
+
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: message.title,
+          body: message.body,
+          data: {
+            type: 'workout_reminder',
+            date: scheduledDate.dateKey,
+            workoutIds: scheduledDate.workouts.map(w => w.id),
+          } as unknown as Record<string, unknown>,
+          sound: 'default',
+          priority: Notifications.AndroidNotificationPriority.HIGH,
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: scheduledDate.date,
+        },
+        identifier: notificationId,
+      });
+
+      console.log(`🔔 [NotificationService] ✅ Created notification for ${scheduledDate.dateKey} (${scheduledDate.workouts.length} workout(s))`);
+    } catch (error) {
+      console.error(`🔔 [NotificationService] ❌ Failed to create notification for ${scheduledDate.dateKey}:`, error);
+    }
+  }
+
+  /**
+   * ❌ Annuler toutes les notifications de workout
+   */
+  private static async cancelAllWorkoutNotifications(): Promise<void> {
+    try {
+      const allNotifications = await Notifications.getAllScheduledNotificationsAsync();
+      let cancelledCount = 0;
+      
+      for (const notification of allNotifications) {
+        const data = notification.content.data as unknown as NotificationData;
+        if (data?.type === 'workout_reminder') {
+          await Notifications.cancelScheduledNotificationAsync(notification.identifier);
+          cancelledCount++;
+        }
+      }
+
+      console.log(`🔔 [NotificationService] ❌ Cancelled ${cancelledCount} workout notifications`);
+    } catch (error) {
+      console.error('🔔 [NotificationService] ❌ Error cancelling notifications:', error);
+    }
+  }
+
+  /**
+   * 🔧 DEPRECATED: Cette fonction est maintenant gérée par scheduleWorkoutReminders()
+   * Gardée pour compatibilité avec le code existant
    */
   static async scheduleIntervalWorkoutReminder(
     workoutId: string,
@@ -271,128 +389,74 @@ class NotificationService {
     completionDate: Date,
     intervalDays: number
   ): Promise<void> {
-    try {
-      // Vérifier si les notifications sont activées
-      const remindersEnabled = await SettingsService.getWorkoutRemindersEnabled();
-      if (!remindersEnabled) {
-        return;
-      }
-
-      // Récupérer l'heure depuis les settings (par défaut 09:00)
-      const notificationSettings = await this.getSettings();
-      const time = notificationSettings.workoutReminders.time || '09:00';
-      const [hour, minute] = time.split(':').map(Number);
-
-      // Calculer la date de notification : date de complétion + intervalle, à 09h00
-      const notificationDate = addDays(completionDate, intervalDays);
-      notificationDate.setHours(hour, minute, 0, 0);
-
-      const now = new Date();
-      
-      // Ne pas planifier si la date est dans le passé
-      if (notificationDate <= now) {
-        console.log(`🔔 [NotificationService] Skipping notification in the past for workout ${workoutId}`);
-        return;
-      }
-
-      const dateKey = format(startOfDay(notificationDate), 'yyyy-MM-dd');
-
-      // Annuler l'ancienne notification pour ce workout (si elle existe)
-      await this.cancelWorkoutReminder(workoutId);
-
-      // 🔧 SÉCURITÉ : Vérifier s'il y a déjà une notification pour cette date
-      // On doit garantir qu'il n'y a qu'une seule notification par jour
-      const existingNotification = await this.getNotificationForDate(dateKey);
-      
-      if (existingNotification) {
-        // Il y a déjà une notification pour cette date
-        const isWeeklyNotification = existingNotification.identifier.startsWith('workout_reminder_weekly_');
-        const isMixedNotification = existingNotification.identifier.startsWith('workout_reminder_mixed_');
-        const isIntervalNotification = existingNotification.identifier.startsWith('workout_reminder_interval_');
-        
-        // Si c'est une notification mixte existante, on la garde et on ne fait rien
-        // (elle inclut déjà tous les workouts pour ce jour)
-        if (isMixedNotification) {
-          console.log(`🔔 [NotificationService] Mixed notification already exists for ${dateKey}, skipping interval notification`);
-          return;
-        }
-        
-        // Si c'est une notification hebdomadaire ou d'intervalle, on doit créer une notification mixte
-        // qui remplace l'existante
-        if (isWeeklyNotification || isIntervalNotification) {
-          // Annuler la notification existante
-          await Notifications.cancelScheduledNotificationAsync(existingNotification.identifier);
-          await this.removeScheduledNotification(existingNotification.identifier);
-          
-          // Créer une notification mixte
-          const mixedMessage = getRandomMultipleWorkoutsMessage();
-          await this.scheduleNotification({
-            id: `workout_reminder_mixed_${dateKey}`,
-            type: 'workout_reminder',
-            title: mixedMessage.title,
-            body: mixedMessage.body,
-            scheduledTime: notificationDate,
-            data: {
-              type: 'workout_reminder' as NotificationType,
-              workoutId: workoutId,
-              workoutName: 'Multiple Workouts',
-              date: dateKey
-            },
-          });
-
-          console.log(`🔔 [NotificationService] Created mixed notification for ${dateKey} (interval + existing)`);
-          return;
-        }
-      }
-
-      // Pas de notification existante pour cette date → créer une notification individuelle
-      const message = getRandomSingleWorkoutMessage(workoutName);
-      
-      await this.scheduleNotification({
-        id: `workout_reminder_interval_${workoutId}`,
-        type: 'workout_reminder',
-        title: message.title,
-        body: message.body,
-        scheduledTime: notificationDate,
-        data: {
-          type: 'workout_reminder' as NotificationType,
-          workoutId,
-          workoutName,
-          date: dateKey
-        },
-      });
-
-      console.log(`🔔 [NotificationService] Scheduled interval reminder for ${workoutName} on ${dateKey}`);
-    } catch (error) {
-      console.error('🔔 [NotificationService] Error scheduling interval workout reminder:', error);
-    }
+    // Cette fonction appelle maintenant scheduleWorkoutReminders() pour tout replanifier
+    console.log(`🔔 [NotificationService] scheduleIntervalWorkoutReminder() deprecated, calling scheduleWorkoutReminders()`);
+    await this.scheduleWorkoutReminders();
   }
 
-
   /**
-   * Obtenir la prochaine date pour un jour de la semaine donné
+   * DEPRECATED: Remplacé par scheduleWorkoutReminders()
    */
   private static getNextDateForDay(dayOfWeek: number, hour: number, minute: number): Date {
     const now = new Date();
-    const targetDate = new Date();
-    
-    // Calculer le nombre de jours jusqu'au prochain jour cible
-    const daysUntilTarget = (dayOfWeek - now.getDay() + 7) % 7;
-    
-    targetDate.setDate(now.getDate() + (daysUntilTarget === 0 ? 7 : daysUntilTarget));
-    targetDate.setHours(hour, minute, 0, 0);
-
-    // Si c'est aujourd'hui mais que l'heure est passée, programmer pour la semaine suivante
-    if (daysUntilTarget === 0 && targetDate <= now) {
-      targetDate.setDate(targetDate.getDate() + 7);
+    const targetDate = new Date(now);
+    const currentDayOfWeek = now.getDay();
+    let daysUntilTarget = (dayOfWeek - currentDayOfWeek + 7) % 7;
+    if (daysUntilTarget === 0) {
+      const todayAtTime = new Date(now);
+      todayAtTime.setHours(hour, minute, 0, 0);
+      if (todayAtTime <= now) {
+        daysUntilTarget = 7;
+      }
     }
-
+    targetDate.setDate(now.getDate() + daysUntilTarget);
+    targetDate.setHours(hour, minute, 0, 0);
+    targetDate.setSeconds(0, 0);
     return targetDate;
   }
 
   /**
-   * Annuler les notifications d'un type spécifique
+   * DEPRECATED: Remplacé par cancelAllWorkoutNotifications()
    */
+  static async cancelWorkoutReminder(workoutId: string): Promise<void> {
+    // Ne rien faire - les notifications seront recréées par scheduleWorkoutReminders()
+    console.log(`🔔 [NotificationService] cancelWorkoutReminder() deprecated`);
+  }
+
+  /**
+   * DEPRECATED: Remplacé par cancelAllWorkoutNotifications()
+   */
+  static async cancelWeeklyWorkoutReminders(): Promise<void> {
+    // Ne rien faire - les notifications seront recréées par scheduleWorkoutReminders()
+    console.log(`🔔 [NotificationService] cancelWeeklyWorkoutReminders() deprecated`);
+  }
+
+  /**
+   * DEPRECATED: Remplacé par cancelAllWorkoutNotifications()
+   */
+  static async cancelAllWorkoutReminders(): Promise<void> {
+    await this.cancelAllWorkoutNotifications();
+  }
+
+  /**
+   * DEPRECATED
+   */
+  static async scheduleNotification(notification: ScheduledNotification): Promise<string | null> {
+    console.warn('🔔 [NotificationService] scheduleNotification() is deprecated');
+    return null;
+  }
+
+  /**
+   * DEPRECATED
+   */
+  private static async getNotificationForDate(dateKey: string): Promise<Notifications.NotificationRequest | null> {
+    return null;
+  }
+
+  /**
+   * 📜 Méthodes utilitaires (gardées pour compatibilité)
+   */
+  
   static async cancelNotificationsByType(type: NotificationType): Promise<void> {
     try {
       const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
@@ -409,196 +473,35 @@ class NotificationService {
     }
   }
 
-  /**
-   * Planifier une notification locale
-   */
-  static async scheduleNotification(notification: ScheduledNotification): Promise<string | null> {
-    try {
-      const triggerDate = new Date(notification.scheduledTime);
-      
-      // Vérifier que la date est dans le futur
-      if (triggerDate <= new Date()) {
-        console.warn('🔔 [NotificationService] Cannot schedule notification in the past');
-        return null;
-      }
-
-      const notificationId = await Notifications.scheduleNotificationAsync({
-        content: {
-          title: notification.title,
-          body: notification.body,
-          data: (notification.data as unknown as Record<string, unknown>) || {},
-          sound: 'default',
-          priority: Notifications.AndroidNotificationPriority.HIGH,
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.DATE,
-          date: triggerDate,
-        },
-      });
-
-      // Sauvegarder la notification planifiée
-      await this.saveScheduledNotification({
-        ...notification,
-        id: notificationId,
-      });
-
-      return notificationId;
-    } catch (error) {
-      console.error('🔔 [NotificationService] ❌ Failed to schedule notification:', error);
-      return null;
-    }
-  }
-
-  /**
-   * Annuler une notification
-   */
   static async cancelNotification(notificationId: string): Promise<void> {
     try {
       await Notifications.cancelScheduledNotificationAsync(notificationId);
-      await this.removeScheduledNotification(notificationId);
       } catch (error) {
       console.error('🔔 [NotificationService] ❌ Failed to cancel notification:', error);
     }
   }
 
-  /**
-   * Annuler toutes les notifications
-   */
   static async cancelAllNotifications(): Promise<void> {
     try {
       await Notifications.cancelAllScheduledNotificationsAsync();
-      await AsyncStorage.removeItem(this.SCHEDULED_KEY);
       } catch (error) {
       console.error('🔔 [NotificationService] ❌ Failed to cancel all notifications:', error);
     }
   }
 
-  /**
-   * Annuler tous les rappels de workout (hebdomadaires + intervalles)
-   */
-  static async cancelAllWorkoutReminders(): Promise<void> {
-    try {
-      await this.cancelNotificationsByType('workout_reminder');
-    } catch (error) {
-      console.error('🔔 [NotificationService] ❌ Failed to cancel workout reminders:', error);
-    }
-  }
-
-  /**
-   * Annuler uniquement les rappels de workout hebdomadaires
-   * Les notifications d'intervalles sont conservées
-   */
-  static async cancelWeeklyWorkoutReminders(): Promise<void> {
-    try {
-      const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
-      
-      for (const notification of scheduledNotifications) {
-        const notificationData = notification.content.data as unknown as NotificationData;
-        if (notificationData?.type === 'workout_reminder') {
-          // Annuler uniquement les notifications hebdomadaires (qui commencent par workout_reminder_weekly_)
-          // et les notifications mixtes (qui commencent par workout_reminder_mixed_)
-          // Conserver les notifications d'intervalles (qui commencent par workout_reminder_interval_)
-          if (notification.identifier.startsWith('workout_reminder_weekly_') || 
-              notification.identifier.startsWith('workout_reminder_mixed_')) {
-            await Notifications.cancelScheduledNotificationAsync(notification.identifier);
-            await this.removeScheduledNotification(notification.identifier);
-          }
-        }
-      }
-    } catch (error) {
-      console.error('🔔 [NotificationService] ❌ Failed to cancel weekly workout reminders:', error);
-    }
-  }
-
-  /**
-   * Obtenir une notification planifiée pour une date spécifique
-   * Retourne la première notification trouvée pour cette date (peut être intervalle, hebdomadaire ou mixte)
-   * Retourne null si aucune notification n'existe pour cette date
-   */
-  private static async getNotificationForDate(dateKey: string): Promise<Notifications.NotificationRequest | null> {
-    try {
-      const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
-      
-      for (const notification of scheduledNotifications) {
-        const notificationData = notification.content.data as unknown as NotificationData;
-        if (notificationData?.type === 'workout_reminder' && notificationData.date === dateKey) {
-          // Retourner la première notification trouvée pour cette date
-          return notification;
-        }
-      }
-      
-      return null;
-    } catch (error) {
-      console.error('🔔 [NotificationService] ❌ Failed to get notification for date:', error);
-      return null;
-    }
-  }
-
-  /**
-   * Annuler une notification spécifique pour un workout
-   * Utilisé pour les workouts à intervalles lors de la replanification
-   */
-  static async cancelWorkoutReminder(workoutId: string): Promise<void> {
-    try {
-      const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
-      
-      for (const notification of scheduledNotifications) {
-        const notificationData = notification.content.data as unknown as NotificationData;
-        // Annuler si c'est une notification d'intervalle pour ce workout
-        if (notification.identifier === `workout_reminder_interval_${workoutId}`) {
-          await Notifications.cancelScheduledNotificationAsync(notification.identifier);
-          await this.removeScheduledNotification(notification.identifier);
-          console.log(`🔔 [NotificationService] Cancelled interval reminder for workout ${workoutId}`);
-          return;
-        }
-      }
-    } catch (error) {
-      console.error(`🔔 [NotificationService] ❌ Failed to cancel workout reminder for ${workoutId}:`, error);
-    }
-  }
-
-  /**
-   * Obtenir toutes les notifications planifiées
-   */
   static async getScheduledNotifications(): Promise<ScheduledNotification[]> {
-    try {
-      const data = await AsyncStorage.getItem(this.SCHEDULED_KEY);
-      return data ? JSON.parse(data) : [];
-    } catch (error) {
-      console.error('🔔 [NotificationService] ❌ Failed to get scheduled notifications:', error);
-      return [];
-    }
+    // Cette fonction n'est plus utilisée mais gardée pour compatibilité
+    return [];
   }
 
-  /**
-   * Sauvegarder une notification planifiée
-   */
   private static async saveScheduledNotification(notification: ScheduledNotification): Promise<void> {
-    try {
-      const scheduled = await this.getScheduledNotifications();
-      scheduled.push(notification);
-      await AsyncStorage.setItem(this.SCHEDULED_KEY, JSON.stringify(scheduled));
-    } catch (error) {
-      console.error('🔔 [NotificationService] ❌ Failed to save scheduled notification:', error);
-    }
+    // Ne rien faire - on ne sauvegarde plus dans AsyncStorage
   }
 
-  /**
-   * Supprimer une notification planifiée
-   */
   private static async removeScheduledNotification(notificationId: string): Promise<void> {
-    try {
-      const scheduled = await this.getScheduledNotifications();
-      const filtered = scheduled.filter(n => n.id !== notificationId);
-      await AsyncStorage.setItem(this.SCHEDULED_KEY, JSON.stringify(filtered));
-    } catch (error) {
-      console.error('🔔 [NotificationService] ❌ Failed to remove scheduled notification:', error);
-    }
+    // Ne rien faire - on ne sauvegarde plus dans AsyncStorage
   }
 
-  /**
-   * Obtenir les paramètres de notification
-   */
   static async getSettings(): Promise<NotificationSettings> {
     try {
       const data = await AsyncStorage.getItem(this.SETTINGS_KEY);
@@ -609,9 +512,6 @@ class NotificationService {
     }
   }
 
-  /**
-   * Sauvegarder les paramètres de notification
-   */
   static async saveSettings(settings: NotificationSettings): Promise<void> {
     try {
       await AsyncStorage.setItem(this.SETTINGS_KEY, JSON.stringify(settings));
@@ -620,26 +520,10 @@ class NotificationService {
     }
   }
 
-  /**
-   * Nettoyer les notifications expirées
-   */
   static async cleanupExpiredNotifications(): Promise<void> {
-    try {
-      const scheduled = await this.getScheduledNotifications();
-      const now = new Date();
-      const active = scheduled.filter(n => new Date(n.scheduledTime) > now);
-      
-      if (active.length < scheduled.length) {
-        await AsyncStorage.setItem(this.SCHEDULED_KEY, JSON.stringify(active));
-        }
-    } catch (error) {
-      console.error('🔔 [NotificationService] ❌ Failed to cleanup expired notifications:', error);
-    }
+    // Ne rien faire - les notifications expirées sont gérées par le système
   }
 
-  /**
-   * Obtenir le statut des permissions
-   */
   static async getPermissionStatus(): Promise<string> {
     try {
       const { status } = await Notifications.getPermissionsAsync();

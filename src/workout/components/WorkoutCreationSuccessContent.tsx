@@ -6,50 +6,23 @@ import {
   TouchableOpacity, 
   Animated 
 } from 'react-native';
-import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { WorkoutStackParamList } from '../../types/navigation';
 import { useWorkout } from '../../hooks/useWorkout';
-import { WorkoutCard } from '../components/WorkoutCard';
+import { WorkoutCard } from './WorkoutCard';
 
-type WorkoutCreationSuccessRouteProp = RouteProp<WorkoutStackParamList, 'WorkoutCreationSuccess'>;
-type WorkoutCreationSuccessNavigationProp = NativeStackNavigationProp<WorkoutStackParamList, 'WorkoutCreationSuccess'>;
+interface WorkoutCreationSuccessContentProps {
+  workoutId: string;
+  onClose: () => void;
+}
 
-export const WorkoutCreationSuccessScreen: React.FC = () => {
-  const route = useRoute<WorkoutCreationSuccessRouteProp>();
-  const navigation = useNavigation<WorkoutCreationSuccessNavigationProp>();
+export const WorkoutCreationSuccessContent: React.FC<WorkoutCreationSuccessContentProps> = ({
+  workoutId,
+  onClose
+}) => {
   const { workouts } = useWorkout();
   
-  console.log('[WorkoutCreationSuccessScreen] Mounted with workoutId:', route.params.workoutId);
-  console.log('[WorkoutCreationSuccessScreen] Total workouts in store:', workouts.length);
-  
   // Récupérer le workout créé depuis les workouts en utilisant l'ID
-  const workout = workouts.find(w => w.id === route.params.workoutId);
-  
-  console.log('[WorkoutCreationSuccessScreen] Workout found:', !!workout);
-  if (workout) {
-    console.log('[WorkoutCreationSuccessScreen] Workout name:', workout.name);
-  }
+  const workout = workouts.find(w => w.id === workoutId);
 
-  // Si le workout n'est pas trouvé, attendre un peu puis vérifier à nouveau
-  // Le workout pourrait être en train d'être ajouté au store
-  useEffect(() => {
-    if (!workout) {
-      console.log('[WorkoutCreationSuccessScreen] Workout not found, waiting...');
-      // Attendre un peu pour que le store Redux soit mis à jour
-      const timeout = setTimeout(() => {
-        const workoutAfterDelay = workouts.find(w => w.id === route.params.workoutId);
-        if (!workoutAfterDelay) {
-          console.log('[WorkoutCreationSuccessScreen] Workout still not found after delay, redirecting');
-          navigation.replace('WorkoutsList');
-        } else {
-          console.log('[WorkoutCreationSuccessScreen] Workout found after delay');
-        }
-      }, 500);
-      
-      return () => clearTimeout(timeout);
-    }
-  }, [workout, workouts, route.params.workoutId, navigation]);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const cardOpacityAnim = useRef(new Animated.Value(0)).current;
@@ -121,14 +94,18 @@ export const WorkoutCreationSuccessScreen: React.FC = () => {
         useNativeDriver: true,
       }),
     ]).start(() => {
-      // Naviguer vers la liste des workouts
-      navigation.navigate('WorkoutsList');
+      // Fermer la modale
+      onClose();
     });
   };
 
-  // Si le workout n'existe pas encore, ne rien afficher
+  // If workout doesn't exist yet, show loading message
   if (!workout) {
-    return null;
+    return (
+      <View style={styles.container}>
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
   }
 
   // Créer un workout avec streak à 0 pour l'affichage
@@ -150,15 +127,14 @@ export const WorkoutCreationSuccessScreen: React.FC = () => {
             },
           ]}
         >
-          {/* Titre */}
+          {/* Title */}
           <Text style={styles.title}>
-            Workout créé 💪
+            Workout created! 💪
           </Text>
           
           {/* Description */}
           <Text style={styles.description}>
-            Ton workout est maintenant disponible dans tes workouts.{'\n'}
-            Tu peux dès maintenant y ajouter des exercices.
+            You can find it in your workouts and start adding exercises.
           </Text>
         </Animated.View>
 
@@ -198,7 +174,7 @@ export const WorkoutCreationSuccessScreen: React.FC = () => {
       >
         <TouchableOpacity style={styles.button} onPress={handlePress}>
           <Text style={styles.buttonText}>
-            Voir mes workouts
+            View my workouts
           </Text>
         </TouchableOpacity>
       </Animated.View>
@@ -254,5 +230,11 @@ const styles = StyleSheet.create({
     color: '#0D0D0F',
     fontSize: 16,
     fontWeight: '600',
+  },
+  loadingText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    textAlign: 'center',
+    marginTop: 32,
   },
 });

@@ -16,6 +16,8 @@ interface WorkoutCardProps {
   onDelete: () => void;
   /** Callback function when the workout should be repositioned */
   onReposition?: () => void;
+  /** Whether to hide the context menu */
+  hideMenu?: boolean;
 }
 
 /**
@@ -77,6 +79,7 @@ export const WorkoutCard = memo<WorkoutCardProps>(({
   onEdit,
   onDelete,
   onReposition,
+  hideMenu = false,
 }) => {
   const { name, frequency } = workout;
   const [isMenuVisible, setIsMenuVisible] = useState(false);
@@ -149,24 +152,28 @@ export const WorkoutCard = memo<WorkoutCardProps>(({
 
           <View style={styles.rightContent}>
             <StreakDisplay workout={workout} showDaysRemaining={false} />
-            <TouchableOpacity
-              ref={settingsButtonRef}
-              testID="settings-button"
-              style={styles.settingsButton}
-              onPress={handleSettingsPress}
-            >
-              <Ionicons name="ellipsis-vertical" size={24} color="rgba(255, 255, 255, 0.6)" />
-            </TouchableOpacity>
+            {!hideMenu && (
+              <TouchableOpacity
+                ref={settingsButtonRef}
+                testID="settings-button"
+                style={styles.settingsButton}
+                onPress={handleSettingsPress}
+              >
+                <Ionicons name="ellipsis-vertical" size={24} color="rgba(255, 255, 255, 0.6)" />
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </TouchableOpacity>
 
-      <ContextMenu
-        visible={isMenuVisible}
-        onClose={() => setIsMenuVisible(false)}
-        items={menuItems}
-        anchorPosition={buttonLayout || undefined}
-      />
+      {!hideMenu && (
+        <ContextMenu
+          visible={isMenuVisible}
+          onClose={() => setIsMenuVisible(false)}
+          items={menuItems}
+          anchorPosition={buttonLayout || undefined}
+        />
+      )}
     </>
   );
 });

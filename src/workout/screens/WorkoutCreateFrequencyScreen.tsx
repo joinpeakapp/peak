@@ -23,20 +23,22 @@ const generateId = (): string => {
 
 interface WorkoutCreateFrequencyScreenProps {
   name: string;
-  onComplete: () => void;
+  onComplete: (workoutId: string) => void;
   onBack: () => void;
 }
 
 type FrequencyTab = 'weekly' | 'interval' | 'none';
 
+// ⚠️ IMPORTANT: Les valeurs doivent correspondre à Date.getDay()
+// où 0 = Dimanche, 1 = Lundi, 2 = Mardi, etc.
 const DAYS_OF_WEEK = [
-  { value: 0, label: 'Monday' },
-  { value: 1, label: 'Tuesday' },
-  { value: 2, label: 'Wednesday' },
-  { value: 3, label: 'Thursday' },
-  { value: 4, label: 'Friday' },
-  { value: 5, label: 'Saturday' },
-  { value: 6, label: 'Sunday' },
+  { value: 1, label: 'Monday' },    // Lundi = 1
+  { value: 2, label: 'Tuesday' },   // Mardi = 2
+  { value: 3, label: 'Wednesday' }, // Mercredi = 3
+  { value: 4, label: 'Thursday' },  // Jeudi = 4
+  { value: 5, label: 'Friday' },    // Vendredi = 5
+  { value: 6, label: 'Saturday' },  // Samedi = 6
+  { value: 0, label: 'Sunday' },    // Dimanche = 0
 ];
 
 // Génerer les options d'intervalle (1-30 jours)
@@ -94,22 +96,27 @@ export const WorkoutCreateFrequencyScreen: React.FC<WorkoutCreateFrequencyScreen
     }
 
     if (frequency) {
-      // Créer et ajouter le nouveau workout
+      // Générer un ID unique pour le workout AVANT de l'ajouter au store
+      const workoutId = generateId();
+      const now = new Date().toISOString();
+      
+      // Créer le nouveau workout AVEC l'ID
       const newWorkout: Workout = {
-        id: generateId(),
+        id: workoutId,
         name,
         date: new Date().toISOString().split('T')[0],
         duration: 0, // Valeur par défaut
         exercises: [],
         frequency,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        createdAt: now,
+        updatedAt: now
       };
 
+      // Créer le workout dans le store (le reducer préservera l'ID)
       createWorkout(newWorkout);
 
-      // Terminer le flow
-      onComplete();
+      // Terminer le flow en passant l'ID du workout créé
+      onComplete(workoutId);
     }
   };
   

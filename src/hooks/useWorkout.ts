@@ -73,9 +73,9 @@ export const useWorkout = () => {
   /**
    * Creates a new workout and adds it to the store.
    * Replanifie automatiquement les notifications si nécessaire.
-   * @param workout - The workout to create (without ID)
+   * @param workout - The workout to create (with or without ID)
    */
-  const createWorkout = (workout: Omit<Workout, 'id'>) => {
+  const createWorkout = (workout: Omit<Workout, 'id'> | Workout) => {
     dispatch(addWorkoutWithNotifications(workout) as any);
   };
 
