@@ -20,14 +20,19 @@ const workoutSlice = createSlice({
       state.workouts = action.payload;
     },
     // Ajouter une nouvelle séance
-    addWorkout: (state, action: PayloadAction<Omit<Workout, 'id'>>) => {
-      // Générer un ID unique pour le workout
-      const id = Date.now().toString() + Math.random().toString(36).substring(2, 9);
-      const newWorkout = { 
+    addWorkout: (state, action: PayloadAction<Omit<Workout, 'id'> | Workout>) => {
+      // Si le workout a déjà un ID (cas où il est créé avec un ID spécifique),
+      // l'utiliser, sinon générer un nouvel ID
+      const hasId = 'id' in action.payload && action.payload.id;
+      const id = hasId ? action.payload.id : Date.now().toString() + Math.random().toString(36).substring(2, 9);
+      
+      // Préserver createdAt et updatedAt s'ils existent, sinon les générer
+      const now = new Date().toISOString();
+      const newWorkout: Workout = { 
         ...action.payload, 
         id,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        createdAt: action.payload.createdAt || now,
+        updatedAt: action.payload.updatedAt || now
       };
       
       state.workouts.push(newWorkout);
@@ -171,7 +176,7 @@ export const loadInitialData = () => async (dispatch: any) => {
 };
 
 // Action thunk pour ajouter un workout et replanifier les notifications
-export const addWorkoutWithNotifications = (workout: Omit<Workout, 'id'>) => async (dispatch: any) => {
+export const addWorkoutWithNotifications = (workout: Omit<Workout, 'id'> | Workout) => async (dispatch: any) => {
   dispatch(addWorkout(workout));
   
   // Replanifier les notifications si le workout a une fréquence

@@ -11,6 +11,7 @@ export type WorkoutStackParamList = {
   WorkoutDetail: { id: string; template?: WorkoutState };
   ExercisesList: undefined;
   ExerciseDetail: { id: string; exercise?: Exercise };
+  WorkoutCreationSuccess: { workoutId: string };
 };
 
 // Types pour le stack JournalTab

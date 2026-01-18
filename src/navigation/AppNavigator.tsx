@@ -4,6 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { WorkoutsScreen } from '../workout/screens/WorkoutsScreen';
+import { WorkoutCreationSuccessScreen } from '../workout/screens/WorkoutCreationSuccessScreen';
 import { JournalScreen } from '../workout/screens/JournalScreen';
 import { WorkoutSummaryScreen } from '../workout/screens/WorkoutSummaryScreen';
 import { WorkoutPhotoScreen } from '../workout/screens/WorkoutPhotoScreen';
@@ -44,6 +45,7 @@ const WorkoutNavigator = () => (
     }}
   >
     <WorkoutStack.Screen name="WorkoutsList" component={WorkoutsScreen} />
+    <WorkoutStack.Screen name="WorkoutCreationSuccess" component={WorkoutCreationSuccessScreen} />
   </WorkoutStack.Navigator>
 );
 
@@ -108,7 +110,8 @@ const getTabBarVisibility = (route: any) => {
     'WorkoutEdit', 
     'ExerciseDetail',
     'ExercisesList',
-    'WorkoutSummary'
+    'WorkoutSummary',
+    'WorkoutCreationSuccess'
   ];
 
   // Vérifier si l'état de navigation contient une route actuelle

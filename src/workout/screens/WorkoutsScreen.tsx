@@ -71,6 +71,11 @@ export const WorkoutsScreen: React.FC = () => {
     closeWorkoutCreation();
   };
 
+  const handleWorkoutCreated = (workoutId: string) => {
+    // Le workout a été créé, l'écran de succès est maintenant dans la modale
+    // Pas besoin de navigation supplémentaire
+  };
+
   // Gestionnaire pour reprendre une séance active
   const handleResumeActiveWorkout = () => {
     if (activeWorkout) {
@@ -100,8 +105,9 @@ export const WorkoutsScreen: React.FC = () => {
       />
       
       <WorkoutCreationModal 
-        visible={isCreationModalVisible}
+        visible={isCreationModalVisible} 
         onClose={handleCloseCreationModal}
+        onWorkoutCreated={handleWorkoutCreated}
       />
 
       <WorkoutDetailModal
