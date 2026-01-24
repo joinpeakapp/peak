@@ -24,14 +24,16 @@ interface WorkoutEditScreenProps {
 
 type FrequencyTab = 'weekly' | 'interval' | 'none';
 
+// ⚠️ IMPORTANT: Les valeurs doivent correspondre à Date.getDay()
+// où 0 = Dimanche, 1 = Lundi, 2 = Mardi, etc.
 const DAYS_OF_WEEK = [
-  { value: 0, label: 'Monday' },
-  { value: 1, label: 'Tuesday' },
-  { value: 2, label: 'Wednesday' },
-  { value: 3, label: 'Thursday' },
-  { value: 4, label: 'Friday' },
-  { value: 5, label: 'Saturday' },
-  { value: 6, label: 'Sunday' },
+  { value: 1, label: 'Monday' },    // Lundi = 1
+  { value: 2, label: 'Tuesday' },   // Mardi = 2
+  { value: 3, label: 'Wednesday' }, // Mercredi = 3
+  { value: 4, label: 'Thursday' },  // Jeudi = 4
+  { value: 5, label: 'Friday' },    // Vendredi = 5
+  { value: 6, label: 'Saturday' },  // Samedi = 6
+  { value: 0, label: 'Sunday' },    // Dimanche = 0
 ];
 
 // Génerer les options d'intervalle (1-30 jours)

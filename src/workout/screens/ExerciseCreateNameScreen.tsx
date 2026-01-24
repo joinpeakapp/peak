@@ -76,7 +76,7 @@ export const ExerciseCreateNameScreen: React.FC<ExerciseCreateNameScreenProps> =
           style={styles.closeButton} 
           onPress={onClose}
         >
-          <Ionicons name="chevron-down" size={24} color="#FFFFFF" />
+          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
 

@@ -22,6 +22,7 @@ interface WorkoutCardProps {
 
 /**
  * Format workout frequency for display
+ * ⚠️ IMPORTANT: Les valeurs correspondent à Date.getDay() où 0 = Dimanche, 1 = Lundi, etc.
  */
 const formatFrequency = (frequency: any): string => {
   if (!frequency) return '';
@@ -29,7 +30,9 @@ const formatFrequency = (frequency: any): string => {
   // Si la fréquence est un objet avec type et value
   if (typeof frequency === 'object' && frequency.type && frequency.value !== undefined) {
     if (frequency.type === 'weekly') {
-      const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+      // ⚠️ FIX: Utiliser l'ordre correct correspondant à Date.getDay()
+      // Index 0 = Dimanche, 1 = Lundi, 2 = Mardi, etc.
+      const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
       const dayIndex = Number(frequency.value);
       
       if (!isNaN(dayIndex) && dayIndex >= 0 && dayIndex < days.length) {

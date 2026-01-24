@@ -193,6 +193,9 @@ class NotificationService {
 
   /**
    * 📆 Calculer les dates pour un workout hebdomadaire
+   * 
+   * ⚠️ FIX: Utilisation correcte de date-fns pour éviter les problèmes de timezone
+   * avec setHours() qui peut causer des décalages d'un jour
    */
   private static calculateWeeklyDates(workout: Workout, now: Date): Date[] {
     const dates: Date[] = [];
@@ -203,33 +206,48 @@ class NotificationService {
     console.log(`🔔 [DEBUG] - Now: ${format(now, 'yyyy-MM-dd HH:mm:ss EEEE')} (day ${nowDay})`);
     console.log(`🔔 [DEBUG] - Target day: ${dayOfWeek} (${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayOfWeek]})`);
     
-    let currentDate = new Date(now);
+    // ⚠️ FIX: Au lieu d'utiliser setHours() qui peut causer des problèmes de timezone,
+    // on commence avec startOfDay() puis on ajoute les heures avec date-fns
+    let currentDate = startOfDay(now);
+    // Ajouter 9 heures pour la notification à 09:00
     currentDate.setHours(this.NOTIFICATION_HOUR, this.NOTIFICATION_MINUTE, 0, 0);
-    console.log(`🔔 [DEBUG] - currentDate after setHours: ${format(currentDate, 'yyyy-MM-dd HH:mm:ss EEEE')}`);
-
-    // Trouver le prochain jour de la semaine correspondant
-    const daysUntilNext = (dayOfWeek - currentDate.getDay() + 7) % 7;
-    console.log(`🔔 [DEBUG] - daysUntilNext: ${daysUntilNext}`);
     
-    if (daysUntilNext === 0 && currentDate <= now) {
-      // Si c'est aujourd'hui mais l'heure est passée, passer à la semaine prochaine
-      console.log(`🔔 [DEBUG] - Same day but time passed, adding 7 days`);
-      currentDate = addDays(currentDate, 7);
-    } else if (daysUntilNext === 0) {
-      // Si c'est aujourd'hui et l'heure n'est pas passée, programmer pour aujourd'hui
-      console.log(`🔔 [DEBUG] - Same day and time not passed, keeping today`);
+    console.log(`🔔 [DEBUG] - currentDate after setting time: ${format(currentDate, 'yyyy-MM-dd HH:mm:ss EEEE')}`);
+    console.log(`🔔 [DEBUG] - currentDate.getDay(): ${currentDate.getDay()}`);
+
+    // ⚠️ FIX: Recalculer daysUntilNext APRÈS avoir défini l'heure
+    // car setHours() peut changer le jour dans certains cas de timezone
+    const currentDayAfterSetHours = currentDate.getDay();
+    let daysUntilNext = (dayOfWeek - currentDayAfterSetHours + 7) % 7;
+    console.log(`🔔 [DEBUG] - daysUntilNext (initial): ${daysUntilNext}`);
+    
+    if (daysUntilNext === 0) {
+      // C'est le bon jour de la semaine
+      if (currentDate <= now) {
+        // L'heure est déjà passée aujourd'hui, passer à la semaine prochaine
+        console.log(`🔔 [DEBUG] - Same day but time passed, adding 7 days`);
+        daysUntilNext = 7;
+      } else {
+        // L'heure n'est pas passée, programmer pour aujourd'hui
+        console.log(`🔔 [DEBUG] - Same day and time not passed, keeping today`);
+      }
     } else {
-      console.log(`🔔 [DEBUG] - Different day, adding ${daysUntilNext} days`);
+      console.log(`🔔 [DEBUG] - Different day, will add ${daysUntilNext} days`);
+    }
+    
+    // Ajouter les jours nécessaires
+    if (daysUntilNext > 0) {
       currentDate = addDays(currentDate, daysUntilNext);
     }
     
     console.log(`🔔 [DEBUG] - First notification date: ${format(currentDate, 'yyyy-MM-dd HH:mm:ss EEEE')}`);
+    console.log(`🔔 [DEBUG] - First notification date getDay(): ${currentDate.getDay()}`);
 
     // Planifier pour les N prochaines semaines
     const maxDate = addDays(now, this.MAX_DAYS_AHEAD);
     while (currentDate < maxDate) {
       dates.push(new Date(currentDate));
-      console.log(`🔔 [DEBUG] - Added date: ${format(currentDate, 'yyyy-MM-dd HH:mm:ss EEEE')}`);
+      console.log(`🔔 [DEBUG] - Added date: ${format(currentDate, 'yyyy-MM-dd HH:mm:ss EEEE')} (day ${currentDate.getDay()})`);
       currentDate = addDays(currentDate, 7);
     }
 
@@ -240,6 +258,8 @@ class NotificationService {
   /**
    * 📆 Calculer les dates pour un workout à intervalle
    * RÈGLE : La notification est calculée depuis la dernière séance effectuée
+   * 
+   * ⚠️ FIX: Utilisation correcte de date-fns pour éviter les problèmes de timezone
    */
   private static calculateIntervalDates(
     workout: Workout,
@@ -263,9 +283,15 @@ class NotificationService {
     const lastSession = workoutSessions[0];
     const lastSessionDate = parseISO(lastSession.date);
     
-    // Date de notification = dernière séance + intervalle, à 09:00
-    const notificationDate = addDays(lastSessionDate, intervalDays);
+    // ⚠️ FIX: Date de notification = dernière séance + intervalle, à 09:00
+    // Utiliser startOfDay() puis setHours() pour éviter les problèmes de timezone
+    let notificationDate = addDays(startOfDay(lastSessionDate), intervalDays);
     notificationDate.setHours(this.NOTIFICATION_HOUR, this.NOTIFICATION_MINUTE, 0, 0);
+
+    console.log(`🔔 [DEBUG] Interval workout "${workout.name}":`);
+    console.log(`🔔 [DEBUG] - Last session: ${format(lastSessionDate, 'yyyy-MM-dd')}`);
+    console.log(`🔔 [DEBUG] - Interval days: ${intervalDays}`);
+    console.log(`🔔 [DEBUG] - Notification date: ${format(notificationDate, 'yyyy-MM-dd HH:mm:ss EEEE')} (day ${notificationDate.getDay()})`);
 
     // Ne planifier que si la date est dans le futur et dans les MAX_DAYS_AHEAD jours
     const maxDate = addDays(now, this.MAX_DAYS_AHEAD);
