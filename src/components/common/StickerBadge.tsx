@@ -4,7 +4,7 @@ import { Sticker } from '../../types/stickers';
 import { 
   CompletionSticker, 
   PRSticker, 
-  StarSticker, 
+  PlusOneSticker,
   StreakSticker, 
   VolumeSticker 
 } from '../stickers';
@@ -63,13 +63,8 @@ export const StickerBadge: React.FC<StickerBadgeProps> = ({
       case 'personal-record':
         return <PRSticker {...commonProps} />;
       
-      case 'star':
-        return (
-          <StarSticker 
-            {...commonProps} 
-            completionCount={sticker.dynamicValue || 1}
-          />
-        );
+      case 'plus-one':
+        return <PlusOneSticker {...commonProps} />;
       
       case 'streak':
         return (

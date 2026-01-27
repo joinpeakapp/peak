@@ -107,15 +107,12 @@ export class AppPreloadService {
       this.reportStep('images', 'Loading images...');
       this.reportProgress(80);
       
-      // Précharger les images de manière non bloquante
-      // Si ça prend trop de temps, on continue quand même
+      // Précharger les images (pas de timeout, on attend que ça se termine)
+      // Le timeout est géré au niveau de AppLoadingScreen (5s max)
       try {
-        await Promise.race([
-          this.preloadImages(),
-          new Promise(resolve => setTimeout(resolve, 5000)) // Timeout 5s
-        ]);
+        await this.preloadImages();
       } catch (error) {
-        console.warn('[AppPreloadService] Image preload took too long or failed, continuing...');
+        console.warn('[AppPreloadService] Image preload failed:', error);
       }
 
       this.reportProgress(100);
@@ -389,8 +386,21 @@ export class AppPreloadService {
    */
   private static async preloadImages(): Promise<void> {
     try {
-      // Utiliser le cache mémoire si disponible (avec URIs migrées), sinon charger depuis le stockage
-      // À ce stade, les photos sont déjà migrées dans preloadPhotos()
+      const { ImageCacheUtils } = require('../components/common/CachedImage');
+      const imageUris: string[] = [];
+      
+      // 1. Précharger la photo de profil
+      try {
+        const profile = await UserProfileService.getUserProfile();
+        if (profile?.profilePhotoUri && !profile.profilePhotoUri.includes('placeholder')) {
+          imageUris.push(profile.profilePhotoUri);
+          console.log('[AppPreloadService] Adding profile photo to preload');
+        }
+      } catch (error) {
+        console.warn('[AppPreloadService] Failed to get profile photo URI:', error);
+      }
+      
+      // 2. Précharger toutes les photos des workouts
       let workouts: CompletedWorkout[] = [];
       
       if (this.preloadedWorkoutHistory) {
@@ -404,10 +414,7 @@ export class AppPreloadService {
       }
       
       if (workouts.length > 0) {
-        const { ImageCacheUtils } = require('../components/common/CachedImage');
-        const imageUris: string[] = [];
-        
-        // Précharger les URIs vérifiées pour chaque workout
+        // Précharger les URIs vérifiées pour TOUS les workouts
         // Les photos sont déjà migrées vers documentDirectory dans preloadPhotos()
         // mais on utilise getAccessiblePhotoUri() pour garantir la compatibilité
         // en cas de changement de chemin entre les builds
@@ -429,12 +436,15 @@ export class AppPreloadService {
             }
           }
         }
-        
-        // Précharger toutes les images en parallèle avec les URIs permanentes
-        if (imageUris.length > 0) {
-          await ImageCacheUtils.preloadImages(imageUris);
-          console.log(`[AppPreloadService] Preloaded ${imageUris.length} workout images with persistent URIs`);
-        }
+      }
+      
+      // 3. Précharger toutes les images en parallèle avec les URIs permanentes
+      if (imageUris.length > 0) {
+        console.log(`[AppPreloadService] Starting preload of ${imageUris.length} images (1 profile + ${imageUris.length - 1} workouts)...`);
+        await ImageCacheUtils.preloadImages(imageUris);
+        console.log(`[AppPreloadService] ✅ Preloaded ${imageUris.length} images successfully`);
+      } else {
+        console.log('[AppPreloadService] No images to preload');
       }
     } catch (error) {
       console.warn('[AppPreloadService] Failed to preload images:', error);

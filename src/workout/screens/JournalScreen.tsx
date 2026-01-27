@@ -381,7 +381,10 @@ export const JournalScreen: React.FC = () => {
           <View style={styles.cardContent}>
             {/* Container de stickers */}
             {stickers.length > 0 && (
-              <View style={styles.stickersContainer}>
+              <View style={[
+                styles.stickersContainer,
+                stickers.length === 4 && styles.stickersContainerGrid
+              ]}>
                 {stickers.map((sticker, idx) => (
                   <StickerBadge
                     key={`sticker-${idx}`}
@@ -573,6 +576,12 @@ export const JournalScreen: React.FC = () => {
         showsVerticalScrollIndicator={true}
         onRefresh={handlePullRefresh}
         refreshing={isRefreshing}
+        // Optimisations pour affichage rapide des images
+        initialNumToRender={21} // 7 rangées x 3 colonnes = afficher plus d'éléments au départ
+        maxToRenderPerBatch={21} // Batch de 7 rangées
+        windowSize={10} // Fenêtre de rendu plus large (10 hauteurs d'écran)
+        removeClippedSubviews={false} // Désactiver pour éviter les images qui disparaissent
+        updateCellsBatchingPeriod={50} // Mise à jour plus rapide
         key={sortedWorkouts.length} // Force re-render when data changes
       />
     </View>
@@ -663,6 +672,11 @@ const styles = StyleSheet.create({
   stickersContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
+    gap: 4,
+  },
+  stickersContainerGrid: {
+    flexWrap: 'wrap',
+    maxWidth: 60, // 2 stickers de 24px + spacing
     gap: 4,
   },
   stickerSpacing: {

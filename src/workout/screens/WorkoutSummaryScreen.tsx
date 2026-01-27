@@ -81,30 +81,11 @@ export const WorkoutSummaryScreen: React.FC = () => {
   // Animation pour l'opacité du gradient
   const gradientOpacity = useRef(new Animated.Value(0)).current;
 
-  // Animations pour les stickers
-  const stickerAnims = [
-    useRef(new Animated.Value(0)).current,
-    useRef(new Animated.Value(0)).current,
-    useRef(new Animated.Value(0)).current,
-  ];
-  // Animations pour l'offset vertical des stickers
-  const stickerOffsetYAnims = [
-    useRef(new Animated.Value(30)).current,
-    useRef(new Animated.Value(30)).current,
-    useRef(new Animated.Value(30)).current,
-  ];
-  // Animations pour l'opacité des stickers
-  const stickerOpacityAnims = [
-    useRef(new Animated.Value(0)).current,
-    useRef(new Animated.Value(0)).current,
-    useRef(new Animated.Value(0)).current,
-  ];
-  // Animations pour l'opacité des textes des stickers
-  const stickerTextOpacityAnims = [
-    useRef(new Animated.Value(0)).current,
-    useRef(new Animated.Value(0)).current,
-    useRef(new Animated.Value(0)).current,
-  ];
+  // Animations pour les stickers - dynamiques selon le nombre de stickers
+  const stickerAnims = useRef<Animated.Value[]>([]).current;
+  const stickerOffsetYAnims = useRef<Animated.Value[]>([]).current;
+  const stickerOpacityAnims = useRef<Animated.Value[]>([]).current;
+  const stickerTextOpacityAnims = useRef<Animated.Value[]>([]).current;
 
   // Refs pour stocker les timeouts en cours
   const currentTimeouts = useRef<NodeJS.Timeout[]>([]);
@@ -143,9 +124,9 @@ export const WorkoutSummaryScreen: React.FC = () => {
       title: "New Personal Record!",
       subtitle: "You've broken through your limits - this is what progress looks like"
     },
-    "Star": {
-      title: "Session Master!",
-      subtitle: "Another completion of this workout - your consistency is building strength"
+    "+1": {
+      title: "Rep Progress!",
+      subtitle: "You pushed extra reps today - every rep counts towards your goals"
     },
     "Streak": {
       title: `${currentStreak > 0 ? currentStreak : 1} Day Streak!`,
@@ -206,14 +187,14 @@ export const WorkoutSummaryScreen: React.FC = () => {
       try {
         // Utiliser les stickers pré-calculés si disponibles
         if (route.params?.preCalculatedStickers) {
-          setStickers(route.params.preCalculatedStickers.slice(0, 3));
+          setStickers(route.params.preCalculatedStickers);
           setStickersLoaded(true);
           return;
         }
 
         // Sinon, calculer les stickers (fallback)
         const workoutStickers = await StickerService.generateWorkoutStickers(workout, true);
-        setStickers(workoutStickers.slice(0, 3)); // Limiter à 3 stickers pour l'animation
+        setStickers(workoutStickers);
         setStickersLoaded(true);
       } catch (error) {
         console.error('[WorkoutSummaryScreen] Error loading stickers:', error);
@@ -224,6 +205,17 @@ export const WorkoutSummaryScreen: React.FC = () => {
 
     loadStickers();
   }, [workout, route.params?.preCalculatedStickers]);
+  
+  // Initialiser les animations pour chaque sticker quand stickers change
+  useEffect(() => {
+    // S'assurer qu'on a assez d'animations pour tous les stickers
+    while (stickerAnims.length < stickers.length) {
+      stickerAnims.push(new Animated.Value(0));
+      stickerOffsetYAnims.push(new Animated.Value(30));
+      stickerOpacityAnims.push(new Animated.Value(0));
+      stickerTextOpacityAnims.push(new Animated.Value(0));
+    }
+  }, [stickers.length, stickerAnims, stickerOffsetYAnims, stickerOpacityAnims, stickerTextOpacityAnims]);
   
   // Détermine l'information à afficher selon le sticker courant ou l'état de l'animation
   const getCurrentStepInfo = (): StepInfo => {
@@ -271,10 +263,12 @@ export const WorkoutSummaryScreen: React.FC = () => {
     clearAllTimeouts();
 
     // Arrêter toutes les animations en cours pour le sticker actuel
-    stickerAnims[currentStickerIndex].stopAnimation();
-    stickerOffsetYAnims[currentStickerIndex].stopAnimation();
-    stickerOpacityAnims[currentStickerIndex].stopAnimation();
-    stickerTextOpacityAnims[currentStickerIndex].stopAnimation();
+    if (stickerAnims[currentStickerIndex]) {
+      stickerAnims[currentStickerIndex].stopAnimation();
+      stickerOffsetYAnims[currentStickerIndex].stopAnimation();
+      stickerOpacityAnims[currentStickerIndex].stopAnimation();
+      stickerTextOpacityAnims[currentStickerIndex].stopAnimation();
+    }
     gradientOpacity.stopAnimation();
     
     // Passer au sticker suivant (un seul à la fois)
@@ -310,8 +304,15 @@ export const WorkoutSummaryScreen: React.FC = () => {
 
   // Memoize le component pour les stickers pour éviter des re-rendus inutiles
   const StickersComponent = useMemo(() => {
+    // Utiliser xlarge (64px) au lieu de large (80px) quand il y a 4 stickers pour que ça rentre bien
+    const stickerSize = stickers.length === 4 ? 'xlarge' : 'large';
+    // Style conditionnel pour réduire le gap avec 4 stickers
+    const containerStyle = stickers.length === 4 
+      ? [styles.stickersContentContainer, styles.stickersContentContainerCompact]
+      : styles.stickersContentContainer;
+    
     return (
-      <View style={styles.stickersContentContainer}>
+      <View style={containerStyle}>
         {stickers.map((sticker, index) => (
           <Animated.View 
             key={`sticker-content-${index}`}
@@ -321,7 +322,7 @@ export const WorkoutSummaryScreen: React.FC = () => {
                 opacity: animationComplete ? 1 : (index <= currentStickerIndex ? 1 : 0),
                 transform: [
                   { 
-                    scale: animationComplete ? 1 : (index === currentStickerIndex 
+                    scale: animationComplete ? 1 : (index === currentStickerIndex && stickerAnims[index]
                       ? stickerAnims[index] 
                       : index < currentStickerIndex ? 1 : 0)
                   }
@@ -331,7 +332,7 @@ export const WorkoutSummaryScreen: React.FC = () => {
           >
             <StickerBadge 
               sticker={sticker}
-              size="large"
+              size={stickerSize}
               showText={true}
             />
           </Animated.View>
@@ -387,6 +388,14 @@ export const WorkoutSummaryScreen: React.FC = () => {
 
   // Animation pour le sticker courant
   const animateCurrentSticker = () => {
+    // Vérifier que les animations existent pour cet index
+    if (!stickerOpacityAnims[currentStickerIndex] || 
+        !stickerOffsetYAnims[currentStickerIndex] ||
+        !stickerTextOpacityAnims[currentStickerIndex]) {
+      console.warn('[WorkoutSummaryScreen] Animation not initialized for sticker', currentStickerIndex);
+      return;
+    }
+    
     // Animation plus naturelle et moins robotique
     
     // Réinitialiser l'opacité du gradient pour chaque nouveau sticker
@@ -507,7 +516,8 @@ export const WorkoutSummaryScreen: React.FC = () => {
           </Animated.View>
           
           {/* Conteneur pour afficher le sticker en cours d'obtention */}
-          {!animationComplete && currentStickerIndex >= 0 && currentStickerIndex < stickers.length && (
+          {!animationComplete && currentStickerIndex >= 0 && currentStickerIndex < stickers.length && 
+           stickerOpacityAnims[currentStickerIndex] && stickerOffsetYAnims[currentStickerIndex] && (
             <View style={styles.currentStickerContainer}>
               <Animated.View 
                 style={[
@@ -770,6 +780,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
     minHeight: 112,
+  },
+  stickersContentContainerCompact: {
+    gap: 8,
+    flexWrap: 'nowrap',
   },
   stickerContentCircle: {
     alignItems: 'center',

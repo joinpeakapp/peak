@@ -21,7 +21,7 @@ export class StickerService {
   private static readonly STICKER_COLORS = {
     'completion': '#E43C3C',        // Rouge - 100% séries complétées
     'personal-record': '#9B93E4',   // Violet - Nouveau PR
-    'star': '#3BDF32',              // Vert - Complétion de séance
+    'plus-one': '#FFD54D',          // Jaune/Doré - Au moins un +1 obtenu
     'streak': '#FF8A24',            // Orange - Série consécutive
     'volume': '#FFE44D'             // Jaune - Volume supérieur
   } as const;
@@ -32,7 +32,7 @@ export class StickerService {
   private static readonly STICKER_NAMES = {
     'completion': '100%',
     'personal-record': 'PR',
-    'star': 'Star',
+    'plus-one': '+1',
     'streak': 'Streak',
     'volume': 'Volume'
   } as const;
@@ -51,22 +51,30 @@ export class StickerService {
       return cached.stickers;
     }
     const stickers: Sticker[] = [];
-    // 🏆 Personal Record - Si au moins un exercice a un PR
-    const hasPersonalRecord = workout.exercises.some(exercise => exercise.personalRecord);
+    
+    console.log('[StickerService] Generating stickers for workout:', workout.name, workout.id);
+    
+    // 🏆 Personal Record - Si au moins un exercice a un PR de poids
+    const hasPersonalRecord = this.checkPersonalRecordAchievement(workout);
     if (hasPersonalRecord) {
+      console.log('[StickerService] ✅ PR sticker added');
       stickers.push(this.createSticker('personal-record'));
     }
 
-    // 💯 Completion - Si toutes les séries sont complétées (0 série vide/non validée)
+    // 💯 Completion - Si toutes les séries sont complétées (100%)
     const isFullyCompleted = this.checkFullCompletion(workout);
     if (isFullyCompleted) {
+      console.log('[StickerService] ✅ 100% sticker added');
       stickers.push(this.createSticker('completion'));
     }
 
-    // ⭐ Star - Nombre de fois que cette séance a été complétée
-    const completionCount = await this.getWorkoutCompletionCount(workout);
-    if (completionCount > 0) {
-      stickers.push(this.createSticker('star', completionCount));
+    // ➕ Plus One - Si au moins un +1 (ou plus) de répétitions obtenu
+    const plusOneValue = this.checkPlusOneAchievement(workout);
+    if (plusOneValue > 0) {
+      console.log('[StickerService] ✅ +1 sticker added with value:', plusOneValue);
+      stickers.push(this.createSticker('plus-one', plusOneValue));
+    } else {
+      console.log('[StickerService] ❌ No +1 achievement found');
     }
 
     // 🔥 Streak - Si demandé explicitement (pour WorkoutSummary et écrans suivants)
@@ -125,55 +133,131 @@ export class StickerService {
   }
 
   /**
-   * Vérifie si toutes les séries sont complétées (100%)
-   * Pour l'instant, on se concentre uniquement sur les séries non validées
+   * Vérifie si l'utilisateur a obtenu au moins un PR de poids
    */
-  private static checkFullCompletion(workout: CompletedWorkout): boolean {
-    // TODO: Implémenter la logique pour vérifier qu'aucune série n'est vide ou non validée
-    // Pour l'instant, on retourne false pour éviter d'afficher ce sticker partout
+  private static checkPersonalRecordAchievement(workout: CompletedWorkout): boolean {
+    // Vérifier d'abord avec personalRecord (format historique)
+    for (const exercise of workout.exercises) {
+      if (exercise.personalRecord) {
+        return true;
+      }
+      
+      // Vérifier dans enhancedPersonalRecord (nouveau format)
+      if (exercise.enhancedPersonalRecord?.weightPR?.isNew) {
+        return true;
+      }
+      
+      // Vérifier dans les sets individuels (format actuel)
+      if (exercise.sets && exercise.sets.length > 0) {
+        for (const set of exercise.sets) {
+          if (set.prData?.weightPR?.isNew) {
+            return true;
+          }
+        }
+      }
+    }
+    
     return false;
   }
 
   /**
-   * Calcule le nombre de fois que cette séance spécifique a été complétée
+   * Vérifie si toutes les séries sont complétées (100%)
+   * Vérifie qu'aucune série n'est vide ou non validée
    */
-  private static async getWorkoutCompletionCount(workout: CompletedWorkout): Promise<number> {
-    try {
-      // Utiliser les données historiques stockées si disponibles (valeurs figées)
-      if (workout.stickerData?.starCount) {
-        return workout.stickerData.starCount;
-      }
-
-      // Fallback : calculer dynamiquement (pour les anciens workouts)
-      const historyResult = await RobustStorageService.loadWorkoutHistory();
-      if (!historyResult.success) {
-        console.warn('[StickerService] Failed to load workout history for completion count');
-        return 1;
-      }
-
-      // Compter les workouts avec le même workoutId (priorité) ou le même nom (fallback)
-      const sameWorkouts = historyResult.data.filter(completedWorkout => {
-        // Priorité 1: Comparer par workoutId si disponible des deux côtés
-        if (completedWorkout.workoutId && workout.workoutId) {
-          return completedWorkout.workoutId === workout.workoutId;
+  private static checkFullCompletion(workout: CompletedWorkout): boolean {
+    // Parcourir tous les exercices du workout
+    for (const exercise of workout.exercises) {
+      // Pour les exercices trackés par répétitions/poids
+      if (exercise.sets && exercise.sets.length > 0) {
+        for (const set of exercise.sets) {
+          // Si la série n'est pas complétée, retourner false
+          if (!set.completed) {
+            return false;
+          }
+          // Si la série est complétée mais vide (pas de reps ou pas de poids pour exercices avec poids)
+          if (set.completed) {
+            const hasReps = set.reps && set.reps > 0;
+            const hasWeight = exercise.tracking === 'trackedOnTime' || (set.weight && set.weight > 0);
+            
+            // Si pas de reps ou pas de poids (quand nécessaire), ce n'est pas 100%
+            if (!hasReps || !hasWeight) {
+              return false;
+            }
+          }
         }
-        
-        // Priorité 2: Comparer par workoutId du completed vs nom du workout actuel
-        if (completedWorkout.workoutId && workout.name) {
-          return completedWorkout.workoutId === workout.name;
+      }
+      
+      // Pour les exercices trackés par temps
+      if (exercise.times && exercise.times.length > 0) {
+        for (const time of exercise.times) {
+          // Si le temps n'est pas complété ou est zéro, retourner false
+          if (!time.completed || !time.duration || time.duration === 0) {
+            return false;
+          }
         }
-        
-        // Fallback: Comparer par nom si pas d'ID disponible
-        return completedWorkout.name === workout.name;
-      });
-
-      const count = sameWorkouts.length;
-      return count;
-    } catch (error) {
-      console.error('[StickerService] Error getting workout completion count:', error);
-      return 1;
+      }
     }
+    
+    // Si tous les exercices et toutes les séries sont validées et remplies
+    return true;
   }
+
+  /**
+   * Vérifie si l'utilisateur a obtenu au moins un +1 (ou plus) de répétitions
+   * Retourne le plus grand incrément de répétitions trouvé
+   */
+  private static checkPlusOneAchievement(workout: CompletedWorkout): number {
+    let maxIncrement = 0;
+    
+    console.log('[StickerService] === Checking +1 achievement ===');
+    console.log('[StickerService] Workout:', workout.name, 'with', workout.exercises.length, 'exercises');
+    
+    // Parcourir tous les exercices
+    for (const exercise of workout.exercises) {
+      console.log(`[StickerService] Checking exercise: ${exercise.name}`);
+      console.log(`[StickerService]   - Has enhancedPersonalRecord:`, !!exercise.enhancedPersonalRecord);
+      console.log(`[StickerService]   - Number of sets:`, exercise.sets?.length || 0);
+      
+      // Vérifier d'abord dans enhancedPersonalRecord (nouveau format)
+      if (exercise.enhancedPersonalRecord?.repsPR?.isNew) {
+        const repsPR = exercise.enhancedPersonalRecord.repsPR;
+        const increment = repsPR.reps - repsPR.previousReps;
+        
+        console.log(`[StickerService] ✅ Found +${increment} in enhancedPersonalRecord for ${exercise.name}`);
+        
+        if (increment > maxIncrement) {
+          maxIncrement = increment;
+        }
+      }
+      
+      // Vérifier aussi dans les sets individuels (format actuel)
+      if (exercise.sets && exercise.sets.length > 0) {
+        exercise.sets.forEach((set, setIndex) => {
+          console.log(`[StickerService]   Set ${setIndex}: completed=${set.completed}, hasPRData=${!!set.prData}`);
+          
+          if (set.prData) {
+            console.log(`[StickerService]     - weightPR:`, set.prData.weightPR);
+            console.log(`[StickerService]     - repsPR:`, set.prData.repsPR);
+          }
+          
+          if (set.prData?.repsPR?.isNew) {
+            const repsPR = set.prData.repsPR;
+            const increment = repsPR.reps - repsPR.previousReps;
+            
+            console.log(`[StickerService] ✅ Found +${increment} in set ${setIndex} prData for ${exercise.name} (${repsPR.reps} reps vs ${repsPR.previousReps} previous)`);
+            
+            if (increment > maxIncrement) {
+              maxIncrement = increment;
+            }
+          }
+        });
+      }
+    }
+    
+    console.log(`[StickerService] === Final result: Max +1 increment = ${maxIncrement} ===`);
+    return maxIncrement;
+  }
+
 
   /**
    * Récupère la streak actuelle de l'utilisateur

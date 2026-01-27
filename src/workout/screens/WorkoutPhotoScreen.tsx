@@ -28,6 +28,8 @@ export const WorkoutPhotoScreen: React.FC = () => {
   
   // Référence à la caméra
   const cameraRef = useRef<any>(null);
+  // Flag pour vérifier que le composant est toujours monté
+  const isMountedRef = useRef(true);
   
   // États pour la caméra
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
@@ -35,6 +37,13 @@ export const WorkoutPhotoScreen: React.FC = () => {
   const [flashMode, setFlashMode] = useState<FlashMode>('off');
   const [isCapturing, setIsCapturing] = useState(false);
   const [isOptimizing, setIsOptimizing] = useState(false);
+  
+  // Nettoyer le flag au démontage
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
   
   // Demander les permissions de caméra et galerie au chargement
   useEffect(() => {
@@ -104,11 +113,24 @@ export const WorkoutPhotoScreen: React.FC = () => {
   
   // 🖼️ Traiter une photo (depuis la caméra ou la galerie)
   const processPhoto = async (photoUri: string, isFromGallery: boolean = false) => {
+    // Vérifier que le composant est toujours monté
+    if (!isMountedRef.current) {
+      console.warn('🖼️ [WorkoutPhoto] Component unmounted, skipping photo processing');
+      return;
+    }
+    
     setIsCapturing(true);
     
     try {
       // Sauvegarder la photo de manière permanente
       const permanentUri = await PhotoStorageService.saveWorkoutPhoto(photoUri, workout.id);
+      
+      // Vérifier à nouveau que le composant est toujours monté avant la navigation
+      if (!isMountedRef.current) {
+        console.warn('🖼️ [WorkoutPhoto] Component unmounted during photo processing');
+        return;
+      }
+      
       // Mettre à jour l'URI de la photo et l'info de la caméra
       updatePhotoInfo(permanentUri, isFromGallery ? false : cameraType === 'front');
       
@@ -123,27 +145,69 @@ export const WorkoutPhotoScreen: React.FC = () => {
       });
     } catch (error) {
       console.error('🖼️ [WorkoutPhoto] Error processing picture:', error);
-      Alert.alert("Erreur", "Impossible de traiter la photo. Veuillez réessayer.");
+      // Ne pas afficher d'alerte si le composant est démonté
+      if (isMountedRef.current) {
+        Alert.alert("Erreur", "Impossible de traiter la photo. Veuillez réessayer.");
+      }
     } finally {
-      setIsCapturing(false);
+      if (isMountedRef.current) {
+        setIsCapturing(false);
+      }
     }
   };
 
   // 🖼️ Prendre une photo avec optimisation automatique
   const takePicture = async () => {
-    if (cameraRef.current && !isCapturing) {
-      try {
-        // Prendre la photo avec qualité maximale
-        const options = {
-          quality: 1, // Qualité maximale pour la photo originale
-          base64: false,
-          skipProcessing: Platform.OS === 'android', // Pour éviter un crash sur Android
-        };
-        const photo = await cameraRef.current.takePictureAsync(options);
-        await processPhoto(photo.uri, false);
-      } catch (error) {
-        console.error('🖼️ [WorkoutPhoto] Error taking picture:', error);
+    // Vérifier que le composant est toujours monté et que la caméra est disponible
+    if (!isMountedRef.current || !cameraRef.current || isCapturing) {
+      return;
+    }
+    
+    try {
+      setIsCapturing(true);
+      
+      // Vérifier que la caméra est toujours disponible avant de prendre la photo
+      if (!cameraRef.current) {
+        console.warn('🖼️ [WorkoutPhoto] Camera ref is null');
+        setIsCapturing(false);
+        return;
+      }
+      
+      // Prendre la photo avec qualité maximale
+      const options = {
+        quality: 1, // Qualité maximale pour la photo originale
+        base64: false,
+        skipProcessing: Platform.OS === 'android', // Pour éviter un crash sur Android
+      };
+      
+      const photo = await cameraRef.current.takePictureAsync(options);
+      
+      // Vérifier que le composant est toujours monté après la capture
+      if (!isMountedRef.current) {
+        console.warn('🖼️ [WorkoutPhoto] Component unmounted during photo capture');
+        return;
+      }
+      
+      // Vérifier que la photo a bien été capturée
+      if (!photo || !photo.uri) {
+        throw new Error('Photo capture returned invalid result');
+      }
+      
+      await processPhoto(photo.uri, false);
+    } catch (error: any) {
+      console.error('🖼️ [WorkoutPhoto] Error taking picture:', error);
+      
+      // Gérer spécifiquement l'erreur de caméra démontée
+      if (error?.message?.includes('unmounted') || error?.message?.includes('Camera unmounted')) {
+        console.warn('🖼️ [WorkoutPhoto] Camera was unmounted during capture - this is expected if user navigated away');
+        // Ne pas afficher d'erreur à l'utilisateur dans ce cas
+      } else if (isMountedRef.current) {
+        // Afficher l'erreur seulement si le composant est toujours monté
         Alert.alert("Erreur", "Impossible de prendre une photo. Veuillez réessayer.");
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setIsCapturing(false);
       }
     }
   };

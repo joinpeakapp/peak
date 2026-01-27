@@ -21,7 +21,7 @@ export interface Sticker {
 export type StickerType = 
   | 'completion'              // 100% - Toutes séries complétées sans séries vides
   | 'personal-record'         // PR - Nouveau record personnel réalisé
-  | 'star'                    // Star - Nombre de fois que cette séance a été complétée
+  | 'plus-one'                // +1 - Au moins un +1 (ou +2, etc.) obtenu dans la séance
   | 'streak'                  // Streak - Série de séances consécutives
   | 'volume';                 // Volume - Volume 10%+ supérieur à la même séance précédente
 

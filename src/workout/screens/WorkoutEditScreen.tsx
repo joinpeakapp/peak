@@ -151,6 +151,11 @@ export const WorkoutEditScreen: React.FC<WorkoutEditScreenProps> = ({
     Keyboard.dismiss();
   };
 
+  const getSelectedDayLabel = () => {
+    const day = DAYS_OF_WEEK.find(d => d.value === selectedDay);
+    return day ? day.label : '';
+  };
+
   return (
     <TouchableWithoutFeedback onPress={dismissKeyboard}>
       <View style={styles.container}>
@@ -194,7 +199,10 @@ export const WorkoutEditScreen: React.FC<WorkoutEditScreenProps> = ({
               {/* Tabs */}
               <View style={styles.tabsContainer}>
                 <TouchableOpacity 
-                  style={[styles.tab, activeTab === 'weekly' && styles.tabActive]}
+                  style={[
+                    styles.tab,
+                    activeTab === 'weekly' && styles.tabActive
+                  ]}
                   onPress={() => handleTabChange('weekly')}
                 >
                   <Text style={[styles.tabText, activeTab === 'weekly' && styles.tabTextActive]}>
@@ -203,7 +211,10 @@ export const WorkoutEditScreen: React.FC<WorkoutEditScreenProps> = ({
                 </TouchableOpacity>
                 
                 <TouchableOpacity 
-                  style={[styles.tab, activeTab === 'interval' && styles.tabActive]}
+                  style={[
+                    styles.tab,
+                    activeTab === 'interval' && styles.tabActive
+                  ]}
                   onPress={() => handleTabChange('interval')}
                 >
                   <Text style={[styles.tabText, activeTab === 'interval' && styles.tabTextActive]}>
@@ -212,7 +223,10 @@ export const WorkoutEditScreen: React.FC<WorkoutEditScreenProps> = ({
                 </TouchableOpacity>
                 
                 <TouchableOpacity 
-                  style={[styles.tab, activeTab === 'none' && styles.tabActive]}
+                  style={[
+                    styles.tab,
+                    activeTab === 'none' && styles.tabActive
+                  ]}
                   onPress={() => handleTabChange('none')}
                 >
                   <Text style={[styles.tabText, activeTab === 'none' && styles.tabTextActive]}>
@@ -224,29 +238,41 @@ export const WorkoutEditScreen: React.FC<WorkoutEditScreenProps> = ({
               {/* Content selon le tab actif */}
               {activeTab === 'weekly' && (
                 <View style={styles.daysContainer}>
-                  {DAYS_OF_WEEK.map((day) => (
-                    <TouchableOpacity
-                      key={day.value}
-                      style={[
-                        styles.dayOption,
-                        selectedDay === day.value && styles.dayOptionSelected
-                      ]}
-                      onPress={() => handleDaySelect(day.value)}
-                    >
-                      <Text style={[
-                        styles.dayText,
-                        selectedDay === day.value && styles.dayTextSelected
-                      ]}>
-                        {day.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                  <Text style={styles.sectionLabel}>
+                    On <Text style={styles.highlightedText}>which day</Text> will you be doing this session?
+                  </Text>
+                  <View style={styles.daysGrid}>
+                    {DAYS_OF_WEEK.map((day) => (
+                      <TouchableOpacity
+                        key={day.value}
+                        style={[
+                          styles.dayChip,
+                          selectedDay === day.value && styles.dayChipSelected
+                        ]}
+                        onPress={() => handleDaySelect(day.value)}
+                      >
+                        <Text style={[
+                          styles.dayChipText,
+                          selectedDay === day.value && styles.dayChipTextSelected
+                        ]}>
+                          {day.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  {selectedDay !== null && (
+                    <Text style={styles.dynamicText}>
+                      Do this workout <Text style={styles.highlightedText}>every {getSelectedDayLabel()}</Text>
+                    </Text>
+                  )}
                 </View>
               )}
               
               {activeTab === 'interval' && (
                 <View style={styles.intervalContainer}>
-                  <Text style={styles.intervalLabel}>Repeat every</Text>
+                  <Text style={styles.sectionLabel}>
+                    How many <Text style={styles.highlightedText}>rest days</Text> do you take between two {name} sessions?
+                  </Text>
                   <View style={styles.pickerContainer}>
                     <Picker
                       selectedValue={selectedInterval}
@@ -257,24 +283,26 @@ export const WorkoutEditScreen: React.FC<WorkoutEditScreenProps> = ({
                       {INTERVAL_OPTIONS.map((days) => (
                         <Picker.Item 
                           key={days} 
-                          label={days === 1 ? "1 day" : `${days} days`} 
+                          label={`${days}`} 
                           value={days} 
                         />
                       ))}
                     </Picker>
                   </View>
                   <Text style={styles.intervalDescription}>
-                    Your workout will repeat every {selectedInterval} {selectedInterval === 1 ? 'day' : 'days'}
+                    Repeat this workout <Text style={styles.highlightedText}>every {selectedInterval} {selectedInterval === 1 ? 'day' : 'days'}</Text>
                   </Text>
                 </View>
               )}
               
               {activeTab === 'none' && (
                 <View style={styles.noneContainer}>
-                  <Ionicons name="time-outline" size={48} color="rgba(255, 255, 255, 0.3)" />
-                  <Text style={styles.noneTitle}>Flexible schedule</Text>
+                  <View style={styles.noneIconContainer}>
+                    <Ionicons name="calendar-outline" size={32} color="#FFFFFF" />
+                  </View>
+                  <Text style={styles.noneTitle}>Flexible Schedule</Text>
                   <Text style={styles.noneDescription}>
-                    This workout won't have a specific schedule. You can do it whenever you want.
+                    No fixed schedule. Train whenever you feel like it and track your progress along the way.
                   </Text>
                 </View>
               )}
@@ -363,102 +391,128 @@ const styles = StyleSheet.create({
   // Tabs
   tabsContainer: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 12,
-    padding: 4,
     marginBottom: 24,
   },
   tab: {
     flex: 1,
-    paddingVertical: 12,
+    height: 44,
+    justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.3)',
   },
   tabActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderBottomColor: '#FFFFFF',
   },
   tabText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: 'rgba(255, 255, 255, 0.5)',
+    fontSize: 20,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.3)',
   },
   tabTextActive: {
     color: '#FFFFFF',
-    fontWeight: '600',
   },
   // Weekly content
   daysContainer: {
     marginBottom: 32,
   },
-  dayOption: {
+  sectionLabel: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginBottom: 24,
+  },
+  highlightedText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  daysGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+  },
+  dayChip: {
+    height: 44,
+    paddingHorizontal: 16,
+    borderRadius: 1000,
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexDirection: 'row',
   },
-  dayOptionSelected: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderWidth: 1,
-    borderColor: '#FFFFFF',
+  dayChipSelected: {
+    backgroundColor: '#FFFFFF',
   },
-  dayText: {
-    fontSize: 16,
+  dayChipText: {
+    fontSize: 14,
+    fontWeight: '500',
     color: '#FFFFFF',
   },
-  dayTextSelected: {
+  dayChipTextSelected: {
+    color: '#000000',
     fontWeight: '600',
+  },
+  dynamicText: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginTop: 24,
   },
   // Interval content
   intervalContainer: {
     marginBottom: 32,
   },
-  intervalLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
   pickerContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 12,
-    overflow: 'hidden',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
     marginBottom: 24,
+    backgroundColor: 'transparent',
+    overflow: 'hidden',
   },
   picker: {
     width: '100%',
     color: '#FFFFFF',
+    backgroundColor: 'transparent',
   },
   pickerItem: {
-    fontSize: 20,
+    fontSize: 36,
     color: '#FFFFFF',
-    height: 120,
+    height: 150,
   },
   intervalDescription: {
     fontSize: 14,
-    color: '#AAAAAA',
-    textAlign: 'center',
+    fontWeight: '400',
+    color: 'rgba(255, 255, 255, 0.6)',
     lineHeight: 20,
   },
   // None content
   noneContainer: {
     alignItems: 'center',
-    paddingVertical: 48,
     paddingHorizontal: 32,
     marginBottom: 32,
   },
+  noneIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
   noneTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '600',
     color: '#FFFFFF',
-    marginTop: 24,
     marginBottom: 12,
   },
   noneDescription: {
-    fontSize: 14,
-    color: '#AAAAAA',
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.6)',
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 22,
   },
   // Button
   saveButton: {
