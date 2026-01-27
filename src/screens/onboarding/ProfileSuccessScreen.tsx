@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Animated,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 
 interface ProfileSuccessScreenProps {
@@ -17,21 +16,20 @@ export const ProfileSuccessScreen: React.FC<ProfileSuccessScreenProps> = ({
   onContinue,
 }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.5)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
   const buttonScaleAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    // Animation d'entrée
+    // Animation d'entrée simple
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 600,
         useNativeDriver: true,
       }),
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        tension: 50,
-        friction: 7,
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 600,
         useNativeDriver: true,
       }),
     ]).start();
@@ -56,33 +54,36 @@ export const ProfileSuccessScreen: React.FC<ProfileSuccessScreenProps> = ({
 
   return (
     <View style={styles.container}>
-      <View style={styles.background}>
-        <LinearGradient
-          colors={['#3BDF3240', 'rgba(10, 10, 12, 0.25)']}
-          style={styles.gradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-        />
-      </View>
-
+      {/* Top Content */}
       <Animated.View
         style={[
-          styles.content,
+          styles.topContent,
           {
             opacity: fadeAnim,
-            transform: [{ scale: scaleAnim }],
+            transform: [{ translateY: slideAnim }],
           },
         ]}
       >
         <View style={styles.iconContainer}>
-          <Ionicons name="checkmark-circle" size={80} color="#FFFFFF" />
+          <Ionicons name="checkmark-circle" size={100} color="#FFFFFF" />
         </View>
 
-        <Text style={styles.title}>You're all set!</Text>
+        <Text style={styles.title}>You're all set! 🎉</Text>
         <Text style={styles.description}>
           You can now create your workouts and start tracking your progress.
         </Text>
+      </Animated.View>
 
+      {/* Bottom Button */}
+      <Animated.View
+        style={[
+          styles.bottomSection,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          },
+        ]}
+      >
         <Animated.View style={{ width: '100%', transform: [{ scale: buttonScaleAnim }] }}>
           <TouchableOpacity style={styles.button} onPress={handlePress}>
             <Text style={styles.buttonText}>Get started</Text>
@@ -98,20 +99,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0D0D0F',
   },
-  background: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  gradient: {
-    flex: 1,
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+  topContent: {
+    paddingTop: 120,
     paddingHorizontal: 40,
+    alignItems: 'center',
   },
   iconContainer: {
-    marginBottom: 32,
+    alignItems: 'center',
+    marginBottom: 48,
   },
   title: {
     fontSize: 24,
@@ -122,14 +117,20 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   description: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '400',
     color: '#FFFFFF',
     fontFamily: 'Poppins-Regular',
     textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 48,
+    lineHeight: 20,
     opacity: 0.7,
+  },
+  bottomSection: {
+    position: 'absolute',
+    bottom: 48,
+    left: 40,
+    right: 40,
+    alignItems: 'stretch',
   },
   button: {
     backgroundColor: '#FFFFFF',

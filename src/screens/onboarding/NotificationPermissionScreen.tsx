@@ -7,7 +7,6 @@ import {
   Alert,
   Animated,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Notifications from 'expo-notifications';
 import NotificationService from '../../services/notificationService';
@@ -98,17 +97,10 @@ export const NotificationPermissionScreen: React.FC<NotificationPermissionScreen
 
   return (
     <View style={styles.container}>
-      <View style={styles.background}>
-        <LinearGradient
-          colors={['#FF8A2440', 'rgba(10, 10, 12, 0.25)']}
-          style={styles.gradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-        />
-      </View>
+      {/* Top Content */}
       <Animated.View
         style={[
-          styles.content,
+          styles.topContent,
           {
             opacity: fadeAnim,
             transform: [{ translateY: slideAnim }],
@@ -138,7 +130,18 @@ export const NotificationPermissionScreen: React.FC<NotificationPermissionScreen
             <Text style={styles.benefitText}>Daily motivation</Text>
           </View>
         </View>
+      </Animated.View>
 
+      {/* Bottom Button */}
+      <Animated.View
+        style={[
+          styles.bottomSection,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          },
+        ]}
+      >
         <Animated.View style={{ width: '100%', transform: [{ scale: buttonScaleAnim }] }}>
           <TouchableOpacity style={styles.button} onPress={handlePress}>
             <Text style={styles.buttonText}>Enable notifications</Text>
@@ -160,19 +163,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0D0D0F',
   },
-  background: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  gradient: {
-    flex: 1,
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+  topContent: {
+    paddingTop: 120,
     paddingHorizontal: 40,
+    alignItems: 'center',
   },
   iconContainer: {
+    alignItems: 'center',
     marginBottom: 48,
   },
   title: {
@@ -181,21 +178,20 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontFamily: 'Poppins-SemiBold',
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
   },
   description: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '400',
     color: '#FFFFFF',
     fontFamily: 'Poppins-Regular',
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: 20,
     marginBottom: 48,
     opacity: 0.7,
   },
   benefitsContainer: {
     width: '100%',
-    marginBottom: 48,
     gap: 16,
   },
   benefitItem: {
@@ -208,6 +204,13 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#FFFFFF',
     fontFamily: 'Poppins-Regular',
+  },
+  bottomSection: {
+    position: 'absolute',
+    bottom: 48,
+    left: 40,
+    right: 40,
+    alignItems: 'stretch',
   },
   button: {
     backgroundColor: '#FFFFFF',
@@ -226,7 +229,7 @@ const styles = StyleSheet.create({
   },
   skipButton: {
     paddingVertical: 12,
-    paddingHorizontal: 24,
+    alignItems: 'center',
   },
   skipButtonText: {
     fontSize: 14,

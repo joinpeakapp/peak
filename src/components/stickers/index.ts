@@ -1,5 +1,5 @@
 export { CompletionSticker } from './CompletionSticker';
 export { PRSticker } from './PRSticker';
-export { StarSticker } from './StarSticker';
+export { PlusOneSticker } from './PlusOneSticker';
 export { StreakSticker } from './StreakSticker';
 export { VolumeSticker } from './VolumeSticker';

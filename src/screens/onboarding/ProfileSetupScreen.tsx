@@ -11,7 +11,6 @@ import {
   ScrollView,
   Animated,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { CachedImage } from '../../components/common/CachedImage';
@@ -125,14 +124,6 @@ export const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({
 
   return (
     <View style={styles.container}>
-      <View style={styles.background}>
-        <LinearGradient
-          colors={['#3BDF3240', 'rgba(10, 10, 12, 0.25)']}
-          style={styles.gradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-        />
-      </View>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
@@ -140,10 +131,12 @@ export const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
+          {/* Top Content */}
           <Animated.View
             style={[
-              styles.content,
+              styles.topContent,
               {
                 opacity: fadeAnim,
                 transform: [{ translateY: slideAnim }],
@@ -156,49 +149,58 @@ export const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({
             </Text>
 
             {/* Photo de profil */}
-            <TouchableOpacity
-              onPress={handleSelectPhoto}
-              style={styles.photoContainer}
-              activeOpacity={0.8}
-            >
-              {profilePhotoUri ? (
-                <CachedImage uri={profilePhotoUri} style={styles.profilePhoto} />
-              ) : (
-                <View style={styles.profilePhotoPlaceholder}>
-                  <Ionicons name="person" size={48} color="#FFFFFF" />
+            <View style={styles.photoWrapper}>
+              <TouchableOpacity
+                onPress={handleSelectPhoto}
+                style={styles.photoContainer}
+                activeOpacity={0.8}
+              >
+                {profilePhotoUri ? (
+                  <CachedImage uri={profilePhotoUri} style={styles.profilePhoto} />
+                ) : (
+                  <View style={styles.profilePhotoPlaceholder}>
+                    <Ionicons name="person" size={48} color="#FFFFFF" />
+                  </View>
+                )}
+                <View style={styles.editPhotoOverlay}>
+                  <Ionicons name="create-outline" size={18} color="#000000" />
                 </View>
-              )}
-              <View style={styles.editPhotoOverlay}>
-                <Ionicons name="camera" size={20} color="#FFFFFF" />
-              </View>
-            </TouchableOpacity>
+              </TouchableOpacity>
+            </View>
 
             {/* Nom */}
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Your first name</Text>
               <TextInput
                 style={styles.input}
                 value={firstName}
                 onChangeText={setFirstName}
                 placeholder="Enter your first name"
-                placeholderTextColor="#888"
+                placeholderTextColor="rgba(255, 255, 255, 0.5)"
                 autoCapitalize="words"
                 returnKeyType="done"
                 onSubmitEditing={handleContinue}
               />
             </View>
-
-            <View style={styles.buttonContainer}>
-              <TouchableOpacity
-                style={[styles.button, !firstName.trim() && styles.buttonDisabled]}
-                onPress={handleContinue}
-                disabled={!firstName.trim()}
-              >
-                <Text style={styles.buttonText}>Continue</Text>
-              </TouchableOpacity>
-            </View>
           </Animated.View>
         </ScrollView>
+
+        {/* Bottom Button */}
+        <Animated.View
+          style={[
+            styles.bottomSection,
+            {
+              opacity: fadeAnim,
+            },
+          ]}
+        >
+          <TouchableOpacity
+            style={[styles.button, !firstName.trim() && styles.buttonDisabled]}
+            onPress={handleContinue}
+            disabled={!firstName.trim()}
+          >
+            <Text style={styles.buttonText}>Continue</Text>
+          </TouchableOpacity>
+        </Animated.View>
       </KeyboardAvoidingView>
     </View>
   );
@@ -209,25 +211,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0D0D0F',
   },
-  background: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  gradient: {
-    flex: 1,
-  },
   keyboardView: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: 'center',
+    paddingBottom: 120, // Espace pour le bouton fixe
   },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+  topContent: {
+    paddingTop: 120,
     paddingHorizontal: 40,
-    paddingVertical: 48,
+    alignItems: 'center',
   },
   title: {
     fontSize: 24,
@@ -238,20 +232,23 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   description: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '400',
     color: '#FFFFFF',
     fontFamily: 'Poppins-Regular',
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: 20,
     marginBottom: 48,
     opacity: 0.7,
+  },
+  photoWrapper: {
+    alignItems: 'center',
+    marginBottom: 32,
   },
   photoContainer: {
     width: 120,
     height: 120,
     borderRadius: 60,
-    marginBottom: 32,
     position: 'relative',
   },
   profilePhoto: {
@@ -282,14 +279,6 @@ const styles = StyleSheet.create({
   },
   inputContainer: {
     width: '100%',
-    marginBottom: 32,
-  },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#FFFFFF',
-    fontFamily: 'Poppins-Regular',
-    marginBottom: 8,
   },
   input: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
@@ -300,8 +289,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Poppins-Regular',
   },
-  buttonContainer: {
-    width: '100%',
+  bottomSection: {
+    position: 'absolute',
+    bottom: 48,
+    left: 40,
+    right: 40,
   },
   button: {
     backgroundColor: '#FFFFFF',

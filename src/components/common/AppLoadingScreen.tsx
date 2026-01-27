@@ -3,36 +3,44 @@ import {
   View,
   StyleSheet,
   Image,
-  Animated,
 } from 'react-native';
-import { usePreload } from '../../contexts/PreloadContext';
+import { AppPreloadService } from '../../services/appPreloadService';
 
 interface AppLoadingScreenProps {
   onLoadingComplete?: () => void;
 }
 
+const MAX_LOADING_TIME = 5000; // 5 secondes maximum (fallback sécurité)
+const PRELOAD_CHECK_INTERVAL = 100; // Vérifier toutes les 100ms
+
 export const AppLoadingScreen: React.FC<AppLoadingScreenProps> = ({
   onLoadingComplete,
 }) => {
-  const { state } = usePreload();
-  const fadeAnim = React.useRef(new Animated.Value(1)).current;
-
-  // Gérer la complétion du chargement
   useEffect(() => {
-    if (!state.isPreloading && state.progress === 100) {
-      // Fade out rapide avant de fermer
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }).start(() => {
+    // Vérifier périodiquement si le préchargement est terminé
+    const preloadCheckInterval = setInterval(() => {
+      if (AppPreloadService.isDataPreloaded) {
+        clearInterval(preloadCheckInterval);
+        // Fermer immédiatement quand le préchargement est terminé
         onLoadingComplete?.();
-      });
-    }
-  }, [state.isPreloading, state.progress, fadeAnim, onLoadingComplete]);
+      }
+    }, PRELOAD_CHECK_INTERVAL);
+
+    // Fallback : fermer après 5s max même si préchargement pas terminé
+    const maxTimeTimer = setTimeout(() => {
+      console.warn('[AppLoadingScreen] Max loading time reached, closing splash');
+      clearInterval(preloadCheckInterval);
+      onLoadingComplete?.();
+    }, MAX_LOADING_TIME);
+
+    return () => {
+      clearInterval(preloadCheckInterval);
+      clearTimeout(maxTimeTimer);
+    };
+  }, [onLoadingComplete]);
 
   return (
-    <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
+    <View style={styles.container}>
       <View style={styles.logoContainer}>
         <Image
           source={require('../../../assets/splash-icon.png')}
@@ -40,7 +48,7 @@ export const AppLoadingScreen: React.FC<AppLoadingScreenProps> = ({
           resizeMode="contain"
         />
       </View>
-    </Animated.View>
+    </View>
   );
 };
 

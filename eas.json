@@ -9,7 +9,8 @@
       "distribution": "internal"
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "store",
+      "autoIncrement": true
     },
     "production": {
       "autoIncrement": true,
@@ -19,6 +20,11 @@
     }
   },
   "submit": {
+    "preview": {
+      "ios": {
+        "ascAppId": "6753813377"
+      }
+    },
     "production": {
       "ios": {
         "ascAppId": "6753813377"
