@@ -18,6 +18,7 @@ import { RootStackParamList, SummaryStackParamList } from '../../types/navigatio
 import { useActiveWorkout } from '../contexts/ActiveWorkoutContext';
 import { PhotoStorageService } from '../../services/photoStorageService';
 import logger from '../../utils/logger';
+import { CameraPermissionBottomSheet } from '../../components/common/CameraPermissionBottomSheet';
 
 type WorkoutPhotoRouteProp = RouteProp<SummaryStackParamList, 'WorkoutPhoto'>;
 
@@ -38,6 +39,7 @@ export const WorkoutPhotoScreen: React.FC = () => {
   const [flashMode, setFlashMode] = useState<FlashMode>('off');
   const [isCapturing, setIsCapturing] = useState(false);
   const [isOptimizing, setIsOptimizing] = useState(false);
+  const [showCameraPermissionModal, setShowCameraPermissionModal] = useState(false);
   
   // Nettoyer le flag au démontage
   useEffect(() => {
@@ -46,38 +48,18 @@ export const WorkoutPhotoScreen: React.FC = () => {
     };
   }, []);
   
-  // Demander les permissions de caméra et galerie au chargement
+  // Vérifier les permissions de caméra et galerie au chargement
   useEffect(() => {
     (async () => {
-      const { status } = await Camera.requestCameraPermissionsAsync();
+      const { status } = await Camera.getCameraPermissionsAsync();
       setHasPermission(status === 'granted');
       
-      // Demander aussi les permissions de la galerie
-      await ImagePicker.requestMediaLibraryPermissionsAsync();
+      // Vérifier aussi les permissions de la galerie
+      await ImagePicker.getMediaLibraryPermissionsAsync();
       
+      // Si la permission n'est pas accordée, afficher le bottom sheet
       if (status !== 'granted') {
-        Alert.alert(
-          "Camera Access Required",
-          "To capture your workout photo, we need camera access. You can skip this step or choose a photo from your gallery.",
-          [
-            {
-              text: "Skip Photo",
-              onPress: () => handleSkipPhoto(),
-              style: "cancel"
-            },
-            {
-              text: "Choose from Gallery",
-              onPress: () => handlePickImageFromGallery()
-            },
-            { 
-              text: "Enable Camera", 
-              onPress: async () => {
-                const { status } = await Camera.requestCameraPermissionsAsync();
-                setHasPermission(status === 'granted');
-              }
-            }
-          ]
-        );
+        setShowCameraPermissionModal(true);
       }
     })();
   }, []);
@@ -120,7 +102,7 @@ export const WorkoutPhotoScreen: React.FC = () => {
   const processPhoto = async (photoUri: string, isFromGallery: boolean = false) => {
     // Vérifier que le composant est toujours monté
     if (!isMountedRef.current) {
-      console.warn('🖼️ [WorkoutPhoto] Component unmounted, skipping photo processing');
+      logger.warn('[WorkoutPhoto] Component unmounted, skipping photo processing');
       return;
     }
     
@@ -132,7 +114,7 @@ export const WorkoutPhotoScreen: React.FC = () => {
       
       // Vérifier à nouveau que le composant est toujours monté avant la navigation
       if (!isMountedRef.current) {
-        console.warn('🖼️ [WorkoutPhoto] Component unmounted during photo processing');
+        logger.warn('[WorkoutPhoto] Component unmounted during photo processing');
         return;
       }
       
@@ -152,21 +134,7 @@ export const WorkoutPhotoScreen: React.FC = () => {
       logger.error('🖼️ [WorkoutPhoto] Error processing picture:', error);
       // Ne pas afficher d'alerte si le composant est démonté
       if (isMountedRef.current) {
-        Alert.alert(
-          "Error",
-          "Unable to process photo. Would you like to try again or skip?",
-          [
-            {
-              text: "Try Again",
-              onPress: () => setIsCapturing(false)
-            },
-            {
-              text: "Skip Photo",
-              onPress: () => handleSkipPhoto(),
-              style: "cancel"
-            }
-          ]
-        );
+        Alert.alert("Error", "Unable to process the photo. Please try again.");
       }
     } finally {
       if (isMountedRef.current) {
@@ -187,7 +155,7 @@ export const WorkoutPhotoScreen: React.FC = () => {
       
       // Vérifier que la caméra est toujours disponible avant de prendre la photo
       if (!cameraRef.current) {
-        console.warn('🖼️ [WorkoutPhoto] Camera ref is null');
+        logger.warn('[WorkoutPhoto] Camera ref is null');
         setIsCapturing(false);
         return;
       }
@@ -203,7 +171,7 @@ export const WorkoutPhotoScreen: React.FC = () => {
       
       // Vérifier que le composant est toujours monté après la capture
       if (!isMountedRef.current) {
-        console.warn('🖼️ [WorkoutPhoto] Component unmounted during photo capture');
+        logger.warn('[WorkoutPhoto] Component unmounted during photo capture');
         return;
       }
       
@@ -211,8 +179,6 @@ export const WorkoutPhotoScreen: React.FC = () => {
       if (!photo || !photo.uri) {
         throw new Error('Photo capture returned invalid result');
       }
-
-      logger.log('[WorkoutPhoto] Photo captured successfully');
       
       await processPhoto(photo.uri, false);
     } catch (error: any) {
@@ -220,36 +186,17 @@ export const WorkoutPhotoScreen: React.FC = () => {
       
       // Gérer spécifiquement l'erreur de caméra démontée
       if (error?.message?.includes('unmounted') || error?.message?.includes('Camera unmounted')) {
-        console.warn('🖼️ [WorkoutPhoto] Camera was unmounted during capture - this is expected if user navigated away');
+        logger.warn('[WorkoutPhoto] Camera was unmounted during capture - this is expected if user navigated away');
         // Ne pas afficher d'erreur à l'utilisateur dans ce cas
       } else if (isMountedRef.current) {
         // Afficher l'erreur seulement si le composant est toujours monté
-        Alert.alert("Erreur", "Impossible de prendre une photo. Veuillez réessayer.");
+        Alert.alert("Error", "Unable to take a photo. Please try again.");
       }
     } finally {
       if (isMountedRef.current) {
         setIsCapturing(false);
       }
     }
-  };
-
-  // ⏭️ Sauter la prise de photo et continuer sans photo
-  const handleSkipPhoto = () => {
-    logger.log('[WorkoutPhoto] User chose to skip photo');
-    // Naviguer vers l'écran de prévisualisation sans photo
-    navigation.navigate('SummaryFlow', {
-      screen: 'WorkoutOverview',
-      params: {
-        workout: { ...workout, photo: '' },
-        photoUri: '',
-        sourceType: 'tracking'
-      }
-    });
-  };
-
-  // 🖼️ Alias pour la fonction d'ouverture de galerie (appelé depuis l'Alert)
-  const handlePickImageFromGallery = () => {
-    pickImageFromGallery();
   };
 
   // 📷 Sélectionner une photo depuis la galerie
@@ -260,15 +207,20 @@ export const WorkoutPhotoScreen: React.FC = () => {
       if (status !== 'granted') {
         Alert.alert(
           "Gallery Access Required",
-          "We need access to your photo library to select a photo. You can also skip this step.",
+          "We need access to your photo library to select a photo. You can continue without a photo if you prefer.",
           [
             {
-              text: "Cancel",
-              style: "cancel"
+              text: "Skip Photo",
+              onPress: () => {
+                navigation.navigate('SummaryFlow', {
+                  screen: 'WorkoutSummary',
+                  params: { workout }
+                });
+              }
             },
             {
-              text: "Skip Photo",
-              onPress: () => handleSkipPhoto()
+              text: "OK",
+              style: "cancel"
             }
           ]
         );
@@ -287,7 +239,7 @@ export const WorkoutPhotoScreen: React.FC = () => {
       }
     } catch (error) {
       logger.error('🖼️ [WorkoutPhoto] Error picking image:', error);
-      Alert.alert("Erreur", "Impossible de sélectionner une photo. Veuillez réessayer.");
+      Alert.alert("Error", "Unable to select a photo. Please try again.");
     }
   };
   
@@ -307,23 +259,31 @@ export const WorkoutPhotoScreen: React.FC = () => {
     );
   }
   
-  // Afficher un message si les permissions ont été refusées
-  if (hasPermission === false) {
+  // Fallback si pas de permission et pas de bottom sheet
+  if (hasPermission === false && !showCameraPermissionModal) {
     return (
       <View style={styles.errorContainer}>
         <Ionicons name="camera-outline" size={64} color="#FFFFFF" />
-        <Text style={styles.errorText}>Accès à la caméra refusé</Text>
+        <Text style={styles.errorText}>Camera Access Required</Text>
         <Text style={styles.errorDescription}>
-          Nous avons besoin de l'accès à votre caméra pour prendre une photo.
+          We need camera access to capture your workout photo.
         </Text>
         <TouchableOpacity 
           style={styles.retryButton}
-          onPress={async () => {
-            const { status } = await Camera.requestCameraPermissionsAsync();
-            setHasPermission(status === 'granted');
+          onPress={() => setShowCameraPermissionModal(true)}
+        >
+          <Text style={styles.retryButtonText}>Enable Camera</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.retryButton, { marginTop: 12, backgroundColor: 'rgba(255, 255, 255, 0.1)' }]}
+          onPress={() => {
+            navigation.navigate('SummaryFlow', {
+              screen: 'WorkoutSummary',
+              params: { workout }
+            });
           }}
         >
-          <Text style={styles.retryButtonText}>Réessayer</Text>
+          <Text style={[styles.retryButtonText, { color: 'rgba(255, 255, 255, 0.7)' }]}>Skip Photo</Text>
         </TouchableOpacity>
       </View>
     );
@@ -331,14 +291,21 @@ export const WorkoutPhotoScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      {/* Camera view en plein écran */}
-      <CameraView
-        ref={cameraRef}
-        style={styles.camera}
-        facing={cameraType}
-        flash={flashMode}
-        zoom={0}
-      />
+      {/* Camera view en plein écran - seulement si la permission est accordée */}
+      {hasPermission && (
+        <CameraView
+          ref={cameraRef}
+          style={styles.camera}
+          facing={cameraType}
+          flash={flashMode}
+          zoom={0}
+        />
+      )}
+      
+      {/* Fond noir si pas de permission */}
+      {!hasPermission && (
+        <View style={styles.blackBackground} />
+      )}
       
       {/* Bouton back en haut à gauche - en dehors du SafeAreaView pour éviter les problèmes de touch */}
       <TouchableOpacity 
@@ -412,6 +379,28 @@ export const WorkoutPhotoScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Camera Permission Bottom Sheet */}
+      <CameraPermissionBottomSheet
+        visible={showCameraPermissionModal}
+        onClose={() => setShowCameraPermissionModal(false)}
+        onPermissionGranted={async () => {
+          const { status } = await Camera.getCameraPermissionsAsync();
+          setHasPermission(status === 'granted');
+          if (status === 'granted') {
+            setShowCameraPermissionModal(false);
+          }
+        }}
+        onChooseGallery={() => {
+          pickImageFromGallery();
+        }}
+        onSkip={() => {
+          navigation.navigate('SummaryFlow', {
+            screen: 'WorkoutSummary',
+            params: { workout }
+          });
+        }}
+      />
     </View>
   );
 };
@@ -569,5 +558,11 @@ const styles = StyleSheet.create({
     height: 64,
     borderRadius: 32,
     backgroundColor: '#FFFFFF',
+  },
+  blackBackground: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#000000',
   }
 }); 

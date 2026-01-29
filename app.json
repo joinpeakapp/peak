@@ -30,7 +30,7 @@
         "backgroundColor": "#0D0D0F"
       },
       "infoPlist": {
-        "NSCameraUsageDescription": "This app needs access to camera to take photos of your workouts.",
+        "NSCameraUsageDescription": "Peak uses your camera to capture photos after workouts, creating visual workout cards to track your fitness journey. Your photos stay private and are only stored on your device.",
         "NSPhotoLibraryUsageDescription": "This app needs access to photos to save workout photos.",
         "NSPhotoLibraryAddUsageDescription": "This app needs access to photos to save workout photos.",
         "NSUserNotificationsUsageDescription": "This app uses notifications to remind you about workouts and help maintain your fitness streak.",
@@ -63,7 +63,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow Peak to access your camera to take photos of your workouts."
+          "cameraPermission": "Peak uses your camera to capture photos after workouts, creating visual workout cards to track your fitness journey. Your photos stay private and are only stored on your device."
         }
       ],
       [

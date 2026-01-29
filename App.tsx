@@ -22,6 +22,9 @@ import { AppPreloadService } from './src/services/appPreloadService';
 import { FadeTransition } from './src/components/common/FadeTransition';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
 import logger from './src/utils/logger';
+import { NotificationPermissionBottomSheet } from './src/components/common/NotificationPermissionBottomSheet';
+import { useFirstWorkoutTracker } from './src/hooks/useFirstWorkoutTracker';
+import { AppResetProvider, useAppReset } from './src/contexts/AppResetContext';
 
 // Composant pour valider les streaks au démarrage
 const StreakValidator: React.FC = () => {
@@ -42,11 +45,15 @@ const StreakValidator: React.FC = () => {
 
 // Composant interne pour gérer l'onboarding et l'app principale
 const AppContent: React.FC = () => {
+  const { resetKey } = useAppReset();
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingChecked, setOnboardingChecked] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isAppLoading, setIsAppLoading] = useState(true);
   const [appInitialized, setAppInitialized] = useState(false);
+
+  // Hook pour tracker le premier workout et afficher le bottom sheet notifications
+  const { showNotificationModal, closeNotificationModal } = useFirstWorkoutTracker();
 
   // Charger les fonts Poppins
   const [fontsLoaded] = useFonts({
@@ -90,7 +97,7 @@ const AppContent: React.FC = () => {
     };
 
     initializeApp();
-  }, []);
+  }, [resetKey]); // Re-initialiser quand resetKey change
 
   // Handler pour terminer l'onboarding
   const handleOnboardingComplete = async (profile: UserProfile) => {
@@ -145,6 +152,13 @@ const AppContent: React.FC = () => {
       >
         <AppLoadingScreen onLoadingComplete={handleLoadingComplete} />
       </FadeTransition>
+
+      {/* Notification Permission Bottom Sheet - apparaît après création du premier workout */}
+      {/* S'assurer qu'il s'affiche au-dessus du loading screen */}
+      <NotificationPermissionBottomSheet
+        visible={showNotificationModal && !showLoadingScreen}
+        onClose={closeNotificationModal}
+      />
     </ErrorBoundary>
   );
 };
@@ -171,7 +185,9 @@ export default function App() {
   return (
     <ErrorBoundary>
       <Provider store={store}>
-        <AppContent />
+        <AppResetProvider>
+          <AppContent />
+        </AppResetProvider>
       </Provider>
     </ErrorBoundary>
   );

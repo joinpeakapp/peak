@@ -13,26 +13,77 @@ export const useNotifications = () => {
   // Initialiser le service
   useEffect(() => {
     const initializeNotifications = async () => {
-      const success = await NotificationService.initialize();
-      setIsInitialized(success);
-      
-      if (success) {
-        const status = await NotificationService.getPermissionStatus();
-        setPermissionStatus(status);
+      try {
+        const success = await NotificationService.initialize();
+        setIsInitialized(true); // Toujours mettre à true même si initialize échoue
         
-        const userSettings = await NotificationService.getSettings();
-        setSettings(userSettings);
-        
-        const scheduled = await NotificationService.getScheduledNotifications();
-        setScheduledNotifications(scheduled);
-        
-        // Nettoyer les notifications expirées
-        await NotificationService.cleanupExpiredNotifications();
+        if (success) {
+          const status = await NotificationService.getPermissionStatus();
+          setPermissionStatus(status);
+          
+          const userSettings = await NotificationService.getSettings();
+          setSettings(userSettings);
+          
+          const scheduled = await NotificationService.getScheduledNotifications();
+          setScheduledNotifications(scheduled);
+          
+          // Nettoyer les notifications expirées
+          await NotificationService.cleanupExpiredNotifications();
+        } else {
+          // Si l'initialisation échoue, vérifier quand même le statut de permission
+          const status = await NotificationService.getPermissionStatus();
+          setPermissionStatus(status);
+        }
+      } catch (error) {
+        logger.error('[useNotifications] Error initializing:', error);
+        setIsInitialized(true); // Mettre à true pour éviter le loading infini
+        // Essayer de récupérer le statut de permission même en cas d'erreur
+        try {
+          const status = await NotificationService.getPermissionStatus();
+          setPermissionStatus(status);
+        } catch (e) {
+          logger.error('[useNotifications] Error getting permission status:', e);
+        }
       }
     };
 
     initializeNotifications();
   }, []);
+
+  // Recharger les settings et vérifier le statut des permissions
+  const reloadSettings = useCallback(async () => {
+    if (isInitialized) {
+      const status = await NotificationService.getPermissionStatus();
+      setPermissionStatus(status);
+      
+      if (status === 'granted') {
+        const userSettings = await NotificationService.getSettings();
+        setSettings(userSettings);
+        
+        const scheduled = await NotificationService.getScheduledNotifications();
+        setScheduledNotifications(scheduled);
+      }
+    }
+  }, [isInitialized]);
+
+  // Écouter les changements de permissions
+  useEffect(() => {
+    const checkPermissions = async () => {
+      if (isInitialized) {
+        const status = await NotificationService.getPermissionStatus();
+        if (status !== permissionStatus) {
+          setPermissionStatus(status);
+          await reloadSettings();
+        }
+      }
+    };
+
+    // Vérifier périodiquement si pas encore accordées
+    if (isInitialized && permissionStatus !== 'granted') {
+      const interval = setInterval(checkPermissions, 2000);
+      return () => clearInterval(interval);
+    }
+  }, [isInitialized, permissionStatus, reloadSettings]);
 
   // Écouter les notifications reçues
   useEffect(() => {
@@ -111,9 +162,19 @@ export const useNotifications = () => {
     try {
       const { status } = await Notifications.requestPermissionsAsync();
       setPermissionStatus(status);
+      
+      // Si la permission est accordée, mettre à jour les settings et replanifier
+      if (status === 'granted') {
+        const userSettings = await NotificationService.getSettings();
+        setSettings(userSettings);
+        
+        const scheduled = await NotificationService.getScheduledNotifications();
+        setScheduledNotifications(scheduled);
+      }
+      
       return status === 'granted';
     } catch (error) {
-      logger.error('🔔 [useNotifications] Failed to request permissions:', error);
+      logger.error('[useNotifications] Failed to request permissions:', error);
       return false;
     }
   }, []);
@@ -147,5 +208,6 @@ export const useNotifications = () => {
     saveSettings,
     requestPermissions,
     scheduleWorkoutReminders,
+    reloadSettings,
   };
 };

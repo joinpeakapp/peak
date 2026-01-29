@@ -60,16 +60,10 @@ class NotificationService {
         return false;
       }
 
-      // Demander les permissions
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
+      // Vérifier les permissions
+      const { status } = await Notifications.getPermissionsAsync();
 
-      if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-
-      if (finalStatus !== 'granted') {
+      if (status !== 'granted') {
         return false;
       }
 
@@ -94,7 +88,7 @@ class NotificationService {
 
       return true;
     } catch (error) {
-      logger.error('🔔 [NotificationService] ❌ Initialization failed:', error);
+      logger.error('[NotificationService] Initialization failed:', error);
       return false;
     }
   }

@@ -474,6 +474,7 @@ export const ProfileScreen: React.FC = () => {
         visible={showOnboarding}
         onComplete={handleOnboardingComplete}
       />
+
     </View>
   );
 };

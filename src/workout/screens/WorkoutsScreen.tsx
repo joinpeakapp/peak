@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WorkoutList } from '../components/WorkoutList';
 import { LoadingSpinner } from '../../components/common/LoadingSpinner';
 import { ErrorMessage } from '../../components/common/ErrorMessage';
@@ -11,11 +10,6 @@ import { WorkoutDetailModal } from '../components/WorkoutDetailModal';
 import ActiveWorkoutIndicator from '../components/ActiveWorkoutIndicator';
 import { useActiveWorkout } from '../contexts/ActiveWorkoutContext';
 import { useWorkoutCreation } from '../../contexts/WorkoutCreationContext';
-import { NotificationPermissionBottomSheet } from '../../components/common/NotificationPermissionBottomSheet';
-import { FirstWorkoutTracker } from '../../services/firstWorkoutTracker';
-import logger from '../../utils/logger';
-
-const NOTIFICATION_PERMISSION_SHOWN_KEY = '@peak_notification_permission_shown';
 
 export const WorkoutsScreen: React.FC = () => {
   const { workouts, loading, error, createWorkout } = useWorkout();
@@ -24,7 +18,6 @@ export const WorkoutsScreen: React.FC = () => {
   const [isCreationModalVisible, setIsCreationModalVisible] = useState(false);
   const [isDetailModalVisible, setIsDetailModalVisible] = useState(false);
   const [selectedWorkout, setSelectedWorkout] = useState<Workout | null>(null);
-  const [showNotificationBottomSheet, setShowNotificationBottomSheet] = useState(false);
 
   // Synchroniser avec le contexte
   useEffect(() => {
@@ -78,37 +71,9 @@ export const WorkoutsScreen: React.FC = () => {
     closeWorkoutCreation();
   };
 
-  const handleWorkoutCreated = async (workoutId: string) => {
+  const handleWorkoutCreated = (workoutId: string) => {
     // Le workout a été créé, l'écran de succès est maintenant dans la modale
-    // Vérifier si c'est le premier workout et afficher le Bottom Sheet de notification
-    try {
-      const hasCreatedFirstWorkout = await FirstWorkoutTracker.hasCreatedFirstWorkout();
-      const notificationShown = await AsyncStorage.getItem(NOTIFICATION_PERMISSION_SHOWN_KEY);
-      
-      if (!hasCreatedFirstWorkout && notificationShown !== 'true') {
-        // C'est le premier workout et on n'a pas encore montré le Bottom Sheet
-        logger.log('[WorkoutsScreen] First workout created, will show notification bottom sheet');
-        
-        // Marquer que le premier workout a été créé
-        await FirstWorkoutTracker.markFirstWorkoutCreated();
-        
-        // Attendre que la modale de création se ferme avant d'afficher le Bottom Sheet
-        setTimeout(() => {
-          setShowNotificationBottomSheet(true);
-        }, 800); // Délai pour laisser la modale se fermer
-      } else {
-        logger.log('[WorkoutsScreen] Not showing notification bottom sheet', { 
-          hasCreatedFirstWorkout, 
-          notificationShown 
-        });
-      }
-    } catch (error) {
-      logger.error('[WorkoutsScreen] Error checking first workout:', error);
-    }
-  };
-
-  const handleCloseNotificationBottomSheet = () => {
-    setShowNotificationBottomSheet(false);
+    // Pas besoin de navigation supplémentaire
   };
 
   // Gestionnaire pour reprendre une séance active
@@ -153,12 +118,6 @@ export const WorkoutsScreen: React.FC = () => {
 
       {/* Indicateur de séance active */}
       <ActiveWorkoutIndicator onPress={handleResumeActiveWorkout} />
-
-      {/* Bottom Sheet pour permission notifications (après premier workout) */}
-      <NotificationPermissionBottomSheet 
-        visible={showNotificationBottomSheet}
-        onClose={handleCloseNotificationBottomSheet}
-      />
     </View>
   );
 };

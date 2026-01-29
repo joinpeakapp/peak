@@ -18,13 +18,20 @@ import NotificationService from '../services/notificationService';
 
 export const NotificationSettingsScreen: React.FC = () => {
   const navigation = useNavigation();
-  const { hasPermission, requestPermissions, isInitialized } = useNotifications();
+  const { hasPermission, requestPermissions, isInitialized, permissionStatus, reloadSettings } = useNotifications();
   const [workoutRemindersEnabled, setWorkoutRemindersEnabled] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     loadSettings();
   }, []);
+
+  // Recharger les settings quand les permissions changent
+  useEffect(() => {
+    if (isInitialized && hasPermission) {
+      loadSettings();
+    }
+  }, [isInitialized, hasPermission, permissionStatus]);
 
   const loadSettings = async () => {
     setIsLoading(true);
@@ -35,7 +42,14 @@ export const NotificationSettingsScreen: React.FC = () => {
 
   const handlePermissionRequest = async () => {
     const granted = await requestPermissions();
-    if (!granted) {
+    
+    if (granted) {
+      // Recharger les settings après avoir accordé la permission
+      if (reloadSettings) {
+        await reloadSettings();
+      }
+      await loadSettings();
+    } else {
       Alert.alert(
         'Permissions requises',
         'Veuillez autoriser les notifications dans les paramètres de votre appareil pour recevoir des rappels.',

@@ -1,12 +1,25 @@
-import React, { useEffect, useRef, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import BottomSheet, { BottomSheetBackdrop, BottomSheetView } from '@gorhom/bottom-sheet';
+import React, { useEffect, useRef } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Animated,
+  Dimensions,
+  Platform,
+  TouchableWithoutFeedback,
+  Linking,
+  Alert,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Notifications from 'expo-notifications';
 import NotificationService from '../../services/notificationService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import logger from '../../utils/logger';
 
-const NOTIFICATION_PERMISSION_SHOWN_KEY = '@peak_notification_permission_shown';
+const { height } = Dimensions.get('window');
+const ANIMATION_DURATION = 300;
+const STORAGE_KEY = '@peak_notification_permission_shown';
 
 interface NotificationPermissionBottomSheetProps {
   visible: boolean;
@@ -17,155 +30,273 @@ export const NotificationPermissionBottomSheet: React.FC<NotificationPermissionB
   visible,
   onClose,
 }) => {
-  const bottomSheetRef = useRef<BottomSheet>(null);
-  const snapPoints = useMemo(() => ['50%'], []);
+  const slideAnim = useRef(new Animated.Value(height)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
-      bottomSheetRef.current?.expand();
+      slideAnim.setValue(height);
+      fadeAnim.setValue(0);
+      
+      // Animation simple
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: ANIMATION_DURATION,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: ANIMATION_DURATION,
+          useNativeDriver: true,
+        }),
+      ]).start();
     } else {
-      bottomSheetRef.current?.close();
+      // Fermer avec animation
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: height,
+          duration: ANIMATION_DURATION,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: ANIMATION_DURATION,
+          useNativeDriver: true,
+        }),
+      ]).start();
     }
-  }, [visible]);
+  }, [visible, slideAnim, fadeAnim]);
 
   const handleEnableNotifications = async () => {
     try {
-      const granted = await NotificationService.initialize();
+      // Vérifier le statut actuel de la permission
+      const currentPermission = await Notifications.getPermissionsAsync();
       
-      if (granted) {
-        logger.log('[NotificationBottomSheet] Notification permission granted');
-      } else {
-        logger.log('[NotificationBottomSheet] Notification permission denied');
+      // Si la permission a été refusée définitivement, rediriger vers Settings
+      if (currentPermission.status === 'denied' && currentPermission.canAskAgain === false) {
+        onClose();
+        
+        Alert.alert(
+          'Notification Access Required',
+          'To receive workout reminders, please enable notifications in Settings.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Open Settings',
+              onPress: () => {
+                Linking.openSettings();
+              },
+            },
+          ]
+        );
+        
+        await AsyncStorage.setItem(STORAGE_KEY, 'true');
+        return;
       }
       
+      // Demander la permission système
+      const { status } = await Notifications.requestPermissionsAsync();
+      
       // Marquer comme affiché
-      await AsyncStorage.setItem(NOTIFICATION_PERMISSION_SHOWN_KEY, 'true');
+      await AsyncStorage.setItem(STORAGE_KEY, 'true');
+      
+      // Si la permission est accordée, initialiser et planifier
+      if (status === 'granted') {
+        const initialized = await NotificationService.initialize();
+        
+        if (initialized) {
+          await NotificationService.scheduleWorkoutReminders();
+        }
+      } else if (status === 'denied') {
+        // Si refusé, proposer d'aller dans Settings
+        Alert.alert(
+          'Notification Access Required',
+          'To receive workout reminders, please enable notifications in Settings.',
+          [
+            { text: 'Maybe Later', style: 'cancel' },
+            {
+              text: 'Open Settings',
+              onPress: () => {
+                Linking.openSettings();
+              },
+            },
+          ]
+        );
+      }
+      
       onClose();
     } catch (error) {
-      logger.error('[NotificationBottomSheet] Error requesting notification permission:', error);
-      await AsyncStorage.setItem(NOTIFICATION_PERMISSION_SHOWN_KEY, 'true');
+      logger.error('Error enabling notifications:', error);
+      await AsyncStorage.setItem(STORAGE_KEY, 'true');
       onClose();
     }
   };
 
   const handleMaybeLater = async () => {
-    try {
-      // Marquer comme affiché même si l'utilisateur refuse
-      await AsyncStorage.setItem(NOTIFICATION_PERMISSION_SHOWN_KEY, 'true');
-      logger.log('[NotificationBottomSheet] User chose to skip notifications');
-      onClose();
-    } catch (error) {
-      logger.error('[NotificationBottomSheet] Error saving preference:', error);
-      onClose();
-    }
+    // Marquer comme affiché pour ne plus redemander
+    await AsyncStorage.setItem(STORAGE_KEY, 'true');
+    onClose();
   };
 
-  const renderBackdrop = (props: any) => (
-    <BottomSheetBackdrop
-      {...props}
-      disappearsOnIndex={-1}
-      appearsOnIndex={0}
-      opacity={0.7}
-      pressBehavior="close"
-    />
-  );
+  if (!visible) {
+    return null;
+  }
 
   return (
-    <BottomSheet
-      ref={bottomSheetRef}
-      index={-1}
-      snapPoints={snapPoints}
-      enablePanDownToClose={true}
-      onClose={onClose}
-      backdropComponent={renderBackdrop}
-      backgroundStyle={styles.bottomSheetBackground}
-      handleIndicatorStyle={styles.handleIndicator}
-    >
-      <BottomSheetView style={styles.contentContainer}>
-        {/* Icon */}
-        <View style={styles.iconContainer}>
-          <View style={styles.iconCircle}>
-            <Ionicons name="notifications" size={40} color="#FFFFFF" />
+    <View style={styles.container} pointerEvents="box-none">
+      <TouchableWithoutFeedback onPress={handleMaybeLater}>
+        <Animated.View 
+          style={[
+            styles.overlayTouchable,
+            { opacity: fadeAnim }
+          ]}
+        />
+      </TouchableWithoutFeedback>
+      
+      <Animated.View 
+        style={[
+          styles.bottomSheet,
+          { transform: [{ translateY: slideAnim }] }
+        ]}
+        pointerEvents="box-none"
+      >
+        <View style={styles.background}>
+          <View style={styles.contentContainer}>
+            {/* Handle */}
+            <View style={styles.handleContainer}>
+              <View style={styles.handle} />
+            </View>
+
+            {/* Close Button */}
+            <TouchableOpacity 
+              style={styles.closeButton}
+              onPress={handleMaybeLater}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="close" size={24} color="rgba(255, 255, 255, 0.6)" />
+            </TouchableOpacity>
+
+            {/* Content */}
+            <View style={styles.content}>
+              {/* Icon */}
+              <View style={styles.iconContainer}>
+                <Ionicons name="notifications-outline" size={64} color="#FFFFFF" />
+              </View>
+
+              {/* Title */}
+              <Text style={styles.title}>Stay on track with reminders</Text>
+
+              {/* Description */}
+              <Text style={styles.description}>
+                Notifications are only used to remind you of your scheduled workouts. You can manage this anytime in Settings.
+              </Text>
+
+              {/* Buttons */}
+              <View style={styles.buttonsContainer}>
+                <TouchableOpacity 
+                  style={styles.primaryButton}
+                  onPress={handleEnableNotifications}
+                >
+                  <Text style={styles.primaryButtonText}>Enable notifications</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={styles.secondaryButton}
+                  onPress={handleMaybeLater}
+                >
+                  <Text style={styles.secondaryButtonText}>Maybe later</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
         </View>
-
-        {/* Title */}
-        <Text style={styles.title}>Stay on track with reminders</Text>
-
-        {/* Description */}
-        <Text style={styles.description}>
-          Notifications are only used to remind you of your scheduled workouts. You can manage this anytime in Settings.
-        </Text>
-
-        {/* Buttons */}
-        <View style={styles.buttonsContainer}>
-          <TouchableOpacity 
-            style={styles.primaryButton} 
-            onPress={handleEnableNotifications}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.primaryButtonText}>Enable notifications</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.secondaryButton} 
-            onPress={handleMaybeLater}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.secondaryButtonText}>Maybe later</Text>
-          </TouchableOpacity>
-        </View>
-      </BottomSheetView>
-    </BottomSheet>
+      </Animated.View>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  bottomSheetBackground: {
-    backgroundColor: '#1A1A1D',
+  container: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 10000,
+    elevation: 10000,
+  },
+  overlayTouchable: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    zIndex: 1,
+  },
+  bottomSheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
+    overflow: 'hidden',
+    maxHeight: height * 0.7,
+    zIndex: 2,
   },
-  handleIndicator: {
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    width: 40,
-    height: 4,
+  background: {
+    backgroundColor: '#0D0D0F',
   },
   contentContainer: {
-    flex: 1,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
     paddingHorizontal: 24,
-    paddingBottom: 32,
+  },
+  handleContainer: {
     alignItems: 'center',
+    marginBottom: 16,
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    borderRadius: 2,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  content: {
+    alignItems: 'center',
+    paddingTop: 20,
   },
   iconContainer: {
-    marginTop: 8,
-    marginBottom: 24,
-  },
-  iconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
   },
   title: {
     fontSize: 24,
     fontWeight: '600',
     color: '#FFFFFF',
-    fontFamily: 'Poppins-SemiBold',
     textAlign: 'center',
     marginBottom: 12,
+    fontFamily: 'Poppins-SemiBold',
   },
   description: {
-    fontSize: 14,
-    fontWeight: '400',
+    fontSize: 15,
+    lineHeight: 22,
     color: 'rgba(255, 255, 255, 0.7)',
-    fontFamily: 'Poppins-Regular',
     textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 32,
     paddingHorizontal: 8,
+    marginBottom: 32,
+    fontFamily: 'Poppins-Regular',
   },
   buttonsContainer: {
     width: '100%',
@@ -173,28 +304,30 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 1000,
+    borderRadius: 16,
     paddingVertical: 16,
+    paddingHorizontal: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
   primaryButtonText: {
+    color: '#0D0D0F',
     fontSize: 16,
     fontWeight: '600',
-    color: '#000000',
     fontFamily: 'Poppins-SemiBold',
   },
   secondaryButton: {
     backgroundColor: 'transparent',
-    borderRadius: 1000,
+    borderRadius: 16,
     paddingVertical: 16,
+    paddingHorizontal: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
   secondaryButtonText: {
-    fontSize: 16,
-    fontWeight: '400',
     color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: 16,
+    fontWeight: '500',
     fontFamily: 'Poppins-Regular',
   },
 });
