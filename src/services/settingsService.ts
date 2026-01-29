@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import logger from '../utils/logger';
 
 const SETTINGS_STORAGE_KEY = '@peak_settings';
 
@@ -29,7 +30,7 @@ export class SettingsService {
       }
       return DEFAULT_SETTINGS;
     } catch (error) {
-      console.error('[SettingsService] Error loading settings:', error);
+      logger.error('[SettingsService] Error loading settings:', error);
       return DEFAULT_SETTINGS;
     }
   }
@@ -44,7 +45,7 @@ export class SettingsService {
       await AsyncStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(updatedSettings));
       return { success: true };
     } catch (error) {
-      console.error('[SettingsService] Error saving settings:', error);
+      logger.error('[SettingsService] Error saving settings:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',

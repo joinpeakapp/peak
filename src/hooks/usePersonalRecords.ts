@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { AppState } from 'react-native';
 import { PersonalRecords, PRCheckResult, PRUpdateResult } from '../types/workout';
 import { PersonalRecordService } from '../services/personalRecordService';
+import logger from '../utils/logger';
 
 // Gestionnaire d'événements global pour synchroniser toutes les instances
 class RecordsEventManager {
@@ -42,7 +43,7 @@ export const usePersonalRecords = () => {
       setError(null);
       return data;
     } catch (err) {
-      console.error(`[usePersonalRecords:${instanceId}] Error loading records:`, err);
+      logger.error(`[usePersonalRecords:${instanceId}] Error loading records:`, err);
       setError('Erreur lors du chargement des records personnels');
       throw err;
     } finally {
@@ -146,7 +147,7 @@ export const usePersonalRecords = () => {
         recordsEventManager.notify();
         
       } catch (error) {
-        console.error(`[usePersonalRecords:${instanceId}] Failed to save records:`, error);
+        logger.error(`[usePersonalRecords:${instanceId}] Failed to save records:`, error);
         throw error;
       }
     },
@@ -184,7 +185,7 @@ export const usePersonalRecords = () => {
         
         return result;
       } catch (error) {
-        console.error(`[usePersonalRecords:${instanceId}] Error updating records from workout:`, error);
+        logger.error(`[usePersonalRecords:${instanceId}] Error updating records from workout:`, error);
         throw error;
       }
     },
@@ -216,7 +217,7 @@ export const usePersonalRecords = () => {
         recordsEventManager.notify();
         
         } catch (error) {
-        console.error(`[usePersonalRecords:${instanceId}] Migration error:`, error);
+        logger.error(`[usePersonalRecords:${instanceId}] Migration error:`, error);
         throw error;
       }
     },
@@ -236,7 +237,7 @@ export const usePersonalRecords = () => {
         recordsEventManager.notify();
         
         } catch (error) {
-        console.error(`[usePersonalRecords:${instanceId}] Error deleting rep record:`, error);
+        logger.error(`[usePersonalRecords:${instanceId}] Error deleting rep record:`, error);
         throw error;
       }
     },
@@ -256,7 +257,7 @@ export const usePersonalRecords = () => {
         recordsEventManager.notify();
         
         } catch (error) {
-        console.error(`[usePersonalRecords:${instanceId}] Error deleting all records:`, error);
+        logger.error(`[usePersonalRecords:${instanceId}] Error deleting all records:`, error);
         throw error;
       }
     },

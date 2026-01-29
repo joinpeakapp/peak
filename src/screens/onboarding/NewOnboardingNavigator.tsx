@@ -2,11 +2,10 @@ import React, { useState } from 'react';
 import { Modal, Animated, View, StyleSheet } from 'react-native';
 import { SplashScreen } from './SplashScreen';
 import { OnboardingCarouselScreen } from './OnboardingCarouselScreen';
-import { NotificationPermissionScreen } from './NotificationPermissionScreen';
-import { CameraPermissionScreen } from './CameraPermissionScreen';
 import { ProfileSetupScreen } from './ProfileSetupScreen';
 import { ProfileSuccessScreen } from './ProfileSuccessScreen';
 import UserProfileService, { UserProfile } from '../../services/userProfileService';
+import logger from '../../utils/logger';
 
 interface NewOnboardingNavigatorProps {
   visible: boolean;
@@ -16,8 +15,6 @@ interface NewOnboardingNavigatorProps {
 type OnboardingStep =
   | 'splash'
   | 'carousel'
-  | 'notifications'
-  | 'camera'
   | 'profile'
   | 'profileSuccess';
 
@@ -55,14 +52,6 @@ export const NewOnboardingNavigator: React.FC<NewOnboardingNavigatorProps> = ({
   };
 
   const handleCarouselComplete = () => {
-    setCurrentStep('notifications');
-  };
-
-  const handleNotificationsComplete = () => {
-    setCurrentStep('camera');
-  };
-
-  const handleCameraComplete = () => {
     setCurrentStep('profile');
   };
 
@@ -100,7 +89,7 @@ export const NewOnboardingNavigator: React.FC<NewOnboardingNavigatorProps> = ({
         await UserProfileService.saveUserProfile(profile);
         onComplete(profile);
       } catch (error) {
-        console.error('❌ Error completing onboarding:', error);
+        logger.error('❌ Error completing onboarding:', error);
         // En cas d'erreur, on crée quand même un profil minimal
         const fallbackProfile: UserProfile = {
           firstName: profileData.firstName || 'User',
@@ -124,14 +113,6 @@ export const NewOnboardingNavigator: React.FC<NewOnboardingNavigatorProps> = ({
 
       case 'carousel':
         return <OnboardingCarouselScreen onComplete={handleCarouselComplete} />;
-
-      case 'notifications':
-        return (
-          <NotificationPermissionScreen onContinue={handleNotificationsComplete} />
-        );
-
-      case 'camera':
-        return <CameraPermissionScreen onContinue={handleCameraComplete} />;
 
       case 'profile':
         return (

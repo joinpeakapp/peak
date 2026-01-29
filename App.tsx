@@ -21,6 +21,7 @@ import { AppLoadingScreen } from './src/components/common/AppLoadingScreen';
 import { AppPreloadService } from './src/services/appPreloadService';
 import { FadeTransition } from './src/components/common/FadeTransition';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
+import logger from './src/utils/logger';
 
 // Composant pour valider les streaks au démarrage
 const StreakValidator: React.FC = () => {
@@ -31,7 +32,7 @@ const StreakValidator: React.FC = () => {
   useEffect(() => {
     // Ne valider les streaks qu'une fois les workouts chargés (loading = false)
     if (!loading && workouts.length > 0) {
-      console.log('[App] Starting streak validation on app startup...');
+      logger.log('[App] Starting streak validation on app startup...');
       validateAllStreaks(workouts);
     }
   }, [loading, workouts, validateAllStreaks]);
@@ -58,13 +59,13 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        console.log('[App] Starting app initialization...');
+        logger.log('[App] Starting app initialization...');
         
         // 1. Vérifier le statut d'onboarding
         const isCompleted = await UserProfileService.isOnboardingCompleted();
         const profile = await UserProfileService.getUserProfile();
         
-        console.log('[App] Onboarding status:', { isCompleted, profile });
+        logger.log('[App] Onboarding status:', { isCompleted, profile });
         
         setUserProfile(profile);
         setShowOnboarding(!isCompleted);
@@ -72,15 +73,15 @@ const AppContent: React.FC = () => {
         
         // 2. Précharger les données de l'app si l'onboarding est complété
         if (isCompleted && profile) {
-          console.log('[App] Starting data preload...');
+          logger.log('[App] Starting data preload...');
           // Précharger en parallèle avec l'initialisation
-          AppPreloadService.preloadAppData().catch(console.warn);
+          AppPreloadService.preloadAppData().catch(logger.warn);
         }
         
         setAppInitialized(true);
-        console.log('[App] ✅ App initialization completed');
+        logger.log('[App] ✅ App initialization completed');
       } catch (error) {
-        console.error('[App] Error during app initialization:', error);
+        logger.error('[App] Error during app initialization:', error);
         // En cas d'erreur, on considère que l'onboarding n'est pas fait
         setShowOnboarding(true);
         setOnboardingChecked(true);
@@ -93,14 +94,14 @@ const AppContent: React.FC = () => {
 
   // Handler pour terminer l'onboarding
   const handleOnboardingComplete = async (profile: UserProfile) => {
-    console.log('[App] Onboarding completed:', profile);
+    logger.log('[App] Onboarding completed:', profile);
     setUserProfile(profile);
     // Le fade out est géré dans NewOnboardingNavigator
     setShowOnboarding(false);
     
     // Précharger les données après l'onboarding
-    console.log('[App] Starting data preload after onboarding...');
-    AppPreloadService.preloadAppData().catch(console.warn);
+    logger.log('[App] Starting data preload after onboarding...');
+    AppPreloadService.preloadAppData().catch(logger.warn);
   };
 
   // Handler pour terminer le loading screen
@@ -152,15 +153,15 @@ export default function App() {
   useEffect(() => {
     // Initialiser le service de stockage robuste avec migration des données
     const initializeApp = async () => {
-      console.log('[App] Initializing storage service...');
+      logger.log('[App] Initializing storage service...');
       await RobustStorageService.initialize();
       
       // Initialiser le service de notifications
-      console.log('[App] Initializing notification service...');
+      logger.log('[App] Initializing notification service...');
       await NotificationService.initialize();
       
       // Charger les données initiales après l'initialisation du stockage
-      console.log('[App] Loading initial data...');
+      logger.log('[App] Loading initial data...');
       store.dispatch(loadInitialData());
     };
 

@@ -1,5 +1,6 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
+import logger from '../utils/logger';
 
 /**
  * Service pour la gestion persistante des photos de workouts et de profil
@@ -17,7 +18,7 @@ export class PhotoStorageService {
       if (!fallbackDir) {
         throw new Error('Neither documentDirectory nor cacheDirectory is available');
       }
-      console.warn('[PhotoStorageService] documentDirectory not available, using cacheDirectory as fallback');
+      logger.warn('[PhotoStorageService] documentDirectory not available, using cacheDirectory as fallback');
       return `${fallbackDir}workout_photos/`;
     }
     return `${baseDir}workout_photos/`;
@@ -30,7 +31,7 @@ export class PhotoStorageService {
       if (!fallbackDir) {
         throw new Error('Neither documentDirectory nor cacheDirectory is available');
       }
-      console.warn('[PhotoStorageService] documentDirectory not available, using cacheDirectory as fallback');
+      logger.warn('[PhotoStorageService] documentDirectory not available, using cacheDirectory as fallback');
       return `${fallbackDir}profile_photos/`;
     }
     return `${baseDir}profile_photos/`;
@@ -53,7 +54,7 @@ export class PhotoStorageService {
         await FileSystem.makeDirectoryAsync(profilePhotosDir, { intermediates: true });
       }
     } catch (error) {
-      console.error('[PhotoStorageService] Error initializing:', error);
+      logger.error('[PhotoStorageService] Error initializing:', error);
     }
   }
 
@@ -78,7 +79,7 @@ export class PhotoStorageService {
       
       return permanentUri;
     } catch (error) {
-      console.error('[PhotoStorageService] Error saving photo:', error);
+      logger.error('[PhotoStorageService] Error saving photo:', error);
       // Retourner l'URI temporaire en cas d'erreur
       return tempUri;
     }
@@ -111,7 +112,7 @@ export class PhotoStorageService {
       
       return permanentUri;
     } catch (error) {
-      console.error('[PhotoStorageService] Error saving profile photo:', error);
+      logger.error('[PhotoStorageService] Error saving profile photo:', error);
       // Retourner l'URI temporaire en cas d'erreur
       return tempUri;
     }
@@ -135,7 +136,7 @@ export class PhotoStorageService {
       
       return null;
     } catch (error) {
-      console.error('[PhotoStorageService] Error getting profile photo:', error);
+      logger.error('[PhotoStorageService] Error getting profile photo:', error);
       return null;
     }
   }
@@ -159,7 +160,7 @@ export class PhotoStorageService {
       const fileInfo = await FileSystem.getInfoAsync(photoUri);
       return fileInfo.exists;
     } catch (error) {
-      console.warn('[PhotoStorageService] Error checking profile photo accessibility:', error);
+      logger.warn('[PhotoStorageService] Error checking profile photo accessibility:', error);
       return false;
     }
   }
@@ -192,7 +193,7 @@ export class PhotoStorageService {
       // Vérifier si la photo temporaire existe encore
       const isAccessible = await this.isProfilePhotoAccessible(tempUri);
       if (!isAccessible) {
-        console.warn('[PhotoStorageService] Cannot migrate inaccessible profile photo');
+        logger.warn('[PhotoStorageService] Cannot migrate inaccessible profile photo');
         // Essayer de récupérer la photo sauvegardée
         const savedUri = await this.getProfilePhotoUri();
         if (savedUri) {
@@ -204,7 +205,7 @@ export class PhotoStorageService {
       // Migrer vers stockage permanent
       return await this.saveProfilePhoto(tempUri);
     } catch (error) {
-      console.error('[PhotoStorageService] Error migrating profile photo:', error);
+      logger.error('[PhotoStorageService] Error migrating profile photo:', error);
       // En cas d'erreur, essayer de récupérer la photo sauvegardée
       const savedUri = await this.getProfilePhotoUri();
       if (savedUri) {
@@ -233,7 +234,7 @@ export class PhotoStorageService {
       const fileInfo = await FileSystem.getInfoAsync(photoUri);
       return fileInfo.exists;
     } catch (error) {
-      console.warn('[PhotoStorageService] Error checking photo accessibility:', error);
+      logger.warn('[PhotoStorageService] Error checking photo accessibility:', error);
       return false;
     }
   }
@@ -278,7 +279,7 @@ export class PhotoStorageService {
           if (foundUri) {
             return foundUri;
           }
-          console.warn(`[PhotoStorageService] Photo not accessible for workout ${workoutId}, using placeholder`);
+          logger.warn(`[PhotoStorageService] Photo not accessible for workout ${workoutId}, using placeholder`);
           return 'https://via.placeholder.com/114x192/242526/FFFFFF?text=Workout';
         }
       } catch (error) {
@@ -287,12 +288,12 @@ export class PhotoStorageService {
         if (foundUri) {
           return foundUri;
         }
-        console.warn(`[PhotoStorageService] Could not verify photo accessibility for ${workoutId}, returning original URI`);
+        logger.warn(`[PhotoStorageService] Could not verify photo accessibility for ${workoutId}, returning original URI`);
         return photoUri;
       }
       
     } catch (error) {
-      console.error('[PhotoStorageService] Error getting accessible photo:', error);
+      logger.error('[PhotoStorageService] Error getting accessible photo:', error);
       return 'https://via.placeholder.com/114x192/242526/FFFFFF?text=Workout';
     }
   }
@@ -336,7 +337,7 @@ export class PhotoStorageService {
 
       return 'https://via.placeholder.com/114x192/242526/FFFFFF?text=Workout';
     } catch (error) {
-      console.error('[PhotoStorageService] Error finding workout photo by ID:', error);
+      logger.error('[PhotoStorageService] Error finding workout photo by ID:', error);
       return 'https://via.placeholder.com/114x192/242526/FFFFFF?text=Workout';
     }
   }
@@ -362,14 +363,14 @@ export class PhotoStorageService {
       // Vérifier si la photo temporaire existe encore
       const isAccessible = await this.isPhotoAccessible(tempUri);
       if (!isAccessible) {
-        console.warn(`[PhotoStorageService] Cannot migrate inaccessible photo for workout ${workoutId}`);
+        logger.warn(`[PhotoStorageService] Cannot migrate inaccessible photo for workout ${workoutId}`);
         return 'https://via.placeholder.com/114x192/242526/FFFFFF?text=Workout';
       }
 
       // Migrer vers stockage permanent
       return await this.saveWorkoutPhoto(tempUri, workoutId);
     } catch (error) {
-      console.error('[PhotoStorageService] Error migrating photo:', error);
+      logger.error('[PhotoStorageService] Error migrating photo:', error);
       return tempUri;
     }
   }
@@ -402,7 +403,7 @@ export class PhotoStorageService {
         }
       }
     } catch (error) {
-      console.error('[PhotoStorageService] Error cleaning up photos:', error);
+      logger.error('[PhotoStorageService] Error cleaning up photos:', error);
     }
   }
 
@@ -424,7 +425,7 @@ export class PhotoStorageService {
         const fileInfo = await FileSystem.getInfoAsync(photoUri);
         if (fileInfo.exists) {
           await FileSystem.deleteAsync(photoUri);
-          console.log(`[PhotoStorageService] Deleted photo: ${photoUri}`);
+          logger.log(`[PhotoStorageService] Deleted photo: ${photoUri}`);
         }
         return;
       }
@@ -438,11 +439,11 @@ export class PhotoStorageService {
         if (match && match[1] === workoutId) {
           const filePath = `${photosDir}${file}`;
           await FileSystem.deleteAsync(filePath);
-          console.log(`[PhotoStorageService] Deleted photo: ${filePath}`);
+          logger.log(`[PhotoStorageService] Deleted photo: ${filePath}`);
         }
       }
     } catch (error) {
-      console.error('[PhotoStorageService] Error deleting workout photo:', error);
+      logger.error('[PhotoStorageService] Error deleting workout photo:', error);
       // Ne pas throw pour éviter de bloquer la suppression du workout
     }
   }
@@ -481,7 +482,7 @@ export class PhotoStorageService {
         directoryPath: photosDir
       };
     } catch (error) {
-      console.error('[PhotoStorageService] Error getting storage stats:', error);
+      logger.error('[PhotoStorageService] Error getting storage stats:', error);
       return { totalPhotos: 0, totalSize: 0, directoryPath: this.getPhotosDirectory() };
     }
   }

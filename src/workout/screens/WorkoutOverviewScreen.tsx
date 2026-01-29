@@ -32,6 +32,7 @@ import { StickerService } from '../../services/stickerService';
 import { StickerBadge } from '../../components/common/StickerBadge';
 import { Sticker } from '../../types/stickers';
 import { PRBadge } from '../components/PRBadge';
+import { StickerInfoBottomSheet } from '../../components/common/StickerInfoBottomSheet';
 
 type WorkoutOverviewRouteProp = RouteProp<SummaryStackParamList, 'WorkoutOverview'>;
 
@@ -96,6 +97,9 @@ export const WorkoutOverviewScreen: React.FC = () => {
 
   // État pour les stickers du workout principal
   const [stickers, setStickers] = useState<Sticker[]>([]);
+  // État pour le bottom sheet d'information sur les stickers
+  const [selectedSticker, setSelectedSticker] = useState<Sticker | null>(null);
+  const [isStickerInfoVisible, setIsStickerInfoVisible] = useState(false);
 
   // Charger les stickers pour le workout principal (utilise le cache si disponible)
   useEffect(() => {
@@ -196,6 +200,11 @@ export const WorkoutOverviewScreen: React.FC = () => {
     const currentWorkout = item;
     const workoutStickers = carouselStickers[currentWorkout.id] || [];
     
+    const handleStickerPress = (sticker: Sticker) => {
+      setSelectedSticker(sticker);
+      setIsStickerInfoVisible(true);
+    };
+    
     return (
       <View style={[styles.container, { width: screenWidth }]}>
         <ScrollView 
@@ -246,12 +255,20 @@ export const WorkoutOverviewScreen: React.FC = () => {
             {/* Badges */}
             <View style={styles.badgesContainer}>
               {workoutStickers.map((sticker, index) => (
-                <StickerBadge
+                <TouchableOpacity
                   key={`sticker-${index}`}
-                  sticker={sticker}
-                  size="xlarge"
-                  showText={true}
-                />
+                  onPress={() => {
+                    setSelectedSticker(sticker);
+                    setIsStickerInfoVisible(true);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <StickerBadge
+                    sticker={sticker}
+                    size="xlarge"
+                    showText={true}
+                  />
+                </TouchableOpacity>
               ))}
             </View>
             
@@ -404,7 +421,7 @@ export const WorkoutOverviewScreen: React.FC = () => {
         </View>
       </View>
     );
-  }, [screenWidth, handleGoBack]);
+  }, [screenWidth, handleGoBack, carouselStickers, setSelectedSticker, setIsStickerInfoVisible]);
 
   // Rendre la barre d'état transparente
   useEffect(() => {
@@ -448,6 +465,16 @@ export const WorkoutOverviewScreen: React.FC = () => {
           decelerationRate="fast"
           snapToInterval={screenWidth}
           snapToAlignment="center"
+        />
+        
+        {/* Bottom sheet d'information sur les stickers */}
+        <StickerInfoBottomSheet
+          visible={isStickerInfoVisible}
+          sticker={selectedSticker}
+          onClose={() => {
+            setIsStickerInfoVisible(false);
+            setSelectedSticker(null);
+          }}
         />
       </View>
     );
@@ -496,12 +523,20 @@ export const WorkoutOverviewScreen: React.FC = () => {
           {/* Badges */}
           <View style={styles.badgesContainer}>
             {stickers.map((sticker, index) => (
-              <StickerBadge
+              <TouchableOpacity
                 key={`sticker-${index}`}
-                sticker={sticker}
-                size="xlarge"
-                showText={true}
-              />
+                onPress={() => {
+                  setSelectedSticker(sticker);
+                  setIsStickerInfoVisible(true);
+                }}
+                activeOpacity={0.7}
+              >
+                <StickerBadge
+                  sticker={sticker}
+                  size="xlarge"
+                  showText={true}
+                />
+              </TouchableOpacity>
             ))}
           </View>
           
@@ -659,6 +694,16 @@ export const WorkoutOverviewScreen: React.FC = () => {
           <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
+
+      {/* Bottom sheet d'information sur les stickers */}
+      <StickerInfoBottomSheet
+        visible={isStickerInfoVisible}
+        sticker={selectedSticker}
+        onClose={() => {
+          setIsStickerInfoVisible(false);
+          setSelectedSticker(null);
+        }}
+      />
     </View>
   );
 };
@@ -865,14 +910,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#9B93E4',
   },
   repsPRHighlight: {
-    borderColor: '#FFD54D',
-    backgroundColor: '#FFD54D',
+    borderColor: '#3BDF32',
+    backgroundColor: '#3BDF32',
   },
   weightPRBorder: {
     borderColor: '#9B93E4',
   },
   repsPRBorder: {
-    borderColor: '#FFD54D',
+    borderColor: '#3BDF32',
   },
   prBadgeContainer: {
     position: 'absolute',

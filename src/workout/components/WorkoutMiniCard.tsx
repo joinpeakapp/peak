@@ -58,7 +58,10 @@ export const WorkoutMiniCard: React.FC<WorkoutMiniCardProps> = ({
         <View style={styles.cardContent}>
           {/* Container de stickers */}
           {stickers.length > 0 && (
-            <View style={styles.stickersContainer}>
+            <View style={[
+              styles.stickersContainer,
+              stickers.length === 4 && styles.stickersContainerCompact
+            ]}>
               {stickers.map((sticker, idx) => (
                 <StickerBadge
                   key={`sticker-${idx}`}
@@ -136,10 +139,15 @@ const styles = StyleSheet.create({
   stickersContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 4,
+    gap: 2,
+    paddingHorizontal: 2, // Padding horizontal pour éviter les coupures
+  },
+  stickersContainerCompact: {
+    gap: 1, // Espacement encore plus réduit pour 4 stickers
+    paddingHorizontal: 1, // Padding réduit pour 4 stickers
   },
   stickerSpacing: {
-    marginHorizontal: 2,
+    marginHorizontal: 1,
   },
   logoOverlay: {
     position: 'absolute',

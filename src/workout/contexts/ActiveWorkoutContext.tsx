@@ -5,6 +5,7 @@ import { AppState, AppStateStatus } from 'react-native';
 import { useStreak } from './StreakContext';
 import { useWorkout } from '../../hooks/useWorkout';
 import { RobustStorageService } from '../../services/storage';
+import logger from '../../utils/logger';
 
 // Types pour la séance active
 export interface TrackingSet {
@@ -161,7 +162,7 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
           }
         }
       } catch (error) {
-        console.error('[ActiveWorkout] Error loading active workout:', error);
+        logger.error('[ActiveWorkout] Error loading active workout:', error);
       }
     };
 
@@ -312,13 +313,13 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
           
           const result = await RobustStorageService.saveActiveSession(sessionData);
           if (!result.success) {
-            console.error('[ActiveWorkout] Failed to save active session:', result.error?.userMessage);
+            logger.error('[ActiveWorkout] Failed to save active session:', result.error?.userMessage);
           }
         } else {
           await RobustStorageService.clearActiveSession();
         }
       } catch (error) {
-        console.error('[ActiveWorkout] Error saving active workout:', error);
+        logger.error('[ActiveWorkout] Error saving active workout:', error);
       }
     };
 
@@ -402,7 +403,7 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
       // Nettoyer la session active
       const clearResult = await RobustStorageService.clearActiveSession();
       if (!clearResult.success) {
-        console.error("[ActiveWorkout] Failed to clear active session:", clearResult.error?.userMessage);
+        logger.error("[ActiveWorkout] Failed to clear active session:", clearResult.error?.userMessage);
         // Continuer quand même le nettoyage local
       }
       
@@ -411,14 +412,14 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
       setIsTrackingWorkout(false);
       
       } catch (error) {
-      console.error("[ActiveWorkout] Error finishing workout:", error);
+      logger.error("[ActiveWorkout] Error finishing workout:", error);
       // En cas d'erreur, forcer le nettoyage local au minimum
       try {
         setActiveWorkout(null);
         setIsTrackingWorkout(false);
         // Local state reset after error
       } catch (localError) {
-        console.error("[ActiveWorkout] Failed to reset local state:", localError);
+        logger.error("[ActiveWorkout] Failed to reset local state:", localError);
       }
       throw error; // Re-throw pour que l'appelant puisse gérer l'erreur
     }
@@ -438,7 +439,7 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
       setIsTrackingWorkout(false);
       
       } catch (error) {
-      console.error("[ActiveWorkout] Error during force cleanup:", error);
+      logger.error("[ActiveWorkout] Error during force cleanup:", error);
       // Forcer le nettoyage local même en cas d'erreur
       setActiveWorkout(null);
       setIsTrackingWorkout(false);

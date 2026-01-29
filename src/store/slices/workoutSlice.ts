@@ -2,6 +2,7 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { Workout, WorkoutState, Exercise } from '../../types/workout';
 import { RobustStorageService } from '../../services/storage';
 import NotificationService from '../../services/notificationService';
+import logger from '../../utils/logger';
 
 // État initial
 const initialState: WorkoutState = {
@@ -168,7 +169,7 @@ export const loadInitialData = () => async (dispatch: any) => {
     
     dispatch(setError(null));
   } catch (error) {
-    console.error('[loadInitialData] Error loading initial data:', error);
+    logger.error('[loadInitialData] Error loading initial data:', error);
     dispatch(setError('Erreur lors du chargement des données'));
   } finally {
     dispatch(setLoading(false));
@@ -187,7 +188,7 @@ export const addWorkoutWithNotifications = (workout: Omit<Workout, 'id'> | Worko
       }
       // Les workouts à intervalles seront planifiés lors de leur complétion
     } catch (error) {
-      console.error('[addWorkoutWithNotifications] Failed to replan notifications:', error);
+      logger.error('[addWorkoutWithNotifications] Failed to replan notifications:', error);
     }
   }
 };
@@ -204,7 +205,7 @@ export const updateWorkoutWithNotifications = (workout: Workout, previousWorkout
         await NotificationService.cancelWorkoutReminder(previousWorkout.id);
       }
     } catch (error) {
-      console.error('[updateWorkoutWithNotifications] Failed to cancel old notifications:', error);
+      logger.error('[updateWorkoutWithNotifications] Failed to cancel old notifications:', error);
     }
   }
   
@@ -218,14 +219,14 @@ export const updateWorkoutWithNotifications = (workout: Workout, previousWorkout
       // Les workouts à intervalles seront planifiés lors de leur complétion
       // (pas besoin de replanifier ici car ils n'ont pas encore été complétés avec la nouvelle fréquence)
     } catch (error) {
-      console.error('[updateWorkoutWithNotifications] Failed to replan notifications:', error);
+      logger.error('[updateWorkoutWithNotifications] Failed to replan notifications:', error);
     }
   } else {
     // Si le workout n'a plus de fréquence, replanifier pour nettoyer les notifications mixtes
     try {
       await NotificationService.scheduleWorkoutReminders();
     } catch (error) {
-      console.error('[updateWorkoutWithNotifications] Failed to replan notifications:', error);
+      logger.error('[updateWorkoutWithNotifications] Failed to replan notifications:', error);
     }
   }
 };
@@ -248,7 +249,7 @@ export const deleteWorkoutWithNotifications = (workoutId: string) => async (disp
       // Replanifier les notifications hebdomadaires (pour gérer les notifications mixtes)
       await NotificationService.scheduleWorkoutReminders();
     } catch (error) {
-      console.error('[deleteWorkoutWithNotifications] Failed to cancel notifications:', error);
+      logger.error('[deleteWorkoutWithNotifications] Failed to cancel notifications:', error);
     }
   }
 };

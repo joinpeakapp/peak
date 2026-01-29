@@ -4,6 +4,7 @@ import { Exercise } from '../../types/workout';
 import { useActiveWorkout } from './ActiveWorkoutContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SettingsService } from '../../services/settingsService';
+import logger from '../../utils/logger';
 
 // Interface pour le contexte du timer de repos
 interface RestTimerContextValue {

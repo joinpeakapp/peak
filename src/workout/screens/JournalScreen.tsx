@@ -383,7 +383,7 @@ export const JournalScreen: React.FC = () => {
             {stickers.length > 0 && (
               <View style={[
                 styles.stickersContainer,
-                stickers.length === 4 && styles.stickersContainerGrid
+                stickers.length === 4 && styles.stickersContainerCompact
               ]}>
                 {stickers.map((sticker, idx) => (
                   <StickerBadge
@@ -672,15 +672,15 @@ const styles = StyleSheet.create({
   stickersContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 4,
+    gap: 2,
+    paddingHorizontal: 2, // Padding horizontal pour éviter les coupures
   },
-  stickersContainerGrid: {
-    flexWrap: 'wrap',
-    maxWidth: 60, // 2 stickers de 24px + spacing
-    gap: 4,
+  stickersContainerCompact: {
+    gap: 1, // Espacement encore plus réduit pour 4 stickers
+    paddingHorizontal: 1, // Padding réduit pour 4 stickers
   },
   stickerSpacing: {
-    marginHorizontal: 2,
+    marginHorizontal: 1,
   },
   emptyContainer: {
     flex: 1,

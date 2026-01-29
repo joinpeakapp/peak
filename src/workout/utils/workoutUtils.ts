@@ -2,6 +2,7 @@ import { Exercise } from '../../types/workout';
 import { TrackingSet } from '../contexts/ActiveWorkoutContext';
 import { RobustStorageService } from '../../services/storage';
 import { StreakService } from '../../services/streakService';
+import logger from '../../utils/logger';
 
 /**
  * Fonction pour obtenir le texte de progression pour un exercice
@@ -107,7 +108,7 @@ export const getExerciseCompletionData = (
   
   // Debug check for exercise consistency
   if (__DEV__ && exercise.name === "Push-ups") {
-    console.log(`Exercise ${exercise.name}: ${completedSets}/${totalSets} sets completed`);
+    logger.log(`Exercise ${exercise.name}: ${completedSets}/${totalSets} sets completed`);
   }
   
   return {
@@ -261,7 +262,7 @@ export const calculateStickerHistoricalData = async (
       completionCount
     };
   } catch (error) {
-    console.error('[WorkoutDetailModal] Error calculating sticker historical data:', error);
+    logger.error('[WorkoutDetailModal] Error calculating sticker historical data:', error);
     // Valeurs par défaut en cas d'erreur
     return {
       starCount: 1,

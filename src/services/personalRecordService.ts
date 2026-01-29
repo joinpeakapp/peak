@@ -1,5 +1,6 @@
 import UserProfileService from './userProfileService';
 import { PersonalRecords, PersonalRecord, WeightPR, RepsPR, PRCheckResult, PRUpdateResult } from '../types/workout';
+import logger from '../utils/logger';
 
 /**
  * Service unifié de gestion des records personnels.
@@ -14,7 +15,7 @@ export class PersonalRecordService {
     try {
       return await UserProfileService.getPersonalRecords();
     } catch (error) {
-      console.error('[PersonalRecordService] Failed to load records:', error);
+      logger.error('[PersonalRecordService] Failed to load records:', error);
       return {};
     }
   }
@@ -27,7 +28,7 @@ export class PersonalRecordService {
     try {
       await UserProfileService.updatePersonalRecords(records);
       } catch (error) {
-      console.error('[PersonalRecordService] Failed to save records:', error);
+      logger.error('[PersonalRecordService] Failed to save records:', error);
       throw error;
     }
   }
@@ -296,7 +297,7 @@ export class PersonalRecordService {
         }
       
     } catch (error) {
-      console.error('[PersonalRecordService] Migration error:', error);
+      logger.error('[PersonalRecordService] Migration error:', error);
       throw error;
     }
   }
@@ -338,7 +339,7 @@ export class PersonalRecordService {
 
       await this.saveRecords(records);
       } catch (error) {
-      console.error('[PersonalRecordService] Failed to delete rep record:', error);
+      logger.error('[PersonalRecordService] Failed to delete rep record:', error);
       throw error;
     }
   }
@@ -357,7 +358,7 @@ export class PersonalRecordService {
       delete records[exerciseName];
       await this.saveRecords(records);
       } catch (error) {
-      console.error('[PersonalRecordService] Failed to delete all records:', error);
+      logger.error('[PersonalRecordService] Failed to delete all records:', error);
       throw error;
     }
   }

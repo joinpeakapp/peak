@@ -3,6 +3,7 @@ import { fr } from 'date-fns/locale';
 import { StreakData, StreakHistoryEntry, WorkoutFrequency, Workout } from '../types/workout';
 import { StorageService } from './storage';
 import NotificationService from './notificationService';
+import logger from '../utils/logger';
 
 /**
  * Service pour gérer les streaks des workouts
@@ -46,7 +47,7 @@ export const StreakService = {
       
       // Si la streak n'est plus valide, la réinitialiser
       if (!isValid) {
-        console.log(`[StreakService] Streak for workout ${workoutId} is no longer valid, resetting...`);
+        logger.log(`[StreakService] Streak for workout ${workoutId} is no longer valid, resetting...`);
         const resetStreak: StreakData = {
           ...streakData,
           current: 0
@@ -97,11 +98,11 @@ export const StreakService = {
    */
   validateAndCleanAllStreaks: async (workouts: Workout[]): Promise<void> => {
     try {
-      console.log('[StreakService] Starting validation of all streaks...');
-      console.log(`[StreakService] Available workouts for validation:`, workouts.map(w => ({ id: w.id, name: w.name, frequency: w.frequency })));
+      logger.log('[StreakService] Starting validation of all streaks...');
+      logger.log(`[StreakService] Available workouts for validation:`, workouts.map(w => ({ id: w.id, name: w.name, frequency: w.frequency })));
       
       const allStreaks = await StorageService.loadWorkoutStreaks();
-      console.log(`[StreakService] Loaded streaks:`, Object.keys(allStreaks).map(id => ({ id, current: allStreaks[id].current, lastDate: allStreaks[id].lastCompletedDate })));
+      logger.log(`[StreakService] Loaded streaks:`, Object.keys(allStreaks).map(id => ({ id, current: allStreaks[id].current, lastDate: allStreaks[id].lastCompletedDate })));
       
       let cleanedCount = 0;
       
@@ -109,7 +110,7 @@ export const StreakService = {
         const streakData = allStreaks[workoutId];
         const workout = workouts.find(w => w.id === workoutId);
         
-        console.log(`[StreakService] Validating streak for workout ${workoutId}:`, { 
+        logger.log(`[StreakService] Validating streak for workout ${workoutId}:`, { 
           found: !!workout, 
           current: streakData.current, 
           lastDate: streakData.lastCompletedDate,
@@ -119,7 +120,7 @@ export const StreakService = {
         // Si le workout existe et a une streak active
         if (workout && streakData.lastCompletedDate && streakData.current > 0) {
           if (!workout.frequency) {
-            console.warn(`[StreakService] Workout ${workoutId} has no frequency defined, skipping validation`);
+            logger.warn(`[StreakService] Workout ${workoutId} has no frequency defined, skipping validation`);
             continue;
           }
           
@@ -129,7 +130,7 @@ export const StreakService = {
             workout.frequency
           );
           
-          console.log(`[StreakService] Time validation for ${workoutId}:`, {
+          logger.log(`[StreakService] Time validation for ${workoutId}:`, {
             lastDate: streakData.lastCompletedDate,
             frequency: workout.frequency,
             isValid,
@@ -138,7 +139,7 @@ export const StreakService = {
 
           // Si la streak n'est plus valide, la réinitialiser
           if (!isValid) {
-            console.log(`[StreakService] Cleaning expired streak for workout ${workoutId} (was ${streakData.current}, last completed: ${streakData.lastCompletedDate})`);
+            logger.log(`[StreakService] Cleaning expired streak for workout ${workoutId} (was ${streakData.current}, last completed: ${streakData.lastCompletedDate})`);
             const resetStreak: StreakData = {
               ...streakData,
               current: 0
@@ -147,18 +148,18 @@ export const StreakService = {
             await StorageService.saveWorkoutStreak(workoutId, resetStreak);
             cleanedCount++;
           } else {
-            console.log(`[StreakService] ✅ Streak for workout ${workoutId} is still valid (${streakData.current})`);
+            logger.log(`[StreakService] ✅ Streak for workout ${workoutId} is still valid (${streakData.current})`);
           }
         } else if (!workout) {
-          console.log(`[StreakService] ⚠️ Workout ${workoutId} not found in current workouts, keeping streak as-is`);
+          logger.log(`[StreakService] ⚠️ Workout ${workoutId} not found in current workouts, keeping streak as-is`);
         } else if (!streakData.lastCompletedDate || streakData.current === 0) {
-          console.log(`[StreakService] ℹ️ Workout ${workoutId} has no active streak, skipping validation`);
+          logger.log(`[StreakService] ℹ️ Workout ${workoutId} has no active streak, skipping validation`);
         }
       }
       
-      console.log(`[StreakService] Validation complete. Cleaned ${cleanedCount} expired streaks.`);
+      logger.log(`[StreakService] Validation complete. Cleaned ${cleanedCount} expired streaks.`);
     } catch (error) {
-      console.error('[StreakService] Error during streak validation:', error);
+      logger.error('[StreakService] Error during streak validation:', error);
     }
   },
 
@@ -171,18 +172,18 @@ export const StreakService = {
       // Formater la date au format YYYY-MM-DD
       const formattedDate = format(completionDate, 'yyyy-MM-dd');
       
-      console.log(`[StreakService] Updating streak for workout ${workoutId} (${workout.name}) on ${formattedDate}`);
+      logger.log(`[StreakService] Updating streak for workout ${workoutId} (${workout.name}) on ${formattedDate}`);
       
       // Pour les workouts flexible schedule, on utilise une fenêtre de 2 semaines
       // mais on ne planifie pas de notifications
       
       // Récupérer les données de streak existantes (avec validation automatique)
       let streakData = await StreakService.getWorkoutStreak(workoutId, workout);
-      console.log(`[StreakService] Current streak data:`, streakData);
+      logger.log(`[StreakService] Current streak data:`, streakData);
       
       // Si c'est la première fois que ce workout est complété
       if (!streakData.lastCompletedDate) {
-        console.log(`[StreakService] First completion for workout ${workoutId}`);
+        logger.log(`[StreakService] First completion for workout ${workoutId}`);
         streakData = {
           workoutId,
           current: 1,
@@ -202,7 +203,7 @@ export const StreakService = {
           workout.frequency
         );
 
-        console.log(`[StreakService] Streak continuation check: ${isValid ? 'valid' : 'expired'} (last: ${streakData.lastCompletedDate}, frequency: ${workout.frequency})`);
+        logger.log(`[StreakService] Streak continuation check: ${isValid ? 'valid' : 'expired'} (last: ${streakData.lastCompletedDate}, frequency: ${workout.frequency})`);
 
         // Si on est dans une fenêtre valide, augmenter la streak
         if (isValid) {
@@ -220,10 +221,10 @@ export const StreakService = {
             lastHistoryEntry.count = streakData.current;
           }
           
-          console.log(`[StreakService] Streak continued: ${streakData.current} (best: ${streakData.longest})`);
+          logger.log(`[StreakService] Streak continued: ${streakData.current} (best: ${streakData.longest})`);
         } else {
           // Reset de la streak et création d'une nouvelle entrée d'historique
-          console.log(`[StreakService] Streak reset: starting new streak`);
+          logger.log(`[StreakService] Streak reset: starting new streak`);
           streakData.current = 1;
           streakData.streakHistory.push({
             startDate: formattedDate,
@@ -236,22 +237,22 @@ export const StreakService = {
         streakData.lastCompletedDate = formattedDate;
       }
       
-      console.log(`[StreakService] Final streak data to save:`, streakData);
+      logger.log(`[StreakService] Final streak data to save:`, streakData);
       
       // Sauvegarder les données mises à jour
-      console.log(`[StreakService] Saving streak data for workout ${workoutId}...`);
+      logger.log(`[StreakService] Saving streak data for workout ${workoutId}...`);
       const saveResult = await StorageService.saveWorkoutStreak(workoutId, streakData);
-      console.log(`[StreakService] Save result:`, saveResult);
+      logger.log(`[StreakService] Save result:`, saveResult);
       
       // Vérification immédiate de la sauvegarde
-      console.log(`[StreakService] Verifying saved streak data...`);
+      logger.log(`[StreakService] Verifying saved streak data...`);
       const verifiedData = await StorageService.loadWorkoutStreak(workoutId);
-      console.log(`[StreakService] Verification result:`, verifiedData);
+      logger.log(`[StreakService] Verification result:`, verifiedData);
       
       if (verifiedData && verifiedData.current === streakData.current) {
-        console.log(`[StreakService] ✅ Streak successfully saved and verified`);
+        logger.log(`[StreakService] ✅ Streak successfully saved and verified`);
       } else {
-        console.error(`[StreakService] ❌ Streak verification failed: expected ${streakData.current}, got ${verifiedData?.current}`);
+        logger.error(`[StreakService] ❌ Streak verification failed: expected ${streakData.current}, got ${verifiedData?.current}`);
       }
 
       // 🔧 REFACTO : Planifier les notifications selon le type de fréquence
@@ -266,22 +267,22 @@ export const StreakService = {
               completionDate,
               workout.frequency.value
             );
-            console.log(`[StreakService] 🔔 Scheduled interval reminder for ${workout.name} (${workout.frequency.value} days)`);
+            logger.log(`[StreakService] 🔔 Scheduled interval reminder for ${workout.name} (${workout.frequency.value} days)`);
           } else if (workout.frequency.type === 'weekly') {
             // Workout hebdomadaire : recalculer toutes les notifications hebdomadaires
             // (car la complétion peut affecter les calculs si on veut éviter les doublons)
             await NotificationService.scheduleWorkoutReminders();
-            console.log(`[StreakService] 🔔 Replanned weekly workout reminders after completion`);
+            logger.log(`[StreakService] 🔔 Replanned weekly workout reminders after completion`);
           }
           // 'none' : pas de notifications
         } catch (error) {
-          console.warn(`[StreakService] Failed to plan workout reminders:`, error);
+          logger.warn(`[StreakService] Failed to plan workout reminders:`, error);
         }
       }
       
       return streakData;
     } catch (error) {
-      console.error('[StreakService] Error updating streak:', error);
+      logger.error('[StreakService] Error updating streak:', error);
       // En cas d'erreur, retourner une streak par défaut
       return {
         workoutId: workout.id,

@@ -17,6 +17,7 @@ import { NavigationProp, RouteProp, useNavigation, useRoute } from '@react-navig
 import { RootStackParamList, SummaryStackParamList } from '../../types/navigation';
 import { useActiveWorkout } from '../contexts/ActiveWorkoutContext';
 import { PhotoStorageService } from '../../services/photoStorageService';
+import logger from '../../utils/logger';
 
 type WorkoutPhotoRouteProp = RouteProp<SummaryStackParamList, 'WorkoutPhoto'>;
 
@@ -56,20 +57,24 @@ export const WorkoutPhotoScreen: React.FC = () => {
       
       if (status !== 'granted') {
         Alert.alert(
-          "Permissions requises",
-          "Nous avons besoin de l'accès à votre caméra pour prendre une photo de votre entraînement.",
+          "Camera Access Required",
+          "To capture your workout photo, we need camera access. You can skip this step or choose a photo from your gallery.",
           [
+            {
+              text: "Skip Photo",
+              onPress: () => handleSkipPhoto(),
+              style: "cancel"
+            },
+            {
+              text: "Choose from Gallery",
+              onPress: () => handlePickImageFromGallery()
+            },
             { 
-              text: "Réessayer", 
+              text: "Enable Camera", 
               onPress: async () => {
                 const { status } = await Camera.requestCameraPermissionsAsync();
                 setHasPermission(status === 'granted');
               }
-            },
-            {
-              text: "Annuler",
-              onPress: () => navigation.goBack(),
-              style: "cancel"
             }
           ]
         );
@@ -144,10 +149,24 @@ export const WorkoutPhotoScreen: React.FC = () => {
         }
       });
     } catch (error) {
-      console.error('🖼️ [WorkoutPhoto] Error processing picture:', error);
+      logger.error('🖼️ [WorkoutPhoto] Error processing picture:', error);
       // Ne pas afficher d'alerte si le composant est démonté
       if (isMountedRef.current) {
-        Alert.alert("Erreur", "Impossible de traiter la photo. Veuillez réessayer.");
+        Alert.alert(
+          "Error",
+          "Unable to process photo. Would you like to try again or skip?",
+          [
+            {
+              text: "Try Again",
+              onPress: () => setIsCapturing(false)
+            },
+            {
+              text: "Skip Photo",
+              onPress: () => handleSkipPhoto(),
+              style: "cancel"
+            }
+          ]
+        );
       }
     } finally {
       if (isMountedRef.current) {
@@ -192,10 +211,12 @@ export const WorkoutPhotoScreen: React.FC = () => {
       if (!photo || !photo.uri) {
         throw new Error('Photo capture returned invalid result');
       }
+
+      logger.log('[WorkoutPhoto] Photo captured successfully');
       
       await processPhoto(photo.uri, false);
     } catch (error: any) {
-      console.error('🖼️ [WorkoutPhoto] Error taking picture:', error);
+      logger.error('🖼️ [WorkoutPhoto] Error taking picture:', error);
       
       // Gérer spécifiquement l'erreur de caméra démontée
       if (error?.message?.includes('unmounted') || error?.message?.includes('Camera unmounted')) {
@@ -212,6 +233,25 @@ export const WorkoutPhotoScreen: React.FC = () => {
     }
   };
 
+  // ⏭️ Sauter la prise de photo et continuer sans photo
+  const handleSkipPhoto = () => {
+    logger.log('[WorkoutPhoto] User chose to skip photo');
+    // Naviguer vers l'écran de prévisualisation sans photo
+    navigation.navigate('SummaryFlow', {
+      screen: 'WorkoutOverview',
+      params: {
+        workout: { ...workout, photo: '' },
+        photoUri: '',
+        sourceType: 'tracking'
+      }
+    });
+  };
+
+  // 🖼️ Alias pour la fonction d'ouverture de galerie (appelé depuis l'Alert)
+  const handlePickImageFromGallery = () => {
+    pickImageFromGallery();
+  };
+
   // 📷 Sélectionner une photo depuis la galerie
   const pickImageFromGallery = async () => {
     try {
@@ -219,8 +259,18 @@ export const WorkoutPhotoScreen: React.FC = () => {
       
       if (status !== 'granted') {
         Alert.alert(
-          "Permissions requises",
-          "Nous avons besoin de l'accès à votre galerie pour sélectionner une photo."
+          "Gallery Access Required",
+          "We need access to your photo library to select a photo. You can also skip this step.",
+          [
+            {
+              text: "Cancel",
+              style: "cancel"
+            },
+            {
+              text: "Skip Photo",
+              onPress: () => handleSkipPhoto()
+            }
+          ]
         );
         return;
       }
@@ -236,7 +286,7 @@ export const WorkoutPhotoScreen: React.FC = () => {
         await processPhoto(result.assets[0].uri, true);
       }
     } catch (error) {
-      console.error('🖼️ [WorkoutPhoto] Error picking image:', error);
+      logger.error('🖼️ [WorkoutPhoto] Error picking image:', error);
       Alert.alert("Erreur", "Impossible de sélectionner une photo. Veuillez réessayer.");
     }
   };

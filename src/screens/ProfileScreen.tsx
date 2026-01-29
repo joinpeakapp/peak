@@ -26,6 +26,7 @@ import { CachedImage } from '../components/common/CachedImage';
 import { NavigationProp } from '@react-navigation/native';
 import { RootStackParamList } from '../types/navigation';
 import { NewOnboardingNavigator } from './onboarding/NewOnboardingNavigator';
+import logger from '../utils/logger';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - (16 * 2) - (8 * 2)) / 3;
@@ -85,7 +86,7 @@ export const ProfileScreen: React.FC = () => {
 
   // Gérer la complétion de l'onboarding
   const handleOnboardingComplete = useCallback(async (profile: UserProfile) => {
-    console.log('[ProfileScreen] Onboarding completed:', profile);
+    logger.log('[ProfileScreen] Onboarding completed:', profile);
     setUserProfile(profile);
     setShowOnboarding(false);
     // Recharger le profil pour s'assurer qu'il est à jour

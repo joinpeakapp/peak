@@ -1,6 +1,7 @@
 import React, { createContext, useContext, ReactNode, useState, useEffect, useCallback } from 'react';
 import { StreakData, Workout } from '../../types/workout';
 import { StreakService } from '../../services/streakService';
+import logger from '../../utils/logger';
 
 // Gestionnaire d'événements global pour synchroniser toutes les instances de StreakDisplay
 class StreakEventManager {

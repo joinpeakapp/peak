@@ -915,14 +915,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#9B93E4',
   },
   repsPRHighlight: {
-    borderColor: '#FFD54D',
-    backgroundColor: '#FFD54D',
+    borderColor: '#3BDF32',
+    backgroundColor: '#3BDF32',
   },
   weightPRBorder: {
     borderColor: '#9B93E4',
   },
   repsPRBorder: {
-    borderColor: '#FFD54D',
+    borderColor: '#3BDF32',
   },
   prBadgeContainer: {
     position: 'absolute',

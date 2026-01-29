@@ -20,6 +20,7 @@ import {
   type NotificationMessage 
 } from '../utils/notificationMessages';
 import { addDays, format, startOfDay, isBefore, parseISO } from 'date-fns';
+import logger from '../utils/logger';
 
 // Configuration des notifications
 Notifications.setNotificationHandler({
@@ -93,7 +94,7 @@ class NotificationService {
 
       return true;
     } catch (error) {
-      console.error('🔔 [NotificationService] ❌ Initialization failed:', error);
+      logger.error('🔔 [NotificationService] ❌ Initialization failed:', error);
       return false;
     }
   }
@@ -112,12 +113,12 @@ class NotificationService {
    */
   static async scheduleWorkoutReminders(): Promise<void> {
     try {
-      console.log('🔔 [NotificationService] ═══ Starting notification scheduling ═══');
+      logger.log('🔔 [NotificationService] ═══ Starting notification scheduling ═══');
 
       // 1. Vérifier si les notifications sont activées
       const remindersEnabled = await SettingsService.getWorkoutRemindersEnabled();
       if (!remindersEnabled) {
-        console.log('🔔 [NotificationService] Reminders disabled, cancelling all');
+        logger.log('🔔 [NotificationService] Reminders disabled, cancelling all');
         await this.cancelAllWorkoutNotifications();
         return;
       }
@@ -125,7 +126,7 @@ class NotificationService {
       // 2. Charger tous les workouts
       const workoutsResult = await RobustStorageService.loadWorkoutTemplates();
       if (!workoutsResult.success || !workoutsResult.data) {
-        console.log('🔔 [NotificationService] No workouts found');
+        logger.log('🔔 [NotificationService] No workouts found');
         await this.cancelAllWorkoutNotifications();
         return;
       }
@@ -141,7 +142,7 @@ class NotificationService {
       // 4. Calculer toutes les dates où une notification doit être envoyée
       const scheduledDates = await this.calculateScheduledDates(workouts, completedWorkouts);
 
-      console.log(`🔔 [NotificationService] Calculated ${scheduledDates.length} notification dates`);
+      logger.log(`🔔 [NotificationService] Calculated ${scheduledDates.length} notification dates`);
 
       // 5. Annuler TOUTES les notifications existantes
       await this.cancelAllWorkoutNotifications();
@@ -151,9 +152,9 @@ class NotificationService {
         await this.createNotificationForDate(scheduledDate);
       }
 
-      console.log(`🔔 [NotificationService] ✅ Successfully scheduled ${scheduledDates.length} notifications`);
+      logger.log(`🔔 [NotificationService] ✅ Successfully scheduled ${scheduledDates.length} notifications`);
     } catch (error) {
-      console.error('🔔 [NotificationService] ❌ Error scheduling reminders:', error);
+      logger.error('🔔 [NotificationService] ❌ Error scheduling reminders:', error);
     }
   }
 
@@ -171,7 +172,7 @@ class NotificationService {
     for (const workout of workouts) {
       // Ignorer les workouts sans fréquence ou flexibles
       if (!workout.frequency || workout.frequency.type === 'none') {
-        console.log(`🔔 [NotificationService] Skipping flexible workout: ${workout.name}`);
+        logger.log(`🔔 [NotificationService] Skipping flexible workout: ${workout.name}`);
         continue;
       }
 
@@ -202,9 +203,9 @@ class NotificationService {
     const dayOfWeek = workout.frequency.value; // 0 = dimanche, 1 = lundi, etc.
     
     const nowDay = now.getDay();
-    console.log(`🔔 [DEBUG] calculateWeeklyDates for "${workout.name}"`);
-    console.log(`🔔 [DEBUG] - Now: ${format(now, 'yyyy-MM-dd HH:mm:ss EEEE')} (day ${nowDay})`);
-    console.log(`🔔 [DEBUG] - Target day: ${dayOfWeek} (${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayOfWeek]})`);
+    logger.log(`🔔 [DEBUG] calculateWeeklyDates for "${workout.name}"`);
+    logger.log(`🔔 [DEBUG] - Now: ${format(now, 'yyyy-MM-dd HH:mm:ss EEEE')} (day ${nowDay})`);
+    logger.log(`🔔 [DEBUG] - Target day: ${dayOfWeek} (${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayOfWeek]})`);
     
     // ⚠️ FIX: Au lieu d'utiliser setHours() qui peut causer des problèmes de timezone,
     // on commence avec startOfDay() puis on ajoute les heures avec date-fns
@@ -212,27 +213,27 @@ class NotificationService {
     // Ajouter 9 heures pour la notification à 09:00
     currentDate.setHours(this.NOTIFICATION_HOUR, this.NOTIFICATION_MINUTE, 0, 0);
     
-    console.log(`🔔 [DEBUG] - currentDate after setting time: ${format(currentDate, 'yyyy-MM-dd HH:mm:ss EEEE')}`);
-    console.log(`🔔 [DEBUG] - currentDate.getDay(): ${currentDate.getDay()}`);
+    logger.log(`🔔 [DEBUG] - currentDate after setting time: ${format(currentDate, 'yyyy-MM-dd HH:mm:ss EEEE')}`);
+    logger.log(`🔔 [DEBUG] - currentDate.getDay(): ${currentDate.getDay()}`);
 
     // ⚠️ FIX: Recalculer daysUntilNext APRÈS avoir défini l'heure
     // car setHours() peut changer le jour dans certains cas de timezone
     const currentDayAfterSetHours = currentDate.getDay();
     let daysUntilNext = (dayOfWeek - currentDayAfterSetHours + 7) % 7;
-    console.log(`🔔 [DEBUG] - daysUntilNext (initial): ${daysUntilNext}`);
+    logger.log(`🔔 [DEBUG] - daysUntilNext (initial): ${daysUntilNext}`);
     
     if (daysUntilNext === 0) {
       // C'est le bon jour de la semaine
       if (currentDate <= now) {
         // L'heure est déjà passée aujourd'hui, passer à la semaine prochaine
-        console.log(`🔔 [DEBUG] - Same day but time passed, adding 7 days`);
+        logger.log(`🔔 [DEBUG] - Same day but time passed, adding 7 days`);
         daysUntilNext = 7;
       } else {
         // L'heure n'est pas passée, programmer pour aujourd'hui
-        console.log(`🔔 [DEBUG] - Same day and time not passed, keeping today`);
+        logger.log(`🔔 [DEBUG] - Same day and time not passed, keeping today`);
       }
     } else {
-      console.log(`🔔 [DEBUG] - Different day, will add ${daysUntilNext} days`);
+      logger.log(`🔔 [DEBUG] - Different day, will add ${daysUntilNext} days`);
     }
     
     // Ajouter les jours nécessaires
@@ -240,18 +241,18 @@ class NotificationService {
       currentDate = addDays(currentDate, daysUntilNext);
     }
     
-    console.log(`🔔 [DEBUG] - First notification date: ${format(currentDate, 'yyyy-MM-dd HH:mm:ss EEEE')}`);
-    console.log(`🔔 [DEBUG] - First notification date getDay(): ${currentDate.getDay()}`);
+    logger.log(`🔔 [DEBUG] - First notification date: ${format(currentDate, 'yyyy-MM-dd HH:mm:ss EEEE')}`);
+    logger.log(`🔔 [DEBUG] - First notification date getDay(): ${currentDate.getDay()}`);
 
     // Planifier pour les N prochaines semaines
     const maxDate = addDays(now, this.MAX_DAYS_AHEAD);
     while (currentDate < maxDate) {
       dates.push(new Date(currentDate));
-      console.log(`🔔 [DEBUG] - Added date: ${format(currentDate, 'yyyy-MM-dd HH:mm:ss EEEE')} (day ${currentDate.getDay()})`);
+      logger.log(`🔔 [DEBUG] - Added date: ${format(currentDate, 'yyyy-MM-dd HH:mm:ss EEEE')} (day ${currentDate.getDay()})`);
       currentDate = addDays(currentDate, 7);
     }
 
-    console.log(`🔔 [NotificationService] Weekly workout "${workout.name}": ${dates.length} dates`);
+    logger.log(`🔔 [NotificationService] Weekly workout "${workout.name}": ${dates.length} dates`);
     return dates;
   }
 
@@ -275,7 +276,7 @@ class NotificationService {
 
     if (workoutSessions.length === 0) {
       // Aucune séance effectuée → aucune notification
-      console.log(`🔔 [NotificationService] Interval workout "${workout.name}": no sessions yet, no notification`);
+      logger.log(`🔔 [NotificationService] Interval workout "${workout.name}": no sessions yet, no notification`);
       return [];
     }
 
@@ -288,19 +289,19 @@ class NotificationService {
     let notificationDate = addDays(startOfDay(lastSessionDate), intervalDays);
     notificationDate.setHours(this.NOTIFICATION_HOUR, this.NOTIFICATION_MINUTE, 0, 0);
 
-    console.log(`🔔 [DEBUG] Interval workout "${workout.name}":`);
-    console.log(`🔔 [DEBUG] - Last session: ${format(lastSessionDate, 'yyyy-MM-dd')}`);
-    console.log(`🔔 [DEBUG] - Interval days: ${intervalDays}`);
-    console.log(`🔔 [DEBUG] - Notification date: ${format(notificationDate, 'yyyy-MM-dd HH:mm:ss EEEE')} (day ${notificationDate.getDay()})`);
+    logger.log(`🔔 [DEBUG] Interval workout "${workout.name}":`);
+    logger.log(`🔔 [DEBUG] - Last session: ${format(lastSessionDate, 'yyyy-MM-dd')}`);
+    logger.log(`🔔 [DEBUG] - Interval days: ${intervalDays}`);
+    logger.log(`🔔 [DEBUG] - Notification date: ${format(notificationDate, 'yyyy-MM-dd HH:mm:ss EEEE')} (day ${notificationDate.getDay()})`);
 
     // Ne planifier que si la date est dans le futur et dans les MAX_DAYS_AHEAD jours
     const maxDate = addDays(now, this.MAX_DAYS_AHEAD);
     if (notificationDate > now && notificationDate < maxDate) {
-      console.log(`🔔 [NotificationService] Interval workout "${workout.name}": 1 date (${format(notificationDate, 'yyyy-MM-dd')})`);
+      logger.log(`🔔 [NotificationService] Interval workout "${workout.name}": 1 date (${format(notificationDate, 'yyyy-MM-dd')})`);
       return [notificationDate];
     }
 
-    console.log(`🔔 [NotificationService] Interval workout "${workout.name}": no valid date`);
+    logger.log(`🔔 [NotificationService] Interval workout "${workout.name}": no valid date`);
     return [];
   }
 
@@ -342,11 +343,11 @@ class NotificationService {
       let message: NotificationMessage;
       let notificationId: string;
 
-      console.log(`🔔 [DEBUG] createNotificationForDate:`);
-      console.log(`🔔 [DEBUG] - dateKey: ${scheduledDate.dateKey}`);
-      console.log(`🔔 [DEBUG] - date object: ${format(scheduledDate.date, 'yyyy-MM-dd HH:mm:ss EEEE')}`);
-      console.log(`🔔 [DEBUG] - date ISO: ${scheduledDate.date.toISOString()}`);
-      console.log(`🔔 [DEBUG] - workouts: ${scheduledDate.workouts.map(w => w.name).join(', ')}`);
+      logger.log(`🔔 [DEBUG] createNotificationForDate:`);
+      logger.log(`🔔 [DEBUG] - dateKey: ${scheduledDate.dateKey}`);
+      logger.log(`🔔 [DEBUG] - date object: ${format(scheduledDate.date, 'yyyy-MM-dd HH:mm:ss EEEE')}`);
+      logger.log(`🔔 [DEBUG] - date ISO: ${scheduledDate.date.toISOString()}`);
+      logger.log(`🔔 [DEBUG] - workouts: ${scheduledDate.workouts.map(w => w.name).join(', ')}`);
 
       if (scheduledDate.workouts.length === 1) {
         // 📌 Un seul workout → notification avec le nom
@@ -377,9 +378,9 @@ class NotificationService {
         identifier: notificationId,
       });
 
-      console.log(`🔔 [NotificationService] ✅ Created notification for ${scheduledDate.dateKey} (${scheduledDate.workouts.length} workout(s))`);
+      logger.log(`🔔 [NotificationService] ✅ Created notification for ${scheduledDate.dateKey} (${scheduledDate.workouts.length} workout(s))`);
     } catch (error) {
-      console.error(`🔔 [NotificationService] ❌ Failed to create notification for ${scheduledDate.dateKey}:`, error);
+      logger.error(`🔔 [NotificationService] ❌ Failed to create notification for ${scheduledDate.dateKey}:`, error);
     }
   }
 
@@ -399,9 +400,9 @@ class NotificationService {
         }
       }
 
-      console.log(`🔔 [NotificationService] ❌ Cancelled ${cancelledCount} workout notifications`);
+      logger.log(`🔔 [NotificationService] ❌ Cancelled ${cancelledCount} workout notifications`);
     } catch (error) {
-      console.error('🔔 [NotificationService] ❌ Error cancelling notifications:', error);
+      logger.error('🔔 [NotificationService] ❌ Error cancelling notifications:', error);
     }
   }
 
@@ -416,7 +417,7 @@ class NotificationService {
     intervalDays: number
   ): Promise<void> {
     // Cette fonction appelle maintenant scheduleWorkoutReminders() pour tout replanifier
-    console.log(`🔔 [NotificationService] scheduleIntervalWorkoutReminder() deprecated, calling scheduleWorkoutReminders()`);
+    logger.log(`🔔 [NotificationService] scheduleIntervalWorkoutReminder() deprecated, calling scheduleWorkoutReminders()`);
     await this.scheduleWorkoutReminders();
   }
 
@@ -446,7 +447,7 @@ class NotificationService {
    */
   static async cancelWorkoutReminder(workoutId: string): Promise<void> {
     // Ne rien faire - les notifications seront recréées par scheduleWorkoutReminders()
-    console.log(`🔔 [NotificationService] cancelWorkoutReminder() deprecated`);
+    logger.log(`🔔 [NotificationService] cancelWorkoutReminder() deprecated`);
   }
 
   /**
@@ -454,7 +455,7 @@ class NotificationService {
    */
   static async cancelWeeklyWorkoutReminders(): Promise<void> {
     // Ne rien faire - les notifications seront recréées par scheduleWorkoutReminders()
-    console.log(`🔔 [NotificationService] cancelWeeklyWorkoutReminders() deprecated`);
+    logger.log(`🔔 [NotificationService] cancelWeeklyWorkoutReminders() deprecated`);
   }
 
   /**
@@ -468,7 +469,7 @@ class NotificationService {
    * DEPRECATED
    */
   static async scheduleNotification(notification: ScheduledNotification): Promise<string | null> {
-    console.warn('🔔 [NotificationService] scheduleNotification() is deprecated');
+    logger.warn('🔔 [NotificationService] scheduleNotification() is deprecated');
     return null;
   }
 
@@ -495,7 +496,7 @@ class NotificationService {
       }
       
       } catch (error) {
-      console.error(`🔔 [NotificationService] Error cancelling ${type} notifications:`, error);
+      logger.error(`🔔 [NotificationService] Error cancelling ${type} notifications:`, error);
     }
   }
 
@@ -503,7 +504,7 @@ class NotificationService {
     try {
       await Notifications.cancelScheduledNotificationAsync(notificationId);
       } catch (error) {
-      console.error('🔔 [NotificationService] ❌ Failed to cancel notification:', error);
+      logger.error('🔔 [NotificationService] ❌ Failed to cancel notification:', error);
     }
   }
 
@@ -511,7 +512,7 @@ class NotificationService {
     try {
       await Notifications.cancelAllScheduledNotificationsAsync();
       } catch (error) {
-      console.error('🔔 [NotificationService] ❌ Failed to cancel all notifications:', error);
+      logger.error('🔔 [NotificationService] ❌ Failed to cancel all notifications:', error);
     }
   }
 
@@ -533,7 +534,7 @@ class NotificationService {
       const data = await AsyncStorage.getItem(this.SETTINGS_KEY);
       return data ? { ...DEFAULT_NOTIFICATION_SETTINGS, ...JSON.parse(data) } : DEFAULT_NOTIFICATION_SETTINGS;
     } catch (error) {
-      console.error('🔔 [NotificationService] ❌ Failed to get settings:', error);
+      logger.error('🔔 [NotificationService] ❌ Failed to get settings:', error);
       return DEFAULT_NOTIFICATION_SETTINGS;
     }
   }
@@ -542,7 +543,7 @@ class NotificationService {
     try {
       await AsyncStorage.setItem(this.SETTINGS_KEY, JSON.stringify(settings));
       } catch (error) {
-      console.error('🔔 [NotificationService] ❌ Failed to save settings:', error);
+      logger.error('🔔 [NotificationService] ❌ Failed to save settings:', error);
     }
   }
 
@@ -555,7 +556,7 @@ class NotificationService {
       const { status } = await Notifications.getPermissionsAsync();
       return status;
     } catch (error) {
-      console.error('🔔 [NotificationService] ❌ Failed to get permission status:', error);
+      logger.error('🔔 [NotificationService] ❌ Failed to get permission status:', error);
       return 'unknown';
     }
   }

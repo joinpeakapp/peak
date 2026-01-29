@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WorkoutState, StreakData, PersonalRecords, CompletedWorkout, Workout } from '../types/workout';
+import logger from '../utils/logger';
 
 // Nouvelles clés optimisées (5 au total)
 const STORAGE_KEYS = {
@@ -64,7 +65,7 @@ export class RobustStorageService {
     try {
       await AsyncStorage.setItem(this.MIGRATION_KEY, 'true');
     } catch (error) {
-      console.warn('[RobustStorageService] Could not mark migration as completed:', error);
+      logger.warn('[RobustStorageService] Could not mark migration as completed:', error);
     }
   }
 
@@ -89,7 +90,7 @@ export class RobustStorageService {
    * Logger les erreurs de manière cohérente
    */
   private static logError(operation: string, error: StorageError) {
-    console.error(`🚨 [RobustStorageService] ${operation}:`, {
+    logger.error(`🚨 [RobustStorageService] ${operation}:`, {
       code: error.code,
       message: error.message,
       userMessage: error.userMessage,
@@ -133,7 +134,7 @@ export class RobustStorageService {
   private static async migrateData(): Promise<boolean> {
     if (await this.isMigrationCompleted()) return true;
 
-    console.log('[RobustStorageService] Starting data migration...');
+    logger.log('[RobustStorageService] Starting data migration...');
 
     try {
       // 1. Migrer les workout templates
@@ -147,7 +148,7 @@ export class RobustStorageService {
       if (oldWorkouts && oldWorkouts !== 'null') {
         // oldWorkouts est déjà une string JSON, on peut la sauvegarder directement
         await AsyncStorage.setItem(STORAGE_KEYS.WORKOUT_TEMPLATES, oldWorkouts);
-        console.log('[Migration] Workout templates migrated');
+        logger.log('[Migration] Workout templates migrated');
       }
 
       // 2. Migrer l'historique des workouts
@@ -161,7 +162,7 @@ export class RobustStorageService {
       if (completedWorkouts && completedWorkouts !== 'null') {
         // completedWorkouts est déjà une string JSON
         await AsyncStorage.setItem(STORAGE_KEYS.WORKOUT_HISTORY, completedWorkouts);
-        console.log('[Migration] Workout history migrated');
+        logger.log('[Migration] Workout history migrated');
       }
 
       // 3. Fusionner les records personnels
@@ -191,9 +192,9 @@ export class RobustStorageService {
       if (existingRecords && existingRecords !== 'null') {
         try {
           existingData = JSON.parse(existingRecords);
-          console.log('[Migration] Preserving existing enhanced records:', Object.keys(existingData.enhanced || {}));
-    } catch (error) {
-          console.warn('[Migration] Could not parse existing records, starting fresh');
+          logger.log('[Migration] Preserving existing enhanced records:', Object.keys(existingData.enhanced || {}));
+        } catch (error) {
+          logger.warn('[Migration] Could not parse existing records, starting fresh');
         }
       }
 
@@ -205,7 +206,7 @@ export class RobustStorageService {
         lastUpdated: new Date().toISOString()
       };
 
-      console.log('[Migration] Final merged data:', {
+      logger.log('[Migration] Final merged data:', {
         legacyKeys: Object.keys(mergedRecords.legacy || {}),
         enhancedKeys: Object.keys(mergedRecords.enhanced || {}),
         preservedExisting: Object.keys(existingData.enhanced || {}).length > 0
@@ -213,7 +214,7 @@ export class RobustStorageService {
 
       // Toujours sauvegarder pour s'assurer que la structure est correcte
       await AsyncStorage.setItem(STORAGE_KEYS.PERSONAL_RECORDS, JSON.stringify(mergedRecords));
-      console.log('[Migration] Personal records merged and migrated');
+      logger.log('[Migration] Personal records merged and migrated');
 
       // 4. Migrer les données de streak (clé identique, pas besoin de migration)
       
@@ -239,7 +240,7 @@ export class RobustStorageService {
           lastUpdated: new Date().toISOString()
         };
         await AsyncStorage.setItem(STORAGE_KEYS.ACTIVE_SESSION, JSON.stringify(sessionData));
-        console.log('[Migration] Active session migrated');
+        logger.log('[Migration] Active session migrated');
       }
 
       // 6. Nettoyer les anciennes clés après migration réussie
@@ -249,22 +250,22 @@ export class RobustStorageService {
         legacyKey => !currentStorageKeysValues.includes(legacyKey)
       );
       
-      console.log('[Migration] Keys to remove:', legacyKeysToRemove);
-      console.log('[Migration] Keys to preserve:', currentStorageKeysValues);
+      logger.log('[Migration] Keys to remove:', legacyKeysToRemove);
+      logger.log('[Migration] Keys to preserve:', currentStorageKeysValues);
       
       if (legacyKeysToRemove.length > 0) {
         await AsyncStorage.multiRemove(legacyKeysToRemove);
-        console.log('[Migration] Legacy keys cleaned up');
+        logger.log('[Migration] Legacy keys cleaned up');
       } else {
-        console.log('[Migration] No legacy keys to remove');
+        logger.log('[Migration] No legacy keys to remove');
       }
 
       await this.markMigrationCompleted();
-      console.log('[RobustStorageService] Data migration completed successfully');
+      logger.log('[RobustStorageService] Data migration completed successfully');
       return true;
 
     } catch (error) {
-      console.error('[RobustStorageService] Migration failed:', error);
+      logger.error('[RobustStorageService] Migration failed:', error);
       return false;
     }
   }
@@ -273,11 +274,11 @@ export class RobustStorageService {
    * Initialiser le service (effectue la migration si nécessaire)
    */
   static async initialize(): Promise<boolean> {
-    console.log('[RobustStorageService] Initializing...');
+    logger.log('[RobustStorageService] Initializing...');
     const migrationSuccess = await this.migrateData();
-    
+
     if (!migrationSuccess) {
-      console.warn('[RobustStorageService] Migration failed, but service will continue with fallbacks');
+      logger.warn('[RobustStorageService] Migration failed, but service will continue with fallbacks');
     }
     
     return migrationSuccess;

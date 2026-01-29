@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { PersonalRecords } from '../../types/workout';
 import { PersonalRecordService } from '../../services/personalRecordService';
 import { TrackingSet } from '../contexts/ActiveWorkoutContext';
+import logger from '../../utils/logger';
 
 // Types pour les résultats de Personal Records
 export interface PRResult {
@@ -93,7 +94,7 @@ export const useWorkoutSession = (): UseWorkoutSessionReturn => {
   // Initialiser une nouvelle session d'entraînement
   const initializeSession = useCallback((records: PersonalRecords) => {
     if (isMounted.current) {
-      console.log('[useWorkoutSession] Initializing session with records:', Object.keys(records));
+      logger.log('[useWorkoutSession] Initializing session with records:', Object.keys(records));
       setOriginalRecordsState(records);
       setCurrentSessionMaxWeights({});
       setPrResults(null);
@@ -104,7 +105,7 @@ export const useWorkoutSession = (): UseWorkoutSessionReturn => {
   // Nettoyer la session (appelé à la fin d'un workout ou à l'annulation)
   const clearSession = useCallback(() => {
     if (isMounted.current) {
-      console.log('[useWorkoutSession] Clearing session');
+      logger.log('[useWorkoutSession] Clearing session');
       setCurrentSessionMaxWeights({});
       setPrResults(null);
       setExercisePRResults({});
@@ -178,7 +179,7 @@ export const useWorkoutSession = (): UseWorkoutSessionReturn => {
       
       // Un PR de poids est détecté si le poids est strictement supérieur au max actuel
       if (weight > currentMaxWeight) {
-        console.log(`[checkSessionWeightPR] ✅ NEW PR detected for ${exerciseName}: ${weight}kg > ${currentMaxWeight}kg (original: ${originalRecord}kg)`);
+        logger.log(`[checkSessionWeightPR] ✅ NEW PR detected for ${exerciseName}: ${weight}kg > ${currentMaxWeight}kg (original: ${originalRecord}kg)`);
         return {
           isNew: true,
           weight
@@ -190,7 +191,7 @@ export const useWorkoutSession = (): UseWorkoutSessionReturn => {
       if (!originalRecords[exerciseName]) {
         const weightPR = PersonalRecordService.checkWeightPR(exerciseName, weight, originalRecords);
         if (weightPR) {
-          console.log(`[checkSessionWeightPR] ✅ NEW PR detected for new exercise ${exerciseName}: ${weight}kg`);
+          logger.log(`[checkSessionWeightPR] ✅ NEW PR detected for new exercise ${exerciseName}: ${weight}kg`);
         }
         return weightPR;
       }
@@ -255,7 +256,7 @@ export const useWorkoutSession = (): UseWorkoutSessionReturn => {
         });
         return newResults;
       });
-      console.log('[useWorkoutSession] Cleared PRs for exercise:', exerciseId);
+      logger.log('[useWorkoutSession] Cleared PRs for exercise:', exerciseId);
     }
   }, []);
   
@@ -290,7 +291,7 @@ export const useWorkoutSession = (): UseWorkoutSessionReturn => {
       // Récupérer le record original pour cet exercice
       const originalRecord = originalRecords[exerciseName]?.maxWeight || 0;
 
-      console.log(`[recalculateSessionMaxWeight] ${exerciseName}: maxWeight=${maxWeight}kg, originalRecord=${originalRecord}kg, completedSets=${completedSets.filter(s => s.completed).length}`);
+      logger.log(`[recalculateSessionMaxWeight] ${exerciseName}: maxWeight=${maxWeight}kg, originalRecord=${originalRecord}kg, completedSets=${completedSets.filter(s => s.completed).length}`);
 
       // Si aucun poids trouvé ou si le poids max est inférieur ou égal au record original,
       // supprimer l'entrée (pas de PR en mémoire)
@@ -299,7 +300,7 @@ export const useWorkoutSession = (): UseWorkoutSessionReturn => {
           const updated = { ...prev };
           if (updated[exerciseName]) {
             delete updated[exerciseName];
-            console.log(`[useWorkoutSession] ✅ Reset session max weight for ${exerciseName} (maxWeight: ${maxWeight}kg <= originalRecord: ${originalRecord}kg)`);
+            logger.log(`[useWorkoutSession] ✅ Reset session max weight for ${exerciseName} (maxWeight: ${maxWeight}kg <= originalRecord: ${originalRecord}kg)`);
           }
           return updated;
         });
@@ -309,7 +310,7 @@ export const useWorkoutSession = (): UseWorkoutSessionReturn => {
           const currentMax = prev[exerciseName];
           // Ne mettre à jour que si le nouveau max est différent
           if (currentMax !== maxWeight) {
-            console.log(`[useWorkoutSession] ✅ Updated session max weight for ${exerciseName}: ${currentMax || 'none'}kg -> ${maxWeight}kg`);
+            logger.log(`[useWorkoutSession] ✅ Updated session max weight for ${exerciseName}: ${currentMax || 'none'}kg -> ${maxWeight}kg`);
             return {
               ...prev,
               [exerciseName]: maxWeight
@@ -341,7 +342,7 @@ export const useWorkoutSession = (): UseWorkoutSessionReturn => {
             ...prev,
             [exerciseName]: currentRecords[exerciseName]
           }));
-          console.log(`[useWorkoutSession] Updated originalRecords for exercise: ${exerciseName}`);
+          logger.log(`[useWorkoutSession] Updated originalRecords for exercise: ${exerciseName}`);
         } else {
           // Si l'exercice n'a pas de records, initialiser une entrée vide pour éviter les faux PRs
           setOriginalRecordsState(prev => {
@@ -358,7 +359,7 @@ export const useWorkoutSession = (): UseWorkoutSessionReturn => {
             }
             return prev;
           });
-          console.log(`[useWorkoutSession] Initialized empty records for new exercise: ${exerciseName}`);
+          logger.log(`[useWorkoutSession] Initialized empty records for new exercise: ${exerciseName}`);
         }
       } catch (error) {
         console.error(`[useWorkoutSession] Error updating originalRecords for ${exerciseName}:`, error);
@@ -405,7 +406,7 @@ export const useWorkoutSession = (): UseWorkoutSessionReturn => {
           });
           
           if (hasChanges) {
-            console.log(`[useWorkoutSession] Synced originalRecords with ${exerciseNames.length} exercises`);
+            logger.log(`[useWorkoutSession] Synced originalRecords with ${exerciseNames.length} exercises`);
           }
           
           return updated;

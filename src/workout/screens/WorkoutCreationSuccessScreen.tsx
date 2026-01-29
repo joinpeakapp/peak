@@ -11,6 +11,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { WorkoutStackParamList } from '../../types/navigation';
 import { useWorkout } from '../../hooks/useWorkout';
 import { WorkoutCard } from '../components/WorkoutCard';
+import logger from '../../utils/logger';
 
 type WorkoutCreationSuccessRouteProp = RouteProp<WorkoutStackParamList, 'WorkoutCreationSuccess'>;
 type WorkoutCreationSuccessNavigationProp = NativeStackNavigationProp<WorkoutStackParamList, 'WorkoutCreationSuccess'>;
@@ -20,30 +21,30 @@ export const WorkoutCreationSuccessScreen: React.FC = () => {
   const navigation = useNavigation<WorkoutCreationSuccessNavigationProp>();
   const { workouts } = useWorkout();
   
-  console.log('[WorkoutCreationSuccessScreen] Mounted with workoutId:', route.params.workoutId);
-  console.log('[WorkoutCreationSuccessScreen] Total workouts in store:', workouts.length);
+  logger.log('[WorkoutCreationSuccessScreen] Mounted with workoutId:', route.params.workoutId);
+  logger.log('[WorkoutCreationSuccessScreen] Total workouts in store:', workouts.length);
   
   // Récupérer le workout créé depuis les workouts en utilisant l'ID
   const workout = workouts.find(w => w.id === route.params.workoutId);
   
-  console.log('[WorkoutCreationSuccessScreen] Workout found:', !!workout);
+  logger.log('[WorkoutCreationSuccessScreen] Workout found:', !!workout);
   if (workout) {
-    console.log('[WorkoutCreationSuccessScreen] Workout name:', workout.name);
+    logger.log('[WorkoutCreationSuccessScreen] Workout name:', workout.name);
   }
 
   // Si le workout n'est pas trouvé, attendre un peu puis vérifier à nouveau
   // Le workout pourrait être en train d'être ajouté au store
   useEffect(() => {
     if (!workout) {
-      console.log('[WorkoutCreationSuccessScreen] Workout not found, waiting...');
+      logger.log('[WorkoutCreationSuccessScreen] Workout not found, waiting...');
       // Attendre un peu pour que le store Redux soit mis à jour
       const timeout = setTimeout(() => {
         const workoutAfterDelay = workouts.find(w => w.id === route.params.workoutId);
         if (!workoutAfterDelay) {
-          console.log('[WorkoutCreationSuccessScreen] Workout still not found after delay, redirecting');
+          logger.log('[WorkoutCreationSuccessScreen] Workout still not found after delay, redirecting');
           navigation.replace('WorkoutsList');
         } else {
-          console.log('[WorkoutCreationSuccessScreen] Workout found after delay');
+          logger.log('[WorkoutCreationSuccessScreen] Workout found after delay');
         }
       }, 500);
       

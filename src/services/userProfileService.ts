@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PersonalRecords } from '../types/workout';
+import logger from '../utils/logger';
 
 export interface UserProfile {
   firstName: string;
@@ -29,7 +30,7 @@ class UserProfileService {
       const profileData = await AsyncStorage.getItem(this.USER_PROFILE_KEY);
       return profileData ? JSON.parse(profileData) : null;
     } catch (error) {
-      console.error('Error loading user profile:', error);
+      logger.error('Error loading user profile:', error);
       return null;
     }
   }
@@ -41,7 +42,7 @@ class UserProfileService {
     try {
       await AsyncStorage.setItem(this.USER_PROFILE_KEY, JSON.stringify(profile));
       } catch (error) {
-      console.error('Error saving user profile:', error);
+      logger.error('Error saving user profile:', error);
       throw error;
     }
   }
@@ -55,7 +56,7 @@ class UserProfileService {
       const updatedProfile = { ...currentProfile, ...updates };
       await this.saveUserProfile(updatedProfile as UserProfile);
     } catch (error) {
-      console.error('Error updating user profile:', error);
+      logger.error('Error updating user profile:', error);
       throw error;
     }
   }
@@ -77,7 +78,7 @@ class UserProfileService {
       await this.saveUserProfile(profile);
       return profile;
     } catch (error) {
-      console.error('Error completing onboarding:', error);
+      logger.error('Error completing onboarding:', error);
       throw error;
     }
   }
@@ -90,7 +91,7 @@ class UserProfileService {
       const profile = await this.getUserProfile();
       return profile?.onboardingCompleted === true;
     } catch (error) {
-      console.error('Error checking onboarding status:', error);
+      logger.error('Error checking onboarding status:', error);
       return false;
     }
   }
@@ -102,7 +103,7 @@ class UserProfileService {
     try {
       await AsyncStorage.removeItem(this.USER_PROFILE_KEY);
       } catch (error) {
-      console.error('Error resetting user profile:', error);
+      logger.error('Error resetting user profile:', error);
       throw error;
     }
   }
@@ -156,7 +157,7 @@ class UserProfileService {
 
       await this.saveUserProfile(updatedProfile);
       } catch (error) {
-      console.error('Error updating personal records:', error);
+      logger.error('Error updating personal records:', error);
       throw error;
     }
   }
@@ -169,7 +170,7 @@ class UserProfileService {
       const profile = await this.getUserProfile();
       return profile?.personalRecords || {};
     } catch (error) {
-      console.error('Error loading personal records:', error);
+      logger.error('Error loading personal records:', error);
       return {};
     }
   }

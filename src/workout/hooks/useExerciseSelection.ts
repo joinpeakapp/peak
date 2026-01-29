@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Exercise } from '../../types/workout';
 import { SAMPLE_EXERCISES } from '../components/ExerciseSelectionModal';
 import CustomExerciseService from '../../services/customExerciseService';
+import logger from '../../utils/logger';
 
 // Interface pour les modes de sélection
 export type ExerciseSelectionMode = 'workout' | 'exercise-selection' | 'exercise-tracking' | 'exercise-replacement' | 'exercise-creation';

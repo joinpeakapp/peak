@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import logger from '../utils/logger';
 
 const EXERCISE_PREFERENCES_KEY = '@peak_exercise_preferences';
 
@@ -38,7 +39,7 @@ export class ExercisePreferencesService {
       console.log(`[ExercisePreferences] Saved preferences for exercise ${exerciseId}:`, preferences);
       return { success: true };
     } catch (error) {
-      console.error('[ExercisePreferences] Error saving preferences:', error);
+      logger.error('[ExercisePreferences] Error saving preferences:', error);
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Unknown error' 
@@ -70,7 +71,7 @@ export class ExercisePreferencesService {
         preferences: { restTimeSeconds: exercisePreferences.restTimeSeconds } 
       };
     } catch (error) {
-      console.error('[ExercisePreferences] Error loading preferences:', error);
+      logger.error('[ExercisePreferences] Error loading preferences:', error);
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Unknown error' 
@@ -91,7 +92,7 @@ export class ExercisePreferencesService {
       const allPreferences: ExercisePreferences = JSON.parse(data);
       return { success: true, preferences: allPreferences };
     } catch (error) {
-      console.error('[ExercisePreferences] Error loading all preferences:', error);
+      logger.error('[ExercisePreferences] Error loading all preferences:', error);
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Unknown error' 
@@ -117,7 +118,7 @@ export class ExercisePreferencesService {
       console.log(`[ExercisePreferences] Removed preferences for exercise ${exerciseId}`);
       return { success: true };
     } catch (error) {
-      console.error('[ExercisePreferences] Error removing preferences:', error);
+      logger.error('[ExercisePreferences] Error removing preferences:', error);
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Unknown error' 
@@ -146,7 +147,7 @@ export class ExercisePreferencesService {
         return exercise;
       });
     } catch (error) {
-      console.error('[ExercisePreferences] Error applying preferences:', error);
+      logger.error('[ExercisePreferences] Error applying preferences:', error);
       return exercises;
     }
   }

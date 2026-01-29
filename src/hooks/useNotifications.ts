@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import * as Notifications from 'expo-notifications';
 import NotificationService from '../services/notificationService';
 import { NotificationSettings, ScheduledNotification } from '../types/notifications';
+import logger from '../utils/logger';
 
 export const useNotifications = () => {
   const [isInitialized, setIsInitialized] = useState(false);
@@ -112,7 +113,7 @@ export const useNotifications = () => {
       setPermissionStatus(status);
       return status === 'granted';
     } catch (error) {
-      console.error('🔔 [useNotifications] Failed to request permissions:', error);
+      logger.error('🔔 [useNotifications] Failed to request permissions:', error);
       return false;
     }
   }, []);

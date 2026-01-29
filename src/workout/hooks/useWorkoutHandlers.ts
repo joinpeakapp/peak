@@ -9,6 +9,7 @@ import { StickerService } from '../../services/stickerService';
 import { StreakService } from '../../services/streakService';
 import { RobustStorageService } from '../../services/storage';
 import { calculateStickerHistoricalData, calculatePersonalRecord } from '../utils/workoutUtils';
+import logger from '../../utils/logger';
 
 // Fonction pour générer un ID unique
 const generateId = (): string => {
@@ -188,7 +189,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
         tracking
       );
       
-      console.log('[WorkoutDetailModal] Exercise created:', newExercise.name, newExercise.id);
+      logger.log('[WorkoutDetailModal] Exercise created:', newExercise.name, newExercise.id);
       
       // Recharger la liste des exercices personnalisés dans le hook
       await exerciseSelection.reloadCustomExercises();
@@ -203,7 +204,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
       
       if (wasInReplacementMode && exerciseIdToReplace) {
         // En mode remplacement, sélectionner directement l'exercice créé
-        console.log('[WorkoutDetailModal] Exercise created during replacement, selecting for replacement...');
+        logger.log('[WorkoutDetailModal] Exercise created during replacement, selecting for replacement...');
         
         // Reset les états de création
         setExerciseCreationStep('name');
@@ -219,7 +220,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
           await new Promise(resolve => setTimeout(resolve, 100));
           
           // Sélectionner l'exercice créé (en mode remplacement, toggleExerciseSelection sélectionne directement)
-          console.log('[WorkoutDetailModal] Selecting created exercise for replacement:', exerciseForSelection.name);
+          logger.log('[WorkoutDetailModal] Selecting created exercise for replacement:', exerciseForSelection.name);
           exerciseSelection.toggleExerciseSelection(exerciseForSelection);
           
           // Stocker l'ID du nouvel exercice pour le highlight
@@ -242,7 +243,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
         // Attendre un court instant pour que le mode soit bien changé
         setTimeout(() => {
           // Sélectionner automatiquement l'exercice nouvellement créé
-          console.log('[WorkoutDetailModal] Auto-selecting exercise:', exerciseForSelection.name);
+          logger.log('[WorkoutDetailModal] Auto-selecting exercise:', exerciseForSelection.name);
           exerciseSelection.toggleExerciseSelection(exerciseForSelection);
           
           // Stocker l'ID du nouvel exercice pour le highlight
@@ -257,7 +258,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
         Alert.alert('Success', `Exercise "${name}" created successfully! It has been selected for you.`);
       }
     } catch (error: any) {
-      console.error('[WorkoutDetailModal] Error creating exercise:', error);
+      logger.error('[WorkoutDetailModal] Error creating exercise:', error);
       Alert.alert('Error', error.message || 'Failed to create exercise');
     }
   }, [exerciseCreationData, exerciseSelection, setExerciseCreationStep, setExerciseCreationData, setNewlyCreatedExerciseId]);
@@ -282,7 +283,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
 
   // Fonction pour gérer le long press sur un exercice dans la bibliothèque
   const handleExerciseLongPress = useCallback((exercise: Exercise) => {
-    console.log('[WorkoutDetailModal] Long press on exercise:', exercise.name);
+    logger.log('[WorkoutDetailModal] Long press on exercise:', exercise.name);
     setSelectedLibraryExercise(exercise);
     setLibraryOptionsModalVisible(true);
   }, [setSelectedLibraryExercise, setLibraryOptionsModalVisible]);
@@ -297,7 +298,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
     if (!selectedLibraryExercise) return;
 
     try {
-      console.log('[WorkoutDetailModal] Deleting exercise:', selectedLibraryExercise.name);
+      logger.log('[WorkoutDetailModal] Deleting exercise:', selectedLibraryExercise.name);
       await CustomExerciseService.deleteCustomExercise(selectedLibraryExercise.id);
       
       // Recharger la liste des exercices personnalisés
@@ -309,14 +310,14 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
       setLibraryOptionsModalVisible(false);
       setSelectedLibraryExercise(null);
     } catch (error: any) {
-      console.error('[WorkoutDetailModal] Error deleting exercise:', error);
+      logger.error('[WorkoutDetailModal] Error deleting exercise:', error);
       Alert.alert('Error', error.message || 'Failed to delete exercise');
     }
   }, [selectedLibraryExercise, exerciseSelection, setLibraryOptionsModalVisible, setSelectedLibraryExercise]);
 
   // Fonction pour ajouter les exercices sélectionnés
   const handleExercisesSelected = useCallback(async () => {
-    console.log('[WorkoutDetailModal] Adding exercises:', exerciseSelection.selectedExercises.length);
+    logger.log('[WorkoutDetailModal] Adding exercises:', exerciseSelection.selectedExercises.length);
     // Ajouter seulement les exercices qui ne sont pas déjà présents dans le workout
     const newExercises = exerciseSelection.selectedExercises.filter(
       (newEx: Exercise) => !exercises.some(existingEx => existingEx.id === newEx.id)
@@ -325,7 +326,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
     if (newExercises.length > 0) {
       const updatedExercises = [...exercises, ...newExercises];
       setExercises(updatedExercises);
-      console.log('[WorkoutDetailModal] Updated exercises list with', updatedExercises.length, 'exercises');
+      logger.log('[WorkoutDetailModal] Updated exercises list with', updatedExercises.length, 'exercises');
       
       // Sauvegarder immédiatement le workout template
       if (workout) {
@@ -335,12 +336,12 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
           updatedAt: new Date().toISOString()
         };
         updateWorkout(updatedWorkout);
-        console.log('[WorkoutDetailModal] Saved workout template');
+        logger.log('[WorkoutDetailModal] Saved workout template');
       }
       
       // Si on est en mode tracking, initialiser les trackingData avec 3 sets vides pour chaque nouvel exercice
       if (isTrackingWorkout && activeWorkout) {
-        console.log('[WorkoutDetailModal] Initializing tracking data for new exercises');
+        logger.log('[WorkoutDetailModal] Initializing tracking data for new exercises');
         newExercises.forEach((exercise: Exercise) => {
           const emptySets: TrackingSet[] = [
             { completed: false, weight: '', reps: '', weightPlaceholder: '0', repsPlaceholder: '0' },
@@ -354,11 +355,11 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
         const newExerciseNames = newExercises.map((ex: Exercise) => ex.name).filter(Boolean) as string[];
         if (newExerciseNames.length > 0) {
           await workoutSession.syncOriginalRecordsWithExercises(newExerciseNames);
-          console.log(`[WorkoutDetailModal] Synced originalRecords with ${newExerciseNames.length} newly added exercises`);
+          logger.log(`[WorkoutDetailModal] Synced originalRecords with ${newExerciseNames.length} newly added exercises`);
         }
         // Mettre à jour la liste complète d'exercices dans activeWorkout
         setActiveWorkoutExercises(updatedExercises);
-        console.log('[WorkoutDetailModal] Updated activeWorkout exercises after adding');
+        logger.log('[WorkoutDetailModal] Updated activeWorkout exercises after adding');
       }
     }
     
@@ -368,7 +369,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
 
   // Fonction pour effectuer la suppression réelle d'un exercice
   const performRemoveExercise = useCallback((exerciseId: string) => {
-    console.log('[WorkoutDetailModal] Performing remove exercise:', exerciseId);
+    logger.log('[WorkoutDetailModal] Performing remove exercise:', exerciseId);
     const updatedExercises = exercises.filter(ex => ex.id !== exerciseId);
     setExercises(updatedExercises);
     
@@ -380,13 +381,13 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
         updatedAt: new Date().toISOString()
       };
       updateWorkout(updatedWorkout);
-      console.log('[WorkoutDetailModal] Updated workout template with', updatedExercises.length, 'exercises');
+      logger.log('[WorkoutDetailModal] Updated workout template with', updatedExercises.length, 'exercises');
     }
     
     // Si on est en mode tracking, remplacer complètement la liste d'exercices dans activeWorkout
     if (isTrackingWorkout && activeWorkout) {
       setActiveWorkoutExercises(updatedExercises);
-      console.log('[WorkoutDetailModal] Updated activeWorkout exercises after deletion');
+      logger.log('[WorkoutDetailModal] Updated activeWorkout exercises after deletion');
     }
   }, [exercises, setExercises, workout, updateWorkout, isTrackingWorkout, activeWorkout, setActiveWorkoutExercises]);
 
@@ -494,13 +495,13 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
       // Empêcher de remplacer un exercice par lui-même (même nom)
       // Cette vérification doit être faite avant toute modification
       if (!oldExercise) {
-        console.log('[WorkoutDetailModal] Cannot find exercise to replace');
+        logger.log('[WorkoutDetailModal] Cannot find exercise to replace');
         exerciseSelection.resetToWorkoutMode();
         return;
       }
       
       if (oldExercise.name === newExercise.name) {
-        console.log('[WorkoutDetailModal] Cannot replace exercise with itself (same name)');
+        logger.log('[WorkoutDetailModal] Cannot replace exercise with itself (same name)');
         // Réinitialiser et retourner au mode workout sans faire de changement
         exerciseSelection.resetToWorkoutMode();
         return;
@@ -540,17 +541,17 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
         // 🔧 CORRECTIF ROBUSTE : Mettre à jour les originalRecords avec les records du nouvel exercice
         if (newExercise.name) {
           await workoutSession.updateOriginalRecordsForExercise(newExercise.name);
-          console.log(`[WorkoutDetailModal] Updated originalRecords for replaced exercise: ${newExercise.name}`);
+          logger.log(`[WorkoutDetailModal] Updated originalRecords for replaced exercise: ${newExercise.name}`);
         }
         
         // Si l'ancien exercice avait un nom différent, on peut optionnellement nettoyer ses records de la session
         if (oldExercise && oldExercise.name !== newExercise.name) {
-          console.log(`[WorkoutDetailModal] Exercise name changed from "${oldExercise.name}" to "${newExercise.name}"`);
+          logger.log(`[WorkoutDetailModal] Exercise name changed from "${oldExercise.name}" to "${newExercise.name}"`);
         }
         
         // Mettre à jour la liste complète d'exercices dans activeWorkout
         setActiveWorkoutExercises(updatedExercises);
-        console.log('[WorkoutDetailModal] Updated activeWorkout exercises and cleared PRs after replacement');
+        logger.log('[WorkoutDetailModal] Updated activeWorkout exercises and cleared PRs after replacement');
       }
     }
     
@@ -560,7 +561,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
 
   // Fonction pour repositionner un exercice dans la liste
   const handleRepositionExercise = useCallback((exerciseId: string, newPosition: number) => {
-    console.log('[WorkoutDetailModal] Repositioning exercise:', exerciseId, 'to position:', newPosition);
+    logger.log('[WorkoutDetailModal] Repositioning exercise:', exerciseId, 'to position:', newPosition);
     
     // Activer LayoutAnimation pour Android si nécessaire
     if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -588,7 +589,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
     
     // Si la position est la même, ne rien faire
     if (currentIndex === newPosition) {
-      console.log('[WorkoutDetailModal] Exercise already at position:', newPosition);
+      logger.log('[WorkoutDetailModal] Exercise already at position:', newPosition);
       return;
     }
     
@@ -639,13 +640,13 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
         updatedAt: new Date().toISOString()
       };
       updateWorkout(updatedWorkout);
-      console.log('[WorkoutDetailModal] Updated workout template with repositioned exercise');
+      logger.log('[WorkoutDetailModal] Updated workout template with repositioned exercise');
     }
     
     // Si on est en mode tracking, mettre à jour la liste d'exercices dans activeWorkout
     if (isTrackingWorkout && activeWorkout) {
       setActiveWorkoutExercises(updatedExercises);
-      console.log('[WorkoutDetailModal] Updated activeWorkout exercises after repositioning');
+      logger.log('[WorkoutDetailModal] Updated activeWorkout exercises after repositioning');
     }
     
     // Réinitialiser les animations pour refléter le nouvel ordre
@@ -681,7 +682,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
     const exerciseNames = exercises.map(ex => ex.name).filter(Boolean) as string[];
     if (exerciseNames.length > 0) {
       await workoutSession.syncOriginalRecordsWithExercises(exerciseNames);
-      console.log(`[WorkoutDetailModal] Synced originalRecords with ${exerciseNames.length} exercises at session start`);
+      logger.log(`[WorkoutDetailModal] Synced originalRecords with ${exerciseNames.length} exercises at session start`);
     }
     
     // Préparer les données de tracking initiales avec les placeholders
@@ -689,7 +690,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
     exercises.forEach(exercise => {
       // Récupérer les données du précédent workout pour cet exercice
       const previousData = getPreviousWorkoutData(workout.id, exercise.name);
-      console.log(`[WorkoutDetailModal] Previous data for ${exercise.name}:`, {
+      logger.log(`[WorkoutDetailModal] Previous data for ${exercise.name}:`, {
         weightPlaceholder: previousData.weightPlaceholder,
         repsPlaceholder: previousData.repsPlaceholder,
         setCount: previousData.setCount
@@ -731,7 +732,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
         sets,
       };
       
-      console.log(`[WorkoutDetailModal] Created ${sets.length} sets for ${exercise.name} with placeholders:`, 
+      logger.log(`[WorkoutDetailModal] Created ${sets.length} sets for ${exercise.name} with placeholders:`, 
         sets.map(s => `${s.weightPlaceholder}kg x ${s.repsPlaceholder}reps`).join(', ')
       );
     });
@@ -942,7 +943,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
       try {
         await finishWorkout(false); // false = pas de mise à jour streak
       } catch (finishError) {
-        console.error("Error cleaning workout session:", finishError);
+        logger.error("Error cleaning workout session:", finishError);
       }
       
       // 3. Réinitialiser le template original car la séance est terminée avec succès
@@ -959,7 +960,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
       try {
         preCalculatedStickers = await StickerService.generateWorkoutStickers(newCompletedWorkout, true);
       } catch (stickerError) {
-        console.error("Error pre-calculating stickers:", stickerError);
+        logger.error("Error pre-calculating stickers:", stickerError);
       }
       
       // 7. Naviguer vers l'écran de récapitulatif avec les stickers pré-calculés
@@ -974,7 +975,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
           })
         );
       } catch (navigationError) {
-        console.error('Navigation error:', navigationError);
+        logger.error('Navigation error:', navigationError);
         Alert.alert(
           "Navigation Error",
           "Your workout has been saved successfully, but there was an issue opening the summary. You can view it in your journal.",
@@ -983,7 +984,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
       }
       
     } catch (error) {
-      console.error('Error saving completed workout:', error);
+      logger.error('Error saving completed workout:', error);
       Alert.alert(
         "Error", 
         "There was an error saving your workout. Please try again."
@@ -1203,7 +1204,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
       if (weight > 0 && reps > 0) {
         // 🔧 CORRECTIF ROBUSTE : S'assurer que les originalRecords contiennent les records de cet exercice
         if (!workoutSession.originalRecords[exercise.name] && isTrackingWorkout) {
-          console.log(`[WorkoutDetailModal] Exercise "${exercise.name}" not found in originalRecords, loading now...`);
+          logger.log(`[WorkoutDetailModal] Exercise "${exercise.name}" not found in originalRecords, loading now...`);
           await workoutSession.updateOriginalRecordsForExercise(exercise.name);
         }
         

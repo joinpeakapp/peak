@@ -7,6 +7,7 @@ import { PersonalRecordService } from '../../services/personalRecordService';
 import { usePersonalRecords } from '../../hooks/usePersonalRecords';
 import { PhotoStorageService } from '../../services/photoStorageService';
 import { AppPreloadService } from '../../services/appPreloadService';
+import logger from '../../utils/logger';
 
 interface ExerciseWithTracking {
   id: string;
@@ -81,7 +82,7 @@ export const WorkoutHistoryProvider: React.FC<{ children: ReactNode }> = ({ chil
           if (result.success) {
             setCompletedWorkouts(result.data);
           } else {
-            console.warn('[WorkoutHistory] Failed to load workout history:', result.error?.userMessage);
+            logger.warn('[WorkoutHistory] Failed to load workout history:', result.error?.userMessage);
             setError(result.error?.userMessage || 'Could not load workout history');
             setCompletedWorkouts([]);
           }
@@ -246,13 +247,13 @@ export const WorkoutHistoryProvider: React.FC<{ children: ReactNode }> = ({ chil
         );
 
         if (similarWorkouts.length === 0) {
-          console.log(`[WorkoutHistory] No previous workouts found for workoutId: ${workoutId}`);
+          logger.log(`[WorkoutHistory] No previous workouts found for workoutId: ${workoutId}`);
           return { weightPlaceholder: '', repsPlaceholder: '' };
         }
 
         // Prendre le dernier workout similaire (le plus récent)
         const lastWorkout = similarWorkouts[similarWorkouts.length - 1];
-        console.log(`[WorkoutHistory] Found previous workout for ${workoutId}:`, lastWorkout.id, lastWorkout.date);
+        logger.log(`[WorkoutHistory] Found previous workout for ${workoutId}:`, lastWorkout.id, lastWorkout.date);
         
         // Trouver l'exercice correspondant
         const exercise = lastWorkout.exercises.find(
@@ -260,15 +261,15 @@ export const WorkoutHistoryProvider: React.FC<{ children: ReactNode }> = ({ chil
         );
 
         if (!exercise || !exercise.sets || exercise.sets.length === 0) {
-          console.log(`[WorkoutHistory] No exercise or sets found for ${exerciseName}`);
+          logger.log(`[WorkoutHistory] No exercise or sets found for ${exerciseName}`);
           return { weightPlaceholder: '', repsPlaceholder: '' };
         }
 
-        console.log(`[WorkoutHistory] Found exercise ${exerciseName} with ${exercise.sets.length} sets`);
+        logger.log(`[WorkoutHistory] Found exercise ${exerciseName} with ${exercise.sets.length} sets`);
         
         // Prendre les dernières valeurs complétées
         const completedSets = exercise.sets.filter((set) => set.completed);
-        console.log(`[WorkoutHistory] ${completedSets.length} completed sets found for ${exerciseName}`);
+        logger.log(`[WorkoutHistory] ${completedSets.length} completed sets found for ${exerciseName}`);
         
         if (completedSets.length === 0) {
           return { 
@@ -296,7 +297,7 @@ export const WorkoutHistoryProvider: React.FC<{ children: ReactNode }> = ({ chil
           setCount: completedSets.length  // Compter seulement les sets complétés
         };
         
-        console.log(`[WorkoutHistory] Returning placeholders for ${exerciseName}:`, {
+        logger.log(`[WorkoutHistory] Returning placeholders for ${exerciseName}:`, {
           weightPlaceholder,
           repsPlaceholder,
           setCount: completedSets.length,

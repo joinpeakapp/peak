@@ -6,6 +6,7 @@ import { PhotoStorageService } from './photoStorageService';
 import { RobustStorageService } from './storage';
 import { CompletedWorkout } from '../types/workout';
 import { Image } from 'react-native';
+import logger from '../utils/logger';
 
 // Type pour les callbacks de progrès
 export interface PreloadProgressCallback {
@@ -62,7 +63,7 @@ export class AppPreloadService {
    */
   static async preloadAppData(): Promise<void> {
     if (this.isPreloaded) {
-      console.log('[AppPreloadService] Data already preloaded, skipping...');
+      logger.log('[AppPreloadService] Data already preloaded, skipping...');
       this.reportProgress(100);
       this.reportComplete();
       return;
@@ -112,19 +113,19 @@ export class AppPreloadService {
       try {
         await this.preloadImages();
       } catch (error) {
-        console.warn('[AppPreloadService] Image preload failed:', error);
+        logger.warn('[AppPreloadService] Image preload failed:', error);
       }
 
       this.reportProgress(100);
       this.isPreloaded = true;
       
       const loadTime = Date.now() - startTime;
-      console.log(`[AppPreloadService] ✅ Preload completed in ${loadTime}ms`);
+      logger.log(`[AppPreloadService] ✅ Preload completed in ${loadTime}ms`);
       
       this.reportStep('complete', 'Ready to go!');
       this.reportComplete();
     } catch (error) {
-      console.error('[AppPreloadService] ❌ Preload failed:', error);
+      logger.error('[AppPreloadService] ❌ Preload failed:', error);
       this.reportError('Failed to load some data. The app may not work properly.');
       // Ne pas bloquer l'app si le préchargement échoue
       this.reportComplete(); // Continuer malgré l'erreur
@@ -139,7 +140,7 @@ export class AppPreloadService {
       const profile = await UserProfileService.getUserProfile();
       // User profile preloaded
     } catch (error) {
-      console.warn('[AppPreloadService] Failed to preload user profile:', error);
+      logger.warn('[AppPreloadService] Failed to preload user profile:', error);
     }
   }
 
@@ -153,11 +154,11 @@ export class AppPreloadService {
       const recordsResult = await RobustStorageService.loadPersonalRecords();
       
       if (!recordsResult.success) {
-        console.warn('[AppPreloadService] Failed to preload personal records:', recordsResult.error?.userMessage);
+        logger.warn('[AppPreloadService] Failed to preload personal records:', recordsResult.error?.userMessage);
       }
       // Personal records preloaded
     } catch (error) {
-      console.warn('[AppPreloadService] Failed to preload personal records:', error);
+      logger.warn('[AppPreloadService] Failed to preload personal records:', error);
     }
   }
 
@@ -170,7 +171,7 @@ export class AppPreloadService {
       // En réalité, les streaks sont calculées à la volée depuis les workouts
       // Streak data preloaded
     } catch (error) {
-      console.warn('[AppPreloadService] Failed to preload streak data:', error);
+      logger.warn('[AppPreloadService] Failed to preload streak data:', error);
     }
   }
 
@@ -187,12 +188,12 @@ export class AppPreloadService {
         // Mettre en cache mémoire pour accès immédiat dans le contexte
         this.preloadedWorkoutHistory = result.data;
       } else {
-        console.warn('[AppPreloadService] Failed to preload workout history:', result.error?.userMessage);
+        logger.warn('[AppPreloadService] Failed to preload workout history:', result.error?.userMessage);
         this.preloadedWorkoutHistory = [];
       }
       // Workout history preloaded
     } catch (error) {
-      console.warn('[AppPreloadService] Failed to preload workout history:', error);
+      logger.warn('[AppPreloadService] Failed to preload workout history:', error);
       this.preloadedWorkoutHistory = [];
     }
   }
@@ -241,14 +242,14 @@ export class AppPreloadService {
             await StickerService.generateWorkoutStickers(workout, true);
             preloadedCount++;
           } catch (error) {
-            console.warn(`[AppPreloadService] Failed to preload stickers for workout ${workout.name}:`, error);
+            logger.warn(`[AppPreloadService] Failed to preload stickers for workout ${workout.name}:`, error);
           }
         }
         // Stickers preloaded
       }
       // Stickers preloading completed
     } catch (error) {
-      console.warn('[AppPreloadService] Failed to preload stickers:', error);
+      logger.warn('[AppPreloadService] Failed to preload stickers:', error);
     }
   }
 
@@ -316,7 +317,7 @@ export class AppPreloadService {
           await RobustStorageService.saveWorkoutHistory(updatedWorkouts);
           // Mettre à jour le cache mémoire avec les workouts mis à jour (URIs migrées)
           this.preloadedWorkoutHistory = updatedWorkouts;
-          console.log(`[AppPreloadService] Migrated ${migratedCount} workout photos`);
+          logger.log(`[AppPreloadService] Migrated ${migratedCount} workout photos`);
         }
         
         // Nettoyer les photos orphelines - DÉSACTIVÉ pour éviter les suppressions accidentelles
@@ -328,7 +329,7 @@ export class AppPreloadService {
       }
       // Photo preloading completed
     } catch (error) {
-      console.warn('[AppPreloadService] Failed to preload photos:', error);
+      logger.warn('[AppPreloadService] Failed to preload photos:', error);
     }
   }
 
@@ -353,7 +354,7 @@ export class AppPreloadService {
           if (savedUri) {
             // Mettre à jour le profil avec la photo récupérée
             await UserProfileService.updateUserProfile({ profilePhotoUri: savedUri });
-            console.log('[AppPreloadService] Recovered profile photo from storage');
+            logger.log('[AppPreloadService] Recovered profile photo from storage');
             return;
           }
         }
@@ -364,18 +365,18 @@ export class AppPreloadService {
         if (permanentUri !== profile.profilePhotoUri && !permanentUri.includes('placeholder')) {
           // Mettre à jour le profil avec l'URI permanente
           await UserProfileService.updateUserProfile({ profilePhotoUri: permanentUri });
-          console.log('[AppPreloadService] Migrated profile photo to permanent storage');
+          logger.log('[AppPreloadService] Migrated profile photo to permanent storage');
         }
       } else if (profile && (!profile.profilePhotoUri || profile.profilePhotoUri.includes('placeholder'))) {
         // Si pas de photo de profil dans le profil, essayer de récupérer une photo sauvegardée
         const savedUri = await PhotoStorageService.getProfilePhotoUri();
         if (savedUri) {
           await UserProfileService.updateUserProfile({ profilePhotoUri: savedUri });
-          console.log('[AppPreloadService] Restored profile photo from storage');
+          logger.log('[AppPreloadService] Restored profile photo from storage');
         }
       }
     } catch (error) {
-      console.warn('[AppPreloadService] Failed to migrate profile photo:', error);
+      logger.warn('[AppPreloadService] Failed to migrate profile photo:', error);
     }
   }
 
@@ -394,10 +395,10 @@ export class AppPreloadService {
         const profile = await UserProfileService.getUserProfile();
         if (profile?.profilePhotoUri && !profile.profilePhotoUri.includes('placeholder')) {
           imageUris.push(profile.profilePhotoUri);
-          console.log('[AppPreloadService] Adding profile photo to preload');
+          logger.log('[AppPreloadService] Adding profile photo to preload');
         }
       } catch (error) {
-        console.warn('[AppPreloadService] Failed to get profile photo URI:', error);
+        logger.warn('[AppPreloadService] Failed to get profile photo URI:', error);
       }
       
       // 2. Précharger toutes les photos des workouts
@@ -432,7 +433,7 @@ export class AppPreloadService {
                 imageUris.push(accessiblePhotoUri);
               }
             } catch (error) {
-              console.warn(`[AppPreloadService] Failed to get accessible URI for workout ${workout.id}:`, error);
+              logger.warn(`[AppPreloadService] Failed to get accessible URI for workout ${workout.id}:`, error);
             }
           }
         }
@@ -440,14 +441,14 @@ export class AppPreloadService {
       
       // 3. Précharger toutes les images en parallèle avec les URIs permanentes
       if (imageUris.length > 0) {
-        console.log(`[AppPreloadService] Starting preload of ${imageUris.length} images (1 profile + ${imageUris.length - 1} workouts)...`);
+        logger.log(`[AppPreloadService] Starting preload of ${imageUris.length} images (1 profile + ${imageUris.length - 1} workouts)...`);
         await ImageCacheUtils.preloadImages(imageUris);
-        console.log(`[AppPreloadService] ✅ Preloaded ${imageUris.length} images successfully`);
+        logger.log(`[AppPreloadService] ✅ Preloaded ${imageUris.length} images successfully`);
       } else {
-        console.log('[AppPreloadService] No images to preload');
+        logger.log('[AppPreloadService] No images to preload');
       }
     } catch (error) {
-      console.warn('[AppPreloadService] Failed to preload images:', error);
+      logger.warn('[AppPreloadService] Failed to preload images:', error);
     }
   }
 
@@ -460,7 +461,7 @@ export class AppPreloadService {
       // Charger l'historique des workouts
       const historyResult = await RobustStorageService.loadWorkoutHistory();
       if (!historyResult.success) {
-        console.warn('[AppPreloadService] Failed to load workout history for migration');
+        logger.warn('[AppPreloadService] Failed to load workout history for migration');
         return;
       }
 
@@ -520,7 +521,7 @@ export class AppPreloadService {
           
           streakCount = consecutiveCount;
         } catch (error) {
-          console.warn(`[AppPreloadService] Failed to calculate historical streak for workout ${workout.name}:`, error);
+          logger.warn(`[AppPreloadService] Failed to calculate historical streak for workout ${workout.name}:`, error);
           streakCount = 1;
         }
 
@@ -542,10 +543,10 @@ export class AppPreloadService {
       if (migratedCount > 0) {
         // Sauvegarder l'historique mis à jour
         await RobustStorageService.saveWorkoutHistory(sortedWorkouts);
-        console.log(`[AppPreloadService] Migrated sticker historical data for ${migratedCount} workouts`);
+        logger.log(`[AppPreloadService] Migrated sticker historical data for ${migratedCount} workouts`);
       }
     } catch (error) {
-      console.error('[AppPreloadService] Failed to migrate sticker historical data:', error);
+      logger.error('[AppPreloadService] Failed to migrate sticker historical data:', error);
     }
   }
 

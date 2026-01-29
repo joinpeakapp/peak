@@ -2,6 +2,7 @@ import { CompletedWorkout } from '../types/workout';
 import { Sticker, StickerType } from '../types/stickers';
 import { StreakService } from './streakService';
 import { RobustStorageService } from './storage';
+import logger from '../utils/logger';
 
 /**
  * Service centralisé pour la génération et la gestion des nouveaux stickers de workout.
@@ -21,7 +22,7 @@ export class StickerService {
   private static readonly STICKER_COLORS = {
     'completion': '#E43C3C',        // Rouge - 100% séries complétées
     'personal-record': '#9B93E4',   // Violet - Nouveau PR
-    'plus-one': '#FFD54D',          // Jaune/Doré - Au moins un +1 obtenu
+    'plus-one': '#3BDF32',          // Vert - Au moins un +1 obtenu
     'streak': '#FF8A24',            // Orange - Série consécutive
     'volume': '#FFE44D'             // Jaune - Volume supérieur
   } as const;
@@ -52,29 +53,29 @@ export class StickerService {
     }
     const stickers: Sticker[] = [];
     
-    console.log('[StickerService] Generating stickers for workout:', workout.name, workout.id);
+    logger.log('[StickerService] Generating stickers for workout:', workout.name, workout.id);
     
     // 🏆 Personal Record - Si au moins un exercice a un PR de poids
     const hasPersonalRecord = this.checkPersonalRecordAchievement(workout);
     if (hasPersonalRecord) {
-      console.log('[StickerService] ✅ PR sticker added');
+      logger.log('[StickerService] ✅ PR sticker added');
       stickers.push(this.createSticker('personal-record'));
     }
 
     // 💯 Completion - Si toutes les séries sont complétées (100%)
     const isFullyCompleted = this.checkFullCompletion(workout);
     if (isFullyCompleted) {
-      console.log('[StickerService] ✅ 100% sticker added');
+      logger.log('[StickerService] ✅ 100% sticker added');
       stickers.push(this.createSticker('completion'));
     }
 
     // ➕ Plus One - Si au moins un +1 (ou plus) de répétitions obtenu
     const plusOneValue = this.checkPlusOneAchievement(workout);
     if (plusOneValue > 0) {
-      console.log('[StickerService] ✅ +1 sticker added with value:', plusOneValue);
+      logger.log('[StickerService] ✅ +1 sticker added with value:', plusOneValue);
       stickers.push(this.createSticker('plus-one', plusOneValue));
     } else {
-      console.log('[StickerService] ❌ No +1 achievement found');
+      logger.log('[StickerService] ❌ No +1 achievement found');
     }
 
     // 🔥 Streak - Si demandé explicitement (pour WorkoutSummary et écrans suivants)
@@ -209,21 +210,21 @@ export class StickerService {
   private static checkPlusOneAchievement(workout: CompletedWorkout): number {
     let maxIncrement = 0;
     
-    console.log('[StickerService] === Checking +1 achievement ===');
-    console.log('[StickerService] Workout:', workout.name, 'with', workout.exercises.length, 'exercises');
+    logger.log('[StickerService] === Checking +1 achievement ===');
+    logger.log('[StickerService] Workout:', workout.name, 'with', workout.exercises.length, 'exercises');
     
     // Parcourir tous les exercices
     for (const exercise of workout.exercises) {
-      console.log(`[StickerService] Checking exercise: ${exercise.name}`);
-      console.log(`[StickerService]   - Has enhancedPersonalRecord:`, !!exercise.enhancedPersonalRecord);
-      console.log(`[StickerService]   - Number of sets:`, exercise.sets?.length || 0);
+      logger.log(`[StickerService] Checking exercise: ${exercise.name}`);
+      logger.log(`[StickerService]   - Has enhancedPersonalRecord:`, !!exercise.enhancedPersonalRecord);
+      logger.log(`[StickerService]   - Number of sets:`, exercise.sets?.length || 0);
       
       // Vérifier d'abord dans enhancedPersonalRecord (nouveau format)
       if (exercise.enhancedPersonalRecord?.repsPR?.isNew) {
         const repsPR = exercise.enhancedPersonalRecord.repsPR;
         const increment = repsPR.reps - repsPR.previousReps;
         
-        console.log(`[StickerService] ✅ Found +${increment} in enhancedPersonalRecord for ${exercise.name}`);
+        logger.log(`[StickerService] ✅ Found +${increment} in enhancedPersonalRecord for ${exercise.name}`);
         
         if (increment > maxIncrement) {
           maxIncrement = increment;
@@ -233,18 +234,18 @@ export class StickerService {
       // Vérifier aussi dans les sets individuels (format actuel)
       if (exercise.sets && exercise.sets.length > 0) {
         exercise.sets.forEach((set, setIndex) => {
-          console.log(`[StickerService]   Set ${setIndex}: completed=${set.completed}, hasPRData=${!!set.prData}`);
+          logger.log(`[StickerService]   Set ${setIndex}: completed=${set.completed}, hasPRData=${!!set.prData}`);
           
           if (set.prData) {
-            console.log(`[StickerService]     - weightPR:`, set.prData.weightPR);
-            console.log(`[StickerService]     - repsPR:`, set.prData.repsPR);
+            logger.log(`[StickerService]     - weightPR:`, set.prData.weightPR);
+            logger.log(`[StickerService]     - repsPR:`, set.prData.repsPR);
           }
           
           if (set.prData?.repsPR?.isNew) {
             const repsPR = set.prData.repsPR;
             const increment = repsPR.reps - repsPR.previousReps;
             
-            console.log(`[StickerService] ✅ Found +${increment} in set ${setIndex} prData for ${exercise.name} (${repsPR.reps} reps vs ${repsPR.previousReps} previous)`);
+            logger.log(`[StickerService] ✅ Found +${increment} in set ${setIndex} prData for ${exercise.name} (${repsPR.reps} reps vs ${repsPR.previousReps} previous)`);
             
             if (increment > maxIncrement) {
               maxIncrement = increment;
@@ -254,7 +255,7 @@ export class StickerService {
       }
     }
     
-    console.log(`[StickerService] === Final result: Max +1 increment = ${maxIncrement} ===`);
+    logger.log(`[StickerService] === Final result: Max +1 increment = ${maxIncrement} ===`);
     return maxIncrement;
   }
 
