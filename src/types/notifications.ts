@@ -1,5 +1,6 @@
 export type NotificationType = 
-  | 'workout_reminder';
+  | 'workout_reminder'
+  | 'inactive_workout_reminder';
 
 export interface NotificationData {
   type: NotificationType;

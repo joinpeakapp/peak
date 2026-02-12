@@ -25,6 +25,12 @@ import logger from './src/utils/logger';
 import { NotificationPermissionBottomSheet } from './src/components/common/NotificationPermissionBottomSheet';
 import { useFirstWorkoutTracker } from './src/hooks/useFirstWorkoutTracker';
 import { AppResetProvider, useAppReset } from './src/contexts/AppResetContext';
+import * as SplashScreen from 'expo-splash-screen';
+
+// Empêcher le splash screen natif de se cacher automatiquement
+SplashScreen.preventAutoHideAsync().catch(() => {
+  // Le catch silencieux est intentionnel - sur certaines configs le splash peut déjà être caché
+});
 
 // Composant pour valider les streaks au démarrage
 const StreakValidator: React.FC = () => {

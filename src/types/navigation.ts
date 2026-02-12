@@ -26,6 +26,7 @@ export type ProfileStackParamList = {
   Settings: undefined;
   RestTimerSettings: undefined;
   NotificationSettings: undefined;
+  PrivacyPolicy: undefined;
 };
 
 // Types pour le stack WorkoutSummary (séparé du Tab Navigator)

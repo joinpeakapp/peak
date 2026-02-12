@@ -60,7 +60,7 @@ const ActiveWorkoutIndicator: React.FC<ActiveWorkoutIndicatorProps> = ({ onPress
           style={styles.upButton}
           onPress={handlePress}
         >
-          <Ionicons name="chevron-up" size={24} color="#FFFFFF" />
+          <Ionicons name="arrow-up" size={24} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
     </TouchableOpacity>

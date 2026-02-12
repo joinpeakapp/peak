@@ -5,6 +5,8 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  Alert,
+  Clipboard,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,7 +18,8 @@ interface SettingsCategory {
   title: string;
   subtitle: string;
   icon: keyof typeof Ionicons.glyphMap;
-  route: 'RestTimerSettings' | 'NotificationSettings';
+  route?: 'RestTimerSettings' | 'NotificationSettings' | 'PrivacyPolicy';
+  action?: () => void;
 }
 
 export const SettingsScreen: React.FC = () => {
@@ -57,6 +60,16 @@ export const SettingsScreen: React.FC = () => {
       : 'Disabled';
   };
 
+  const handleContactPress = () => {
+    const email = 'joinpeakapp@gmail.com';
+    Clipboard.setString(email);
+    Alert.alert(
+      'Email Copied! 📧',
+      `${email} has been copied to your clipboard.\n\nYour feedback helps us improve Peak!`,
+      [{ text: 'OK', style: 'default' }]
+    );
+  };
+
   const categories: SettingsCategory[] = [
     {
       id: 'rest-timer',
@@ -71,6 +84,20 @@ export const SettingsScreen: React.FC = () => {
       subtitle: getNotificationSubtitle(),
       icon: 'notifications-outline',
       route: 'NotificationSettings',
+    },
+    {
+      id: 'contact',
+      title: 'Contact & Feedback',
+      subtitle: 'Send us your suggestions and feedback',
+      icon: 'mail-outline',
+      action: handleContactPress,
+    },
+    {
+      id: 'privacy',
+      title: 'Privacy Policy',
+      subtitle: 'How we handle your data',
+      icon: 'shield-checkmark-outline',
+      route: 'PrivacyPolicy',
     },
   ];
 
@@ -98,8 +125,12 @@ export const SettingsScreen: React.FC = () => {
               key={category.id}
               style={styles.categoryItem}
               onPress={() => {
-                // @ts-ignore - navigation type
-                navigation.navigate(category.route);
+                if (category.action) {
+                  category.action();
+                } else if (category.route) {
+                  // @ts-ignore - navigation type
+                  navigation.navigate(category.route);
+                }
               }}
               activeOpacity={0.7}
             >
@@ -110,7 +141,7 @@ export const SettingsScreen: React.FC = () => {
                 <Text style={styles.categoryTitle}>{category.title}</Text>
                 <Text style={styles.categorySubtitle}>{category.subtitle}</Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color="rgba(255, 255, 255, 0.6)" />
+              <Ionicons name="arrow-forward" size={20} color="rgba(255, 255, 255, 0.6)" />
             </TouchableOpacity>
           ))}
         </View>

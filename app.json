@@ -72,7 +72,8 @@
           "photosPermission": "Allow Peak to access your photos to save workout photos."
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-splash-screen"
     ],
     "extra": {
       "eas": {

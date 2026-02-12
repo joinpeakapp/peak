@@ -19,9 +19,8 @@ export const ExerciseSectionHeader: React.FC<ExerciseSectionHeaderProps> = ({ le
 
 const styles = StyleSheet.create({
   sectionHeader: {
-    paddingVertical: 8,
+    paddingVertical: 16,
     paddingHorizontal: 0,
-    marginBottom: 16,
   },
   sectionHeaderText: {
     fontSize: 20,

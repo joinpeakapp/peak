@@ -196,9 +196,6 @@ export const ExerciseFilterModal: React.FC<ExerciseFilterModalProps> = ({
               >
                 {tag}
               </Text>
-              {localSelectedTags.includes(tag) && (
-                <Ionicons name="checkmark" size={16} color="#000000" style={{ marginLeft: 6 }} />
-              )}
             </TouchableOpacity>
           ))}
         </View>

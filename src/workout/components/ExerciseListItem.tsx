@@ -88,13 +88,12 @@ export const ExerciseListItem: React.FC<ExerciseListItemProps> = ({
 
 const styles = StyleSheet.create({
   selectionExerciseItem: {
-    marginBottom: 32,
-    paddingVertical: 0,
+    paddingVertical: 16,
   },
   selectionExerciseItemHighlight: {
     backgroundColor: 'rgba(52, 199, 89, 0.15)',
     borderRadius: 12,
-    paddingVertical: 8,
+    paddingVertical: 24,
     paddingHorizontal: 8,
     marginHorizontal: -8,
   },

@@ -330,7 +330,7 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
                       style={styles.backButton}
                       onPress={() => setTrackingTypeMode(false)}
                     >
-                      <Ionicons name="chevron-down" size={24} color="#FFFFFF" />
+                      <Ionicons name="arrow-down" size={24} color="#FFFFFF" />
                     </TouchableOpacity>
                   </View>
                   
@@ -409,7 +409,7 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
                       style={styles.backButton}
                       onPress={handleBackToMenu}
                     >
-                      <Ionicons name="chevron-down" size={24} color="#FFFFFF" />
+                      <Ionicons name="arrow-down" size={24} color="#FFFFFF" />
                     </TouchableOpacity>
                   </View>
                   
@@ -618,7 +618,7 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    borderRadius: 100,
     padding: 16,
     alignItems: 'center',
     marginHorizontal: 24,

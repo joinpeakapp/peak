@@ -6,7 +6,11 @@ import {
   TouchableOpacity,
   Modal,
   Animated,
+  Dimensions,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+
+const { height } = Dimensions.get('window');
 
 interface FinishWorkoutModalProps {
   visible: boolean;
@@ -30,7 +34,7 @@ export const FinishWorkoutModal: React.FC<FinishWorkoutModalProps> = ({
       animationType="none"
       onRequestClose={onClose}
     >
-      <View style={styles.modalOverlay}>
+      <View style={styles.overlay}>
         <TouchableOpacity 
           style={StyleSheet.absoluteFill} 
           activeOpacity={1}
@@ -49,26 +53,37 @@ export const FinishWorkoutModal: React.FC<FinishWorkoutModalProps> = ({
             }
           ]}
         >
-          <View style={styles.modalIndicator} />
+          <View style={styles.handle} />
           
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Finish workout</Text>
+          <View style={styles.content}>
+            <View style={styles.iconContainer}>
+              <Ionicons 
+                name="checkmark-circle" 
+                size={32} 
+                color="#FFFFFF" 
+              />
+            </View>
             
-            <View style={styles.modalOptionsContainer}>
+            <Text style={styles.title}>Finish workout</Text>
+            <Text style={styles.message}>
+              Would you like to save this session to your history or discard it?
+            </Text>
+            
+            <View style={styles.buttonContainer}>
               <TouchableOpacity 
-                style={[styles.modalOption, styles.discardOption]}
+                style={[styles.button, styles.discardButton]}
                 onPress={onDiscard}
                 activeOpacity={0.7}
               >
-                <Text style={styles.modalOptionText}>Discard</Text>
+                <Text style={styles.discardButtonText}>Discard</Text>
               </TouchableOpacity>
               
               <TouchableOpacity 
-                style={[styles.modalOption, styles.logOption]}
+                style={[styles.button, styles.logButton]}
                 onPress={onLogWorkout}
                 activeOpacity={0.7}
               >
-                <Text style={[styles.modalOptionText, styles.logOptionText]}>Log workout</Text>
+                <Text style={styles.logButtonText}>Log workout</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -79,7 +94,7 @@ export const FinishWorkoutModal: React.FC<FinishWorkoutModalProps> = ({
 };
 
 const styles = StyleSheet.create({
-  modalOverlay: {
+  overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
@@ -91,7 +106,7 @@ const styles = StyleSheet.create({
     paddingBottom: 34,
     minHeight: 280,
   },
-  modalIndicator: {
+  handle: {
     width: 40,
     height: 5,
     borderRadius: 3,
@@ -100,43 +115,59 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 24,
   },
-  modalContent: {
+  content: {
     paddingHorizontal: 24,
     alignItems: 'center',
   },
-  modalTitle: {
+  iconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  title: {
     fontSize: 20,
     fontWeight: '600',
     color: '#FFFFFF',
-    marginBottom: 32,
+    marginBottom: 8,
     textAlign: 'center',
   },
-  modalOptionsContainer: {
+  message: {
+    fontSize: 16,
+    color: '#8E8E93',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 32,
+  },
+  buttonContainer: {
+    flexDirection: 'row',
     width: '100%',
     gap: 12,
   },
-  modalOption: {
-    alignItems: 'center',
+  button: {
+    flex: 1,
+    height: 50,
+    borderRadius: 100,
     justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderRadius: 12,
+    alignItems: 'center',
   },
-  discardOption: {
+  discardButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
-  logOption: {
+  logButton: {
     backgroundColor: '#FFFFFF',
   },
-  modalOptionText: {
+  discardButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
-    textAlign: 'center',
   },
-  logOptionText: {
+  logButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
     color: '#000000',
   },
 });
-
-

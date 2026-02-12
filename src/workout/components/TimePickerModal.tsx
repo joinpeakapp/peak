@@ -143,7 +143,7 @@ export const TimePickerModal: React.FC<TimePickerModalProps> = ({
                   style={styles.closeButton}
                   onPress={onClose}
                 >
-                  <Ionicons name="chevron-down" size={24} color="#FFFFFF" />
+                  <Ionicons name="arrow-down" size={24} color="#FFFFFF" />
                 </TouchableOpacity>
               </View>
               

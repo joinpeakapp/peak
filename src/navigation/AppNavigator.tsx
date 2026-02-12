@@ -14,6 +14,7 @@ import { ExerciseDetailScreen } from '../screens/ExerciseDetailScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { RestTimerSettingsScreen } from '../screens/RestTimerSettingsScreen';
 import { NotificationSettingsScreen } from '../screens/NotificationSettingsScreen';
+import { PrivacyPolicyScreen } from '../screens/PrivacyPolicyScreen';
 import {
   WorkoutStackParamList,
   JournalStackParamList,
@@ -74,6 +75,7 @@ const ProfileNavigator = () => (
     <ProfileStack.Screen name="Settings" component={SettingsScreen} />
     <ProfileStack.Screen name="RestTimerSettings" component={RestTimerSettingsScreen} />
     <ProfileStack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
+    <ProfileStack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
   </ProfileStack.Navigator>
 );
 

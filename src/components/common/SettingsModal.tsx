@@ -14,6 +14,8 @@ import {
   Switch,
   Alert,
   ActivityIndicator,
+  Clipboard,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SettingsService } from '../../services/settingsService';
@@ -25,7 +27,7 @@ const { height, width } = Dimensions.get('window');
 const ANIMATION_DURATION = 300;
 const MINUTE_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1); // 1 à 10 minutes
 
-type SettingsView = 'list' | 'rest-timer' | 'notifications';
+type SettingsView = 'list' | 'rest-timer' | 'notifications' | 'privacy-policy' | 'contact';
 
 interface SettingsModalProps {
   visible: boolean;
@@ -275,6 +277,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   };
 
+  const handleCopyEmail = () => {
+    const email = 'joinpeakapp@gmail.com';
+    Clipboard.setString(email);
+    Alert.alert(
+      'Email Copied! 📧',
+      `${email} has been copied to your clipboard.`,
+      [{ text: 'OK', style: 'default' }]
+    );
+  };
+
   if (!modalVisible && !visible) {
     return null;
   }
@@ -317,7 +329,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </TouchableOpacity>
           ) : (
             <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <Ionicons name="chevron-down" size={24} color="#FFFFFF" />
+              <Ionicons name="arrow-down" size={24} color="#FFFFFF" />
             </TouchableOpacity>
           )}
         </View>
@@ -358,7 +370,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     Rest {formatRestTimer(defaultRestTimer)} between sets
                   </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color="rgba(255, 255, 255, 0.6)" />
+                <Ionicons name="arrow-forward" size={20} color="rgba(255, 255, 255, 0.6)" />
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -373,7 +385,37 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <Text style={styles.categoryTitle}>Notifications</Text>
                   <Text style={styles.categorySubtitle}>{getNotificationSubtitle()}</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color="rgba(255, 255, 255, 0.6)" />
+                <Ionicons name="arrow-forward" size={20} color="rgba(255, 255, 255, 0.6)" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.categoryItem}
+                onPress={() => setCurrentView('contact')}
+                activeOpacity={0.7}
+              >
+                <View style={styles.categoryIcon}>
+                  <Ionicons name="mail-outline" size={24} color="#FFFFFF" />
+                </View>
+                <View style={styles.categoryContent}>
+                  <Text style={styles.categoryTitle}>Contact & Feedback</Text>
+                  <Text style={styles.categorySubtitle}>Send us your suggestions and feedback</Text>
+                </View>
+                <Ionicons name="arrow-forward" size={20} color="rgba(255, 255, 255, 0.6)" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.categoryItem}
+                onPress={() => setCurrentView('privacy-policy')}
+                activeOpacity={0.7}
+              >
+                <View style={styles.categoryIcon}>
+                  <Ionicons name="shield-checkmark-outline" size={24} color="#FFFFFF" />
+                </View>
+                <View style={styles.categoryContent}>
+                  <Text style={styles.categoryTitle}>Privacy Policy</Text>
+                  <Text style={styles.categorySubtitle}>How we handle your data</Text>
+                </View>
+                <Ionicons name="arrow-forward" size={20} color="rgba(255, 255, 255, 0.6)" />
               </TouchableOpacity>
             </ScrollView>
           </Animated.View>
@@ -529,6 +571,149 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             )}
             </Animated.View>
           )}
+
+          {/* Privacy Policy View */}
+          {currentView === 'privacy-policy' && (
+            <Animated.View
+              style={[
+                styles.contentView,
+                styles.contentViewDetail,
+                {
+                  transform: [{ translateX: detailSlideAnim }],
+                  opacity: detailOpacityAnim,
+                },
+              ]}
+            >
+              <ScrollView
+                style={styles.content}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.scrollContent}
+              >
+                <Text style={styles.title}>Privacy Policy</Text>
+                <Text style={styles.lastUpdated}>Last Updated: January 30, 2026</Text>
+
+                <View style={styles.privacySection}>
+                  <Text style={styles.privacySectionTitle}>Introduction</Text>
+                  <Text style={styles.privacyText}>
+                    Peak is committed to protecting your privacy. All your workout data is stored <Text style={styles.privacyBold}>locally on your device</Text> and is never transmitted to our servers.
+                  </Text>
+                </View>
+
+                <View style={styles.privacySection}>
+                  <Text style={styles.privacySectionTitle}>What We Collect</Text>
+                  <Text style={styles.privacyText}>
+                    All data is stored locally on your device:
+                  </Text>
+                  <Text style={styles.privacyBullet}>• Workout templates and history</Text>
+                  <Text style={styles.privacyBullet}>• Personal records and streak data</Text>
+                  <Text style={styles.privacyBullet}>• Photos (stored locally)</Text>
+                  <Text style={styles.privacyBullet}>• App preferences and settings</Text>
+                </View>
+
+                <View style={styles.privacySection}>
+                  <Text style={styles.privacySectionTitle}>What We Do NOT Collect</Text>
+                  <Text style={styles.privacyText}>We do <Text style={styles.privacyBold}>NOT</Text> collect:</Text>
+                  <Text style={styles.privacyBullet}>• Personal identification information</Text>
+                  <Text style={styles.privacyBullet}>• Location data</Text>
+                  <Text style={styles.privacyBullet}>• Payment information</Text>
+                  <Text style={styles.privacyBullet}>• Analytics or usage data</Text>
+                </View>
+
+                <View style={styles.privacySection}>
+                  <Text style={styles.privacySectionTitle}>Data Storage</Text>
+                  <Text style={styles.privacyBullet}>• 100% Local Storage</Text>
+                  <Text style={styles.privacyBullet}>• No Cloud Sync</Text>
+                  <Text style={styles.privacyBullet}>• No Third-Party Access</Text>
+                  <Text style={styles.privacyBullet}>• Your device security protects your data</Text>
+                </View>
+
+                <View style={styles.privacySection}>
+                  <Text style={styles.privacySectionTitle}>Your Rights</Text>
+                  <Text style={styles.privacyBullet}>• Access: View all your data in the app</Text>
+                  <Text style={styles.privacyBullet}>• Modify: Edit your data anytime</Text>
+                  <Text style={styles.privacyBullet}>• Delete: Remove data at any time</Text>
+                  <Text style={styles.privacyBullet}>• Control: Manage permissions in settings</Text>
+                </View>
+
+                <View style={styles.privacySection}>
+                  <Text style={styles.privacySectionTitle}>Contact Us</Text>
+                  <Text style={styles.privacyText}>
+                    Questions about privacy or your data?
+                  </Text>
+                  <TouchableOpacity onPress={handleCopyEmail}>
+                    <Text style={styles.privacyEmail}>joinpeakapp@gmail.com</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.privacyText}>We'll respond within 48 hours.</Text>
+                </View>
+
+                <View style={styles.privacyFooter}>
+                  <Text style={styles.privacyFooterText}>Peak - Your Privacy-First Workout Tracker</Text>
+                </View>
+              </ScrollView>
+            </Animated.View>
+          )}
+
+          {/* Contact & Feedback View */}
+          {currentView === 'contact' && (
+            <Animated.View
+              style={[
+                styles.contentView,
+                styles.contentViewDetail,
+                {
+                  transform: [{ translateX: detailSlideAnim }],
+                  opacity: detailOpacityAnim,
+                },
+              ]}
+            >
+              <ScrollView
+                style={styles.content}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.scrollContent}
+              >
+                <Text style={styles.title}>Contact & Feedback</Text>
+                
+                <View style={styles.contactHeader}>
+                  <Ionicons name="heart" size={48} color="#FF6B6B" />
+                  <Text style={styles.contactThankYou}>Thank you for using Peak!</Text>
+                </View>
+
+                <View style={styles.contactSection}>
+                  <Text style={styles.contactText}>
+                    Your feedback is incredibly valuable to us. It helps us understand what you love about Peak and what we can improve.
+                  </Text>
+                </View>
+
+                <View style={styles.contactSection}>
+                  <Text style={styles.contactSectionTitle}>We'd love to hear from you about:</Text>
+                  <Text style={styles.contactBullet}>💡 Feature suggestions</Text>
+                  <Text style={styles.contactBullet}>🐛 Bug reports</Text>
+                  <Text style={styles.contactBullet}>❓ Questions or concerns</Text>
+                  <Text style={styles.contactBullet}>💬 General feedback</Text>
+                </View>
+
+                <View style={styles.contactSection}>
+                  <Text style={styles.contactText}>
+                    We're here to help and always happy to chat. Whether you have a question, a suggestion, or just want to say hi, we're all ears!
+                  </Text>
+                </View>
+
+                <View style={styles.contactEmailSection}>
+                  <Text style={styles.contactEmailLabel}>Get in touch:</Text>
+                  <Text style={styles.contactEmailAddress}>joinpeakapp@gmail.com</Text>
+                  <TouchableOpacity style={styles.copyEmailButton} onPress={handleCopyEmail}>
+                    <Ionicons name="copy-outline" size={20} color="#0D0D0F" />
+                    <Text style={styles.copyEmailButtonText}>Copy Email Address</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.contactFooter}>
+                  <Text style={styles.contactFooterText}>
+                    We typically respond within 48 hours.
+                  </Text>
+                </View>
+              </ScrollView>
+            </Animated.View>
+          )}
         </View>
       </Animated.View>
     </Modal>
@@ -675,7 +860,7 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    borderRadius: 100,
     height: 56,
     justifyContent: 'center',
     alignItems: 'center',
@@ -720,7 +905,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 30,
     paddingVertical: 15,
-    borderRadius: 12,
+    borderRadius: 100,
   },
   permissionButtonText: {
     color: '#0D0D0F',
@@ -768,5 +953,135 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginLeft: 12,
     flex: 1,
+  },
+  lastUpdated: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.5)',
+    paddingHorizontal: 20,
+    marginBottom: 24,
+    fontStyle: 'italic',
+  },
+  privacySection: {
+    marginBottom: 32,
+    paddingHorizontal: 20,
+  },
+  privacySectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 12,
+  },
+  privacyText: {
+    fontSize: 14,
+    lineHeight: 22,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginBottom: 12,
+  },
+  privacyBold: {
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  privacyBullet: {
+    fontSize: 14,
+    lineHeight: 22,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginBottom: 8,
+    paddingLeft: 8,
+  },
+  privacyEmail: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#4A90E2',
+    marginBottom: 12,
+  },
+  privacyFooter: {
+    marginTop: 24,
+    paddingTop: 24,
+    paddingHorizontal: 20,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+  },
+  privacyFooterText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+  contactHeader: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+  },
+  contactThankYou: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  contactSection: {
+    marginBottom: 24,
+    paddingHorizontal: 20,
+  },
+  contactSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 12,
+  },
+  contactText: {
+    fontSize: 14,
+    lineHeight: 22,
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  contactBullet: {
+    fontSize: 14,
+    lineHeight: 28,
+    color: 'rgba(255, 255, 255, 0.8)',
+    paddingLeft: 8,
+  },
+  contactEmailSection: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 16,
+    padding: 24,
+    marginHorizontal: 20,
+    marginBottom: 24,
+    alignItems: 'center',
+  },
+  contactEmailLabel: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginBottom: 8,
+  },
+  contactEmailAddress: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 20,
+  },
+  copyEmailButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 100,
+  },
+  copyEmailButtonText: {
+    color: '#0D0D0F',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  contactFooter: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    alignItems: 'center',
+  },
+  contactFooterText: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.5)',
+    textAlign: 'center',
   },
 });

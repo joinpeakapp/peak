@@ -25,7 +25,6 @@ import { Sticker } from '../types/stickers';
 import { CachedImage } from '../components/common/CachedImage';
 import { NavigationProp } from '@react-navigation/native';
 import { RootStackParamList } from '../types/navigation';
-import { NewOnboardingNavigator } from './onboarding/NewOnboardingNavigator';
 import logger from '../utils/logger';
 
 const { width } = Dimensions.get('window');
@@ -40,7 +39,6 @@ export const ProfileScreen: React.FC = () => {
   const [isSettingsModalVisible, setIsSettingsModalVisible] = useState(false);
   const [isEditProfileModalVisible, setIsEditProfileModalVisible] = useState(false);
   const [isContextMenuVisible, setIsContextMenuVisible] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false);
   const [settingsButtonLayout, setSettingsButtonLayout] = useState<{
     x: number;
     y: number;
@@ -84,14 +82,6 @@ export const ProfileScreen: React.FC = () => {
     }
   };
 
-  // Gérer la complétion de l'onboarding
-  const handleOnboardingComplete = useCallback(async (profile: UserProfile) => {
-    logger.log('[ProfileScreen] Onboarding completed:', profile);
-    setUserProfile(profile);
-    setShowOnboarding(false);
-    // Recharger le profil pour s'assurer qu'il est à jour
-    await loadUserProfile();
-  }, [loadUserProfile]);
 
   // Items du ContextMenu
   const contextMenuItems: ContextMenuItem[] = [
@@ -106,12 +96,6 @@ export const ProfileScreen: React.FC = () => {
       label: 'Settings',
       icon: 'settings-outline',
       onPress: () => setIsSettingsModalVisible(true),
-    },
-    {
-      key: 'onboarding',
-      label: 'View onboarding (dev)',
-      icon: 'rocket-outline',
-      onPress: () => setShowOnboarding(true),
     },
   ];
 
@@ -437,7 +421,7 @@ export const ProfileScreen: React.FC = () => {
                   </Text>
                 </View>
                 <View style={styles.chevronContainer}>
-                  <Ionicons name="chevron-forward" size={24} color="rgba(255, 255, 255, 0.6)" />
+                  <Ionicons name="arrow-forward" size={24} color="rgba(255, 255, 255, 0.6)" />
                 </View>
               </TouchableOpacity>
             ))
@@ -469,11 +453,6 @@ export const ProfileScreen: React.FC = () => {
         onClose={() => setIsSettingsModalVisible(false)}
       />
 
-      {/* Onboarding Modal (Dev) */}
-      <NewOnboardingNavigator
-        visible={showOnboarding}
-        onComplete={handleOnboardingComplete}
-      />
 
     </View>
   );

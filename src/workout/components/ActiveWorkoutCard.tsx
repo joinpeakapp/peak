@@ -38,7 +38,7 @@ export const ActiveWorkoutCard: React.FC<ActiveWorkoutCardProps> = ({ onPress })
           style={styles.resumeButton}
           onPress={onPress}
         >
-          <Ionicons name="chevron-up" size={24} color="#FFFFFF" />
+          <Ionicons name="arrow-up" size={24} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
     </TouchableOpacity>

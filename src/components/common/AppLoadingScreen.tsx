@@ -4,6 +4,7 @@ import {
   StyleSheet,
   Image,
 } from 'react-native';
+import * as SplashScreen from 'expo-splash-screen';
 import { AppPreloadService } from '../../services/appPreloadService';
 
 interface AppLoadingScreenProps {
@@ -16,6 +17,14 @@ const PRELOAD_CHECK_INTERVAL = 100; // Vérifier toutes les 100ms
 export const AppLoadingScreen: React.FC<AppLoadingScreenProps> = ({
   onLoadingComplete,
 }) => {
+  // Cacher le splash screen natif dès que notre écran de chargement custom est monté
+  // Les deux ont le même look, donc la transition est invisible
+  useEffect(() => {
+    SplashScreen.hideAsync().catch(() => {
+      // Silencieux - le splash peut déjà être caché
+    });
+  }, []);
+
   useEffect(() => {
     // Vérifier périodiquement si le préchargement est terminé
     const preloadCheckInterval = setInterval(() => {

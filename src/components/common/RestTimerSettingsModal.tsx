@@ -142,7 +142,7 @@ export const RestTimerSettingsModal: React.FC<RestTimerSettingsModalProps> = ({
         <View style={styles.header}>
           <Text style={styles.title}>Rest timer</Text>
           <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-            <Ionicons name="chevron-down" size={24} color="#FFFFFF" />
+            <Ionicons name="arrow-down" size={24} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
 
@@ -269,7 +269,7 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    borderRadius: 100,
     height: 56,
     justifyContent: 'center',
     alignItems: 'center',

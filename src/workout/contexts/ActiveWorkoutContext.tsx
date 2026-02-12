@@ -5,6 +5,7 @@ import { AppState, AppStateStatus } from 'react-native';
 import { useStreak } from './StreakContext';
 import { useWorkout } from '../../hooks/useWorkout';
 import { RobustStorageService } from '../../services/storage';
+import NotificationService from '../../services/notificationService';
 import logger from '../../utils/logger';
 
 // Types pour la séance active
@@ -98,6 +99,8 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
   const [activeWorkout, setActiveWorkout] = useState<ActiveWorkout | null>(null);
   const [isTrackingWorkout, setIsTrackingWorkout] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const inactivityCheckRef = useRef<NodeJS.Timeout | null>(null);
+  const lastActivityTimeRef = useRef<number>(Date.now());
   const appStateRef = useRef(AppState.currentState);
   const { getWorkoutStreak, updateStreakOnCompletion } = useStreak();
   const { workouts } = useWorkout();
@@ -169,6 +172,17 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
     loadActiveWorkout();
   }, []);
 
+  // Fonction pour réinitialiser le compteur d'activité
+  const resetActivityTimer = useCallback(async () => {
+    lastActivityTimeRef.current = Date.now();
+    
+    // Annuler toute notification d'inactivité planifiée
+    if (activeWorkout) {
+      await NotificationService.cancelInactiveWorkoutReminder(activeWorkout.workoutId);
+      logger.log('[ActiveWorkout] Activity detected, cancelled inactive workout reminder');
+    }
+  }, [activeWorkout]);
+
   // Gérer les changements d'état de l'app (premier plan, arrière-plan)
   useEffect(() => {
     const handleAppStateChange = async (nextAppState: AppStateStatus) => {
@@ -189,6 +203,8 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
       ) {
         if (activeWorkout && activeWorkout.isActive) {
           await resumeWorkoutState();
+          // Réinitialiser le compteur d'activité quand l'utilisateur revient
+          await resetActivityTimer();
         }
       }
       
@@ -201,7 +217,7 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
     return () => {
       subscription.remove();
     };
-  }, [activeWorkout]);
+  }, [activeWorkout, resetActivityTimer]);
 
   // Fonction pour mettre en pause l'état de workout quand l'app passe en arrière-plan
   const pauseWorkoutState = async () => {
@@ -298,6 +314,14 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  // Fonction pour arrêter le timer de vérification d'inactivité
+  const stopInactivityCheck = () => {
+    if (inactivityCheckRef.current) {
+      clearInterval(inactivityCheckRef.current);
+      inactivityCheckRef.current = null;
+    }
+  };
+
   // Sauvegarde de la séance active avec le service robuste à chaque mise à jour
   useEffect(() => {
     const saveActiveWorkout = async () => {
@@ -324,6 +348,38 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
     };
 
     saveActiveWorkout();
+  }, [activeWorkout]);
+
+  // Vérification périodique de l'inactivité et planification des notifications
+  useEffect(() => {
+    // Ne vérifier que si un workout est actif
+    if (!activeWorkout || !activeWorkout.isActive) {
+      // Nettoyer le timer si pas de workout actif
+      stopInactivityCheck();
+      return;
+    }
+
+    // Vérifier toutes les 5 minutes si on doit planifier une notification
+    const checkInactivity = async () => {
+      try {
+        await NotificationService.scheduleInactiveWorkoutReminder(
+          activeWorkout,
+          lastActivityTimeRef.current
+        );
+      } catch (error) {
+        logger.error('[ActiveWorkout] Error checking inactivity:', error);
+      }
+    };
+
+    // Vérifier immédiatement
+    checkInactivity();
+
+    // Puis vérifier toutes les 5 minutes
+    inactivityCheckRef.current = setInterval(checkInactivity, 5 * 60 * 1000);
+
+    return () => {
+      stopInactivityCheck();
+    };
   }, [activeWorkout]);
 
   // Démarrer une nouvelle séance
@@ -375,6 +431,9 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
     setActiveWorkout(newActiveWorkout);
     setIsTrackingWorkout(true);
     
+    // Réinitialiser le compteur d'activité
+    lastActivityTimeRef.current = Date.now();
+    
     // Démarrer le timer global
     startGlobalTimer();
   };
@@ -388,6 +447,12 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       // Arrêter le timer
       stopGlobalTimer();
+      
+      // Arrêter la vérification d'inactivité
+      stopInactivityCheck();
+      
+      // Annuler toute notification d'inactivité planifiée
+      await NotificationService.cancelInactiveWorkoutReminder(activeWorkout.workoutId);
       
       // Récupérer le workout original pour mettre à jour la streak
       // Uniquement si updateStreak est true (uniquement quand on clique sur "Log Workout")
@@ -431,6 +496,12 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
       // Arrêter le timer
       stopGlobalTimer();
       
+      // Arrêter la vérification d'inactivité
+      stopInactivityCheck();
+      
+      // Annuler toutes les notifications d'inactivité
+      await NotificationService.cancelAllInactiveWorkoutReminders();
+      
       // Nettoyer le stockage
       await RobustStorageService.clearActiveSession();
       
@@ -449,6 +520,9 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
   // Mettre à jour les données de tracking pour un exercice (sets)
   const updateTrackingData = (exerciseId: string, sets: TrackingSet[], completedSets: number) => {
     if (!activeWorkout) return;
+
+    // Réinitialiser le compteur d'activité
+    resetActivityTimer();
 
     setActiveWorkout(prev => {
       if (!prev) return null;
@@ -470,6 +544,9 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
   // Mettre à jour les données de tracking pour un exercice (temps)
   const updateTrackingTimeData = (exerciseId: string, times: TrackingTime[], completedTimes: number) => {
     if (!activeWorkout) return;
+
+    // Réinitialiser le compteur d'activité
+    resetActivityTimer();
 
     setActiveWorkout(prev => {
       if (!prev) return null;

@@ -948,7 +948,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     paddingVertical: 16,
     paddingHorizontal: 24,
-    borderRadius: 16,
+    borderRadius: 100,
     gap: 8,
     ...Platform.select({
       ios: {

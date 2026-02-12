@@ -4,7 +4,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
+  SectionList,
   TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -151,23 +151,21 @@ export const ExerciseReplacementView: React.FC<ExerciseReplacementViewProps> = (
         )}
       </TouchableOpacity>
       
-      {/* Exercise List - Flex Layout */}
+      {/* Exercise List - SectionList */}
       <View style={styles.exerciseListContainerFlex}>
-        <ScrollView 
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollViewContent}
-        >
-          {groupedExercises.map((section) => (
-            <View key={section.letter} pointerEvents="box-none">
-              {renderSectionHeader({ letter: section.letter })}
-              {section.data.map((exercise) => (
-                <View key={exercise.id} pointerEvents="box-none">
-                  {renderExerciseItem(exercise)}
-                </View>
-              ))}
-            </View>
-          ))}
-        </ScrollView>
+        <SectionList
+          sections={groupedExercises.map(section => ({
+            title: section.letter,
+            data: section.data,
+          }))}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => renderExerciseItem(item)}
+          renderSectionHeader={({ section: { title } }) => renderSectionHeader({ letter: title })}
+          style={styles.sectionList}
+          contentContainerStyle={styles.sectionListContent}
+          stickySectionHeadersEnabled={false}
+          showsVerticalScrollIndicator={false}
+        />
         
         {/* Fade Out Gradient - Réduit */}
         <LinearGradient
@@ -288,11 +286,11 @@ const styles = StyleSheet.create({
     flex: 1,
     position: 'relative',
   },
-  scrollView: {
+  sectionList: {
     flex: 1,
     paddingHorizontal: 16,
   },
-  scrollViewContent: {
+  sectionListContent: {
     paddingBottom: 120,
   },
   fadeGradientSmall: {
@@ -311,7 +309,7 @@ const styles = StyleSheet.create({
   },
   addExercisesButton: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    borderRadius: 100,
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',

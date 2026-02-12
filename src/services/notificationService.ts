@@ -554,6 +554,140 @@ class NotificationService {
       return 'unknown';
     }
   }
+
+  // ===========================================
+  // NOTIFICATIONS D'INACTIVITÉ POUR WORKOUTS EN COURS
+  // ===========================================
+
+  /**
+   * 🔔 Planifier une notification de rappel pour un workout inactif
+   * 
+   * Règles :
+   * - Minimum 1h de séance écoulée
+   * - Minimum 30min d'inactivité
+   * - Maximum 1 notification par workout
+   * 
+   * @param activeWorkout - Le workout actif
+   * @param lastActivityTime - Timestamp de la dernière activité (en ms)
+   */
+  static async scheduleInactiveWorkoutReminder(
+    activeWorkout: any,
+    lastActivityTime: number
+  ): Promise<void> {
+    try {
+      if (!activeWorkout || !activeWorkout.isActive) {
+        return; // Pas de workout actif
+      }
+
+      const now = Date.now();
+      const workoutDuration = Math.floor((now - activeWorkout.startTime) / 1000); // en secondes
+      const inactiveTime = Math.floor((now - lastActivityTime) / 1000); // en secondes
+      
+      // Seuils configurables (en secondes)
+      const MIN_WORKOUT_DURATION = 60 * 60; // 1 heure
+      const MIN_INACTIVE_TIME = 30 * 60; // 30 minutes
+      
+      logger.log(`🔔 [NotificationService] Checking inactive workout reminder:`);
+      logger.log(`🔔 [NotificationService] - Workout duration: ${workoutDuration}s (${Math.floor(workoutDuration / 60)}min)`);
+      logger.log(`🔔 [NotificationService] - Inactive time: ${inactiveTime}s (${Math.floor(inactiveTime / 60)}min)`);
+      
+      // Vérifier les conditions minimales
+      if (workoutDuration < MIN_WORKOUT_DURATION) {
+        logger.log(`🔔 [NotificationService] Workout too short (< 1h), no reminder`);
+        return;
+      }
+      
+      if (inactiveTime < MIN_INACTIVE_TIME) {
+        // Calculer quand planifier la notification (dans X secondes)
+        const delaySeconds = MIN_INACTIVE_TIME - inactiveTime;
+        
+        // Vérifier si une notification n'est pas déjà planifiée
+        const workoutNotificationId = `inactive_workout_${activeWorkout.workoutId}`;
+        const existingNotifications = await Notifications.getAllScheduledNotificationsAsync();
+        const alreadyScheduled = existingNotifications.some(
+          n => n.identifier === workoutNotificationId
+        );
+        
+        if (alreadyScheduled) {
+          logger.log(`🔔 [NotificationService] Reminder already scheduled`);
+          return;
+        }
+        
+        // Planifier la notification pour dans X secondes
+        const triggerDate = new Date(now + delaySeconds * 1000);
+        
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: 'Workout en cours 💪',
+            body: `N'oubliez pas de valider votre séance "${activeWorkout.workoutName}" !`,
+            data: {
+              type: 'inactive_workout_reminder',
+              workoutId: activeWorkout.workoutId,
+            } as unknown as Record<string, unknown>,
+            sound: 'default',
+            priority: Notifications.AndroidNotificationPriority.HIGH,
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: triggerDate,
+          },
+          identifier: workoutNotificationId,
+        });
+        
+        logger.log(`🔔 [NotificationService] ✅ Scheduled inactive workout reminder in ${Math.floor(delaySeconds / 60)}min`);
+      } else {
+        logger.log(`🔔 [NotificationService] Already inactive for ${Math.floor(inactiveTime / 60)}min, notification should have been sent`);
+      }
+    } catch (error) {
+      logger.error('🔔 [NotificationService] ❌ Error scheduling inactive workout reminder:', error);
+    }
+  }
+
+  /**
+   * ❌ Annuler les notifications de rappel pour un workout inactif
+   * Appelé quand :
+   * - L'utilisateur revient sur l'app (reset de l'inactivité)
+   * - Le workout est validé
+   * - Le workout est abandonné
+   */
+  static async cancelInactiveWorkoutReminder(workoutId: string): Promise<void> {
+    try {
+      const notificationId = `inactive_workout_${workoutId}`;
+      const existingNotifications = await Notifications.getAllScheduledNotificationsAsync();
+      const notification = existingNotifications.find(n => n.identifier === notificationId);
+      
+      if (notification) {
+        await Notifications.cancelScheduledNotificationAsync(notificationId);
+        logger.log(`🔔 [NotificationService] ❌ Cancelled inactive workout reminder for ${workoutId}`);
+      }
+    } catch (error) {
+      logger.error('🔔 [NotificationService] ❌ Error cancelling inactive workout reminder:', error);
+    }
+  }
+
+  /**
+   * ❌ Annuler toutes les notifications d'inactivité
+   */
+  static async cancelAllInactiveWorkoutReminders(): Promise<void> {
+    try {
+      const allNotifications = await Notifications.getAllScheduledNotificationsAsync();
+      let cancelledCount = 0;
+      
+      for (const notification of allNotifications) {
+        const data = notification.content.data as unknown as NotificationData;
+        if (data?.type === 'inactive_workout_reminder') {
+          await Notifications.cancelScheduledNotificationAsync(notification.identifier);
+          cancelledCount++;
+        }
+      }
+
+      if (cancelledCount > 0) {
+        logger.log(`🔔 [NotificationService] ❌ Cancelled ${cancelledCount} inactive workout reminders`);
+      }
+    } catch (error) {
+      logger.error('🔔 [NotificationService] ❌ Error cancelling inactive workout reminders:', error);
+    }
+  }
 }
 
 export default NotificationService;

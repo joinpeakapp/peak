@@ -51,7 +51,7 @@ export const WorkoutView: React.FC<WorkoutViewProps> = ({
     <>
       <View style={styles.header}>
         <TouchableOpacity onPress={onClose} style={styles.backButton}>
-          <Ionicons name="chevron-down" size={24} color="#FFFFFF" />
+          <Ionicons name="arrow-down" size={24} color="#FFFFFF" />
         </TouchableOpacity>
         
         <View style={styles.rightButtons}>
