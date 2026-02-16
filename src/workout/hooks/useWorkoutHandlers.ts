@@ -939,16 +939,6 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
       // 1. Sauvegarder le workout terminé (gère automatiquement les streaks)
       await addCompletedWorkout(newCompletedWorkout, workout);
       
-      // 1.5. Gérer la demande de note sur l'App Store (après le premier workout)
-      try {
-        const StoreReviewService = (await import('../../services/storeReviewService')).default;
-        await StoreReviewService.incrementCompletedWorkouts();
-        await StoreReviewService.checkAndRequestReview();
-      } catch (reviewError) {
-        logger.error("Error handling store review:", reviewError);
-        // Ne pas bloquer le workflow si la demande de note échoue
-      }
-      
       // 2. Nettoyer la session active (sans mettre à jour la streak car déjà fait)
       try {
         await finishWorkout(false); // false = pas de mise à jour streak

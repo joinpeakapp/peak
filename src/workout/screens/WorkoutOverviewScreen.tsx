@@ -33,6 +33,7 @@ import { StickerBadge } from '../../components/common/StickerBadge';
 import { Sticker } from '../../types/stickers';
 import { PRBadge } from '../components/PRBadge';
 import { StickerInfoBottomSheet } from '../../components/common/StickerInfoBottomSheet';
+import logger from '../../utils/logger';
 
 type WorkoutOverviewRouteProp = RouteProp<SummaryStackParamList, 'WorkoutOverview'>;
 
@@ -159,6 +160,19 @@ export const WorkoutOverviewScreen: React.FC = () => {
           ]
         })
       );
+      
+      // Gérer la demande de note sur l'App Store après que l'utilisateur ait vu sa card dans le journal
+      // On attend un délai pour laisser le temps à l'utilisateur de voir sa card animée
+      setTimeout(async () => {
+        try {
+          const StoreReviewService = (await import('../../services/storeReviewService')).default;
+          await StoreReviewService.incrementCompletedWorkouts();
+          await StoreReviewService.checkAndRequestReview();
+        } catch (reviewError) {
+          logger.error("Error handling store review:", reviewError);
+          // Ne pas bloquer le workflow si la demande de note échoue
+        }
+      }, 2000); // Attendre 2 secondes pour que l'utilisateur voie sa card dans le journal
     } catch (error) {
       console.error('Error saving workout with photo:', error);
       Alert.alert(
