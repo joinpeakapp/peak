@@ -138,11 +138,13 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
           const maxInactiveTime = 24 * 60 * 60 * 1000; // 24 heures
           
           if (timeSinceLastUpdate < maxInactiveTime) {
-            // Mettre à jour le temps écoulé avec le calcul corrigé
+            // Mettre à jour le temps écoulé avec le calcul corrigé et restaurer les PR data
             const restoredData: ActiveWorkout = {
               ...parsedData,
               elapsedTime: updatedElapsedTime,
-              lastResumeTime: parsedData.isActive ? now : parsedData.lastResumeTime
+              lastResumeTime: parsedData.isActive ? now : parsedData.lastResumeTime,
+              originalRecords: result.data.originalRecords,
+              exercisePRResults: result.data.exercisePRResults
             };
             
             setActiveWorkout(restoredData);
