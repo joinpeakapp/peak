@@ -15,6 +15,7 @@ import { CompletedWorkout, CompletedSet } from '../../types/workout';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, NavigationProp, CommonActions, useRoute, RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../../types/navigation';
+import logger from '../../utils/logger';
 
 interface StepInfo {
   title: string;
@@ -28,14 +29,14 @@ export const WorkoutSummaryScreen: React.FC = () => {
   
   // Récupérer le workout depuis les paramètres de route
   const params = route.params;
-  console.log('WorkoutSummaryScreen - Route params:', JSON.stringify(params));
+  logger.log('WorkoutSummaryScreen - Route params:', JSON.stringify(params));
   
   const { workout } = params || {};
-  console.log('WorkoutSummaryScreen - Workout:', workout ? 'exists' : 'not found');
+  logger.log('WorkoutSummaryScreen - Workout:', workout ? 'exists' : 'not found');
   
   // Si pas de workout, ne rien afficher
   if (!workout) {
-    console.log('WorkoutSummaryScreen - No workout data received');
+    logger.log('WorkoutSummaryScreen - No workout data received');
     return (
       <View style={styles.container}>
         <Text style={styles.errorText}>Erreur: Impossible de charger le résumé d'entraînement.</Text>

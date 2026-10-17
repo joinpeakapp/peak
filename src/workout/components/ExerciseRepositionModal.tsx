@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Exercise } from '../../types/workout';
+import logger from '../../utils/logger';
 
 interface ExerciseRepositionModalProps {
   visible: boolean;
@@ -209,9 +210,9 @@ export const ExerciseRepositionModal: React.FC<ExerciseRepositionModalProps> = (
   // Debug: vérifier que les données sont correctes
   useEffect(() => {
     if (visible) {
-      console.log('[ExerciseRepositionModal] Exercises:', exercises.length);
-      console.log('[ExerciseRepositionModal] Selected exercise:', selectedExercise?.name);
-      console.log('[ExerciseRepositionModal] Position options:', positionOptions.length);
+      logger.log('[ExerciseRepositionModal] Exercises:', exercises.length);
+      logger.log('[ExerciseRepositionModal] Selected exercise:', selectedExercise?.name);
+      logger.log('[ExerciseRepositionModal] Position options:', positionOptions.length);
     }
   }, [visible, exercises.length, selectedExercise, positionOptions.length]);
 

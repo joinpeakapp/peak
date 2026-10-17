@@ -103,7 +103,7 @@ export const useNotifications = () => {
   // Planifier une notification
   const scheduleNotification = useCallback(async (notification: ScheduledNotification) => {
     if (!isInitialized) {
-      console.warn('🔔 [useNotifications] Service not initialized');
+      logger.warn('🔔 [useNotifications] Service not initialized');
       return null;
     }
 
@@ -121,7 +121,7 @@ export const useNotifications = () => {
   // Annuler une notification
   const cancelNotification = useCallback(async (notificationId: string) => {
     if (!isInitialized) {
-      console.warn('🔔 [useNotifications] Service not initialized');
+      logger.warn('🔔 [useNotifications] Service not initialized');
       return;
     }
 
@@ -135,7 +135,7 @@ export const useNotifications = () => {
   // Annuler toutes les notifications d'un type
   const cancelNotificationsByType = useCallback(async (type: string) => {
     if (!isInitialized) {
-      console.warn('🔔 [useNotifications] Service not initialized');
+      logger.warn('🔔 [useNotifications] Service not initialized');
       return;
     }
 
@@ -149,7 +149,7 @@ export const useNotifications = () => {
   // Sauvegarder les paramètres
   const saveSettings = useCallback(async (newSettings: NotificationSettings) => {
     if (!isInitialized) {
-      console.warn('🔔 [useNotifications] Service not initialized');
+      logger.warn('🔔 [useNotifications] Service not initialized');
       return;
     }
 
@@ -182,7 +182,7 @@ export const useNotifications = () => {
   // Planifier les rappels d'entraînement
   const scheduleWorkoutReminders = useCallback(async () => {
     if (!isInitialized) {
-      console.warn('🔔 [useNotifications] Service not initialized');
+      logger.warn('🔔 [useNotifications] Service not initialized');
       return;
     }
 

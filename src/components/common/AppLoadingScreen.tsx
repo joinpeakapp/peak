@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { AppPreloadService } from '../../services/appPreloadService';
+import logger from '../../utils/logger';
 
 interface AppLoadingScreenProps {
   onLoadingComplete?: () => void;
@@ -37,7 +38,7 @@ export const AppLoadingScreen: React.FC<AppLoadingScreenProps> = ({
 
     // Fallback : fermer après 5s max même si préchargement pas terminé
     const maxTimeTimer = setTimeout(() => {
-      console.warn('[AppLoadingScreen] Max loading time reached, closing splash');
+      logger.warn('[AppLoadingScreen] Max loading time reached, closing splash');
       clearInterval(preloadCheckInterval);
       onLoadingComplete?.();
     }, MAX_LOADING_TIME);

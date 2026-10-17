@@ -28,7 +28,7 @@ class CustomExerciseService {
         return [];
       }
       const exercises = JSON.parse(data);
-      console.log('[CustomExerciseService] Loaded custom exercises:', exercises.length);
+      logger.log('[CustomExerciseService] Loaded custom exercises:', exercises.length);
       return exercises;
     } catch (error) {
       logger.error('[CustomExerciseService] Error loading custom exercises:', error);
@@ -83,7 +83,7 @@ class CustomExerciseService {
       // Sauvegarder
       await AsyncStorage.setItem(CUSTOM_EXERCISES_KEY, JSON.stringify(updatedExercises));
 
-      console.log('[CustomExerciseService] Created custom exercise:', newExercise.name);
+      logger.log('[CustomExerciseService] Created custom exercise:', newExercise.name);
       return newExercise;
     } catch (error) {
       logger.error('[CustomExerciseService] Error creating custom exercise:', error);
@@ -100,7 +100,7 @@ class CustomExerciseService {
       const filteredExercises = exercises.filter(ex => ex.id !== id);
       
       await AsyncStorage.setItem(CUSTOM_EXERCISES_KEY, JSON.stringify(filteredExercises));
-      console.log('[CustomExerciseService] Deleted custom exercise:', id);
+      logger.log('[CustomExerciseService] Deleted custom exercise:', id);
     } catch (error) {
       logger.error('[CustomExerciseService] Error deleting custom exercise:', error);
       throw error;
@@ -156,7 +156,7 @@ class CustomExerciseService {
       // Sauvegarder
       await AsyncStorage.setItem(CUSTOM_EXERCISES_KEY, JSON.stringify(exercises));
 
-      console.log('[CustomExerciseService] Updated custom exercise:', updatedExercise.name);
+      logger.log('[CustomExerciseService] Updated custom exercise:', updatedExercise.name);
       return updatedExercise;
     } catch (error) {
       logger.error('[CustomExerciseService] Error updating custom exercise:', error);
@@ -185,7 +185,7 @@ class CustomExerciseService {
   async clearAllCustomExercises(): Promise<void> {
     try {
       await AsyncStorage.removeItem(CUSTOM_EXERCISES_KEY);
-      console.log('[CustomExerciseService] Cleared all custom exercises');
+      logger.log('[CustomExerciseService] Cleared all custom exercises');
     } catch (error) {
       logger.error('[CustomExerciseService] Error clearing custom exercises:', error);
       throw error;

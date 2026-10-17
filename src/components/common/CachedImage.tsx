@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Image, ImageProps, ActivityIndicator, View, StyleSheet } from 'react-native';
+import logger from '../../utils/logger';
 
 interface CachedImageProps extends Omit<ImageProps, 'source'> {
   uri: string;
@@ -200,11 +201,11 @@ export const ImageCacheUtils = {
     });
     
     if (urisToLoad.length === 0) {
-      console.log('[ImageCacheUtils] All images already cached');
+      logger.log('[ImageCacheUtils] All images already cached');
       return;
     }
     
-    console.log(`[ImageCacheUtils] Preloading ${urisToLoad.length} images...`);
+    logger.log(`[ImageCacheUtils] Preloading ${urisToLoad.length} images...`);
     
     // Précharger en parallèle avec un batch pour éviter de surcharger le système
     const BATCH_SIZE = 10;
@@ -225,7 +226,7 @@ export const ImageCacheUtils = {
             successCount++;
           })
           .catch((error) => {
-            console.warn(`[ImageCacheUtils] Failed to preload image: ${uri}`, error);
+            logger.warn(`[ImageCacheUtils] Failed to preload image: ${uri}`, error);
             imageCache.set(uri, { loaded: false, error: true, timestamp: now });
             errorCount++;
           })
@@ -234,12 +235,12 @@ export const ImageCacheUtils = {
       await Promise.allSettled(promises);
     }
     
-    console.log(`[ImageCacheUtils] Preload complete: ${successCount} success, ${errorCount} errors`);
+    logger.log(`[ImageCacheUtils] Preload complete: ${successCount} success, ${errorCount} errors`);
   },
   
   clearCache: (): void => {
     imageCache.clear();
-    console.log('[ImageCacheUtils] Cache cleared');
+    logger.log('[ImageCacheUtils] Cache cleared');
   },
   
   getCacheSize: (): number => {

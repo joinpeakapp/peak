@@ -25,6 +25,7 @@ import { StickerService } from '../../services/stickerService';
 import { StickerBadge } from '../../components/common/StickerBadge';
 import { Sticker } from '../../types/stickers';
 import { PRBadge } from '../components/PRBadge';
+import logger from '../../utils/logger';
 
 interface StepInfo {
   title: string;
@@ -392,7 +393,7 @@ export const WorkoutSummaryScreen: React.FC = () => {
     if (!stickerOpacityAnims[currentStickerIndex] || 
         !stickerOffsetYAnims[currentStickerIndex] ||
         !stickerTextOpacityAnims[currentStickerIndex]) {
-      console.warn('[WorkoutSummaryScreen] Animation not initialized for sticker', currentStickerIndex);
+      logger.warn('[WorkoutSummaryScreen] Animation not initialized for sticker', currentStickerIndex);
       return;
     }
     

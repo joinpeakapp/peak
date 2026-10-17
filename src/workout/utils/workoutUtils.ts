@@ -236,7 +236,7 @@ export const calculateStickerHistoricalData = async (
     // Charger l'historique des workouts
     const historyResult = await RobustStorageService.loadWorkoutHistory();
     if (!historyResult.success) {
-      console.warn('[WorkoutDetailModal] Failed to load workout history');
+      logger.warn('[WorkoutDetailModal] Failed to load workout history');
       return { starCount: 1, streakCount: 1, completionCount: 1 };
     }
 

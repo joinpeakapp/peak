@@ -36,7 +36,7 @@ export class ExercisePreferencesService {
       // Sauvegarder
       await AsyncStorage.setItem(EXERCISE_PREFERENCES_KEY, JSON.stringify(allPreferences));
       
-      console.log(`[ExercisePreferences] Saved preferences for exercise ${exerciseId}:`, preferences);
+      logger.log(`[ExercisePreferences] Saved preferences for exercise ${exerciseId}:`, preferences);
       return { success: true };
     } catch (error) {
       logger.error('[ExercisePreferences] Error saving preferences:', error);
@@ -115,7 +115,7 @@ export class ExercisePreferencesService {
 
       await AsyncStorage.setItem(EXERCISE_PREFERENCES_KEY, JSON.stringify(allPreferences));
       
-      console.log(`[ExercisePreferences] Removed preferences for exercise ${exerciseId}`);
+      logger.log(`[ExercisePreferences] Removed preferences for exercise ${exerciseId}`);
       return { success: true };
     } catch (error) {
       logger.error('[ExercisePreferences] Error removing preferences:', error);
