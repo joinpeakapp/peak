@@ -10,6 +10,7 @@ import { RestTimerProvider } from './src/workout/contexts/RestTimerContext';
 import { StreakProvider, useStreak } from './src/workout/contexts/StreakContext';
 import { WorkoutHistoryProvider } from './src/workout/contexts/WorkoutHistoryContext';
 import { WorkoutCreationProvider } from './src/contexts/WorkoutCreationContext';
+import { WorkoutLiveActivitySync } from './src/workout/components/WorkoutLiveActivitySync';
 import { useSelector } from 'react-redux';
 import { RootState } from './src/store';
 import { ErrorBoundary } from './src/components/common/ErrorBoundary';
@@ -135,6 +136,7 @@ const AppContent: React.FC = () => {
               <RestTimerProvider>
                 <SafeAreaProvider>
                   <StreakValidator />
+                  <WorkoutLiveActivitySync />
                   <StatusBar style="light" />
                   <AppNavigator />
                   

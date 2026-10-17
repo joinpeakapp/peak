@@ -34,7 +34,8 @@
         "NSPhotoLibraryUsageDescription": "This app needs access to photos to save workout photos.",
         "NSPhotoLibraryAddUsageDescription": "This app needs access to photos to save workout photos.",
         "NSUserNotificationsUsageDescription": "This app uses notifications to remind you about workouts and help maintain your fitness streak.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSSupportsLiveActivities": true
       }
     },
     "android": {
@@ -73,7 +74,8 @@
         }
       ],
       "expo-font",
-      "expo-splash-screen"
+      "expo-splash-screen",
+      "@bacons/apple-targets"
     ],
     "extra": {
       "eas": {
