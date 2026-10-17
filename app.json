@@ -23,6 +23,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.hugz.peak",
+      "appleTeamId": "46GZ52H6W6",
       "buildNumber": "38",
       "splash": {
         "image": "./assets/splash-icon.png",
