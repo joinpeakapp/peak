@@ -11,7 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Workout, Exercise } from '../../../types/workout';
 import { getExerciseProgressText, getExerciseCompletionData } from '../../utils/workoutUtils';
-import { formatElapsedTime } from '../../utils/workoutUtils';
+import { ElapsedTimeText } from '../ElapsedTimeText';
 
 interface WorkoutViewProps {
   workout: Workout;
@@ -89,9 +89,7 @@ export const WorkoutView: React.FC<WorkoutViewProps> = ({
         >
           {/* Timer dans le ScrollView quand en mode tracking */}
           {isTrackingWorkout && activeWorkout && (
-            <Text style={styles.workoutTimer}>
-              {formatElapsedTime(activeWorkout.elapsedTime)}
-            </Text>
+            <ElapsedTimeText style={styles.workoutTimer} />
           )}
           
           {/* Titre maintenant dans le ScrollView */}

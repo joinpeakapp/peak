@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveWorkout } from '../contexts/ActiveWorkoutContext';
+import { ElapsedTimeText } from './ElapsedTimeText';
 
 interface ActiveWorkoutCardProps {
   onPress: () => void;
@@ -12,13 +13,6 @@ export const ActiveWorkoutCard: React.FC<ActiveWorkoutCardProps> = ({ onPress })
 
   if (!activeWorkout) return null;
 
-  // Formatter le temps (mm:ss)
-  const formatElapsedTime = () => {
-    const minutes = Math.floor(activeWorkout.elapsedTime / 60);
-    const seconds = activeWorkout.elapsedTime % 60;
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-  };
-
   return (
     <TouchableOpacity 
       style={styles.container}
@@ -27,7 +21,7 @@ export const ActiveWorkoutCard: React.FC<ActiveWorkoutCardProps> = ({ onPress })
     >
       <View style={styles.content}>
         <View style={styles.leftContent}>
-          <Text style={styles.timer}>{formatElapsedTime()}</Text>
+          <ElapsedTimeText style={styles.timer} />
           <View style={styles.workoutInfo}>
             <Text style={styles.workoutName}>{activeWorkout.workoutName}</Text>
             <Text style={styles.statusText}>In progress</Text>

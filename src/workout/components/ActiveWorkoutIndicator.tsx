@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveWorkout } from '../contexts/ActiveWorkoutContext';
+import { ElapsedTimeText } from './ElapsedTimeText';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 
@@ -25,16 +26,6 @@ const ActiveWorkoutIndicator: React.FC<ActiveWorkoutIndicatorProps> = ({ onPress
     return null;
   }
 
-  // Formater le temps écoulé (mm:ss)
-  const formatElapsedTime = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
-  };
-
-  // Calculer le temps écoulé depuis le début
-  const elapsedTimeFormatted = formatElapsedTime(activeWorkout.elapsedTime);
-
   // Gérer le clic sur l'indicateur
   const handlePress = () => {
     if (onPress) {
@@ -49,7 +40,7 @@ const ActiveWorkoutIndicator: React.FC<ActiveWorkoutIndicatorProps> = ({ onPress
     <TouchableOpacity style={styles.container} onPress={handlePress}>
       <View style={styles.indicator}>
         <View style={styles.leftContent}>
-          <Text style={styles.timer}>{elapsedTimeFormatted}</Text>
+          <ElapsedTimeText style={styles.timer} />
           <View style={styles.workoutInfo}>
             <Text style={styles.workout}>{activeWorkout.workoutName}</Text>
             <Text style={styles.title}>In progress</Text>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { useActiveWorkout, TrackingData } from '../contexts/ActiveWorkoutContext';
+import { useActiveWorkout, TrackingData, computeElapsedSeconds } from '../contexts/ActiveWorkoutContext';
 import { useRestTimer } from '../contexts/RestTimerContext';
 import { Exercise } from '../../types/workout';
 import { endWorkoutActivity, startOrUpdateWorkoutActivity } from '../../../modules/peak-live-activity';
@@ -19,9 +19,7 @@ export const WorkoutLiveActivitySync: React.FC = () => {
   const { activeWorkout } = useActiveWorkout();
   const { isTimerActive, isPaused, currentTime, totalTime, currentExercise } = useRestTimer();
 
-  // Read on demand only: both tick every second, and the widget runs its own timers.
-  const elapsedRef = useRef(0);
-  elapsedRef.current = activeWorkout?.elapsedTime ?? 0;
+  // Read on demand only: it ticks every second, and the widget runs its own timers.
   const restRemainingRef = useRef(0);
   restRemainingRef.current = currentTime;
 
@@ -75,14 +73,14 @@ export const WorkoutLiveActivitySync: React.FC = () => {
     startOrUpdateWorkoutActivity(activeWorkout.workoutId, {
       workoutName: activeWorkout.workoutName,
       startedAt,
-      pausedElapsed: isRunning ? undefined : elapsedRef.current,
+      pausedElapsed: isRunning ? undefined : computeElapsedSeconds(activeWorkout),
       exerciseName: focus?.name,
       completedSets: progress.completed,
       totalSets: progress.total,
       restEndsAt,
       restTotal: restEndsAt ? totalTime : undefined,
     });
-    // activeWorkout itself changes every second (elapsedTime); depend on the fields shown instead.
+    // Depend on the fields shown, not on activeWorkout itself (photo, PR data… change it too).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workoutId, activeWorkout?.workoutName, isRunning, exercises, trackingData, startedAt, restEndsAt]);
 

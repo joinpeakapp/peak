@@ -65,26 +65,9 @@ export const RestTimerProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [totalTime, setTotalTime] = useState(0);
   const [currentExerciseId, setCurrentExerciseId] = useState<string | undefined>(undefined);
   const [currentExercise, setCurrentExercise] = useState<Exercise | null>(null);
-  const [defaultRestTime, setDefaultRestTime] = useState(DEFAULT_REST_TIME);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const appStateRef = useRef(AppState.currentState);
   const { isTrackingWorkout } = useActiveWorkout();
-
-  // Charger le rest timer par défaut depuis les settings
-  useEffect(() => {
-    const loadDefaultRestTime = async () => {
-      const restTime = await SettingsService.getDefaultRestTimer();
-      setDefaultRestTime(restTime);
-    };
-    loadDefaultRestTime();
-    
-    // Recharger périodiquement pour détecter les changements dans les settings
-    const interval = setInterval(() => {
-      loadDefaultRestTime();
-    }, 2000); // Vérifier toutes les 2 secondes
-    
-    return () => clearInterval(interval);
-  }, []);
 
   // Chargement de l'état du timer au démarrage
   useEffect(() => {
@@ -303,7 +286,9 @@ export const RestTimerProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
     
     saveTimerState();
-  }, [isTimerActive, isPaused, currentTime]);
+    // Pas currentTime : startedAt suffit à recalculer, inutile d'écrire chaque seconde
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTimerActive, isPaused]);
 
   // Arrêter le timer si aucune séance n'est active
   useEffect(() => {
@@ -312,10 +297,9 @@ export const RestTimerProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   }, [isTrackingWorkout]);
 
-  // Fonction pour démarrer le timer de repos
-  const startRestTimer = (exercise: Exercise) => {
-    // Définir le temps de repos (personnalisé ou par défaut depuis les settings)
-    const restTime = exercise.restTimeSeconds || defaultRestTime;
+  // Démarrer le repos : temps de l'exercice, sinon réglage par défaut (lu à chaque fois, pour suivre les settings)
+  const startRestTimer = async (exercise: Exercise) => {
+    const restTime = exercise.restTimeSeconds || (await SettingsService.getDefaultRestTimer().catch(() => DEFAULT_REST_TIME));
     
     setTotalTime(restTime);
     setCurrentTime(restTime);
@@ -329,21 +313,15 @@ export const RestTimerProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     // Démarrer directement le timer
     startTimerInterval();
     
-    // Sauvegarder l'état initial du timer
-    const saveInitialState = async () => {
-      const timerData: RestTimerData = {
-        isActive: true,
-        isPaused: false,
-        currentTime: restTime,
-        totalTime: restTime,
-        exerciseId: exercise.id,
-        startedAt: Date.now()
-      };
-      
-      await AsyncStorage.setItem(REST_TIMER_STORAGE_KEY, JSON.stringify(timerData));
+    const timerData: RestTimerData = {
+      isActive: true,
+      isPaused: false,
+      currentTime: restTime,
+      totalTime: restTime,
+      exerciseId: exercise.id,
+      startedAt: Date.now()
     };
-    
-    saveInitialState();
+    await AsyncStorage.setItem(REST_TIMER_STORAGE_KEY, JSON.stringify(timerData));
   };
 
   // Fonction pour mettre en pause le timer
@@ -400,38 +378,9 @@ export const RestTimerProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
-  // Fonction pour réinitialiser le timer
+  // Réinitialiser le timer : même comportement qu'un nouveau départ
   const resetTimer = (exercise: Exercise) => {
-    // Définir le temps de repos (personnalisé ou par défaut)
-    const restTime = exercise.restTimeSeconds || DEFAULT_REST_TIME;
-    
-    setTotalTime(restTime);
-    setCurrentTime(restTime);
-    setCurrentExerciseId(exercise.id);
-    setCurrentExercise(exercise);
-    
-    // Mettre à jour l'état pour activer le timer
-    setIsTimerActive(true);
-    setIsPaused(false);
-    
-    // Démarrer directement le timer
-    startTimerInterval();
-    
-    // Sauvegarder l'état réinitialisé
-    const saveResetState = async () => {
-      const timerData: RestTimerData = {
-        isActive: true,
-        isPaused: false,
-        currentTime: restTime,
-        totalTime: restTime,
-        exerciseId: exercise.id,
-        startedAt: Date.now()
-      };
-      
-      await AsyncStorage.setItem(REST_TIMER_STORAGE_KEY, JSON.stringify(timerData));
-    };
-    
-    saveResetState();
+    startRestTimer(exercise);
   };
 
   // Fonction pour arrêter le timer

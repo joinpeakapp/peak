@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { Alert, LayoutAnimation, UIManager, Platform } from 'react-native';
 import { CommonActions, NavigationProp } from '@react-navigation/native';
 import { Workout, Exercise, CompletedWorkout, CompletedTime } from '../../types/workout';
-import { TrackingTime, TrackingSet, TrackingData } from '../contexts/ActiveWorkoutContext';
+import { TrackingTime, TrackingSet, TrackingData, computeElapsedSeconds } from '../contexts/ActiveWorkoutContext';
 import { RootStackParamList, WorkoutStackParamList } from '../../types/navigation';
 import CustomExerciseService from '../../services/customExerciseService';
 import { StickerService } from '../../services/stickerService';
@@ -869,7 +869,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
         workoutId: workout.id,
         name: workout.name,
         date: new Date().toISOString(),
-        duration: activeWorkout.elapsedTime,
+        duration: computeElapsedSeconds(activeWorkout),
         photo: activeWorkout.photoUri || 'https://via.placeholder.com/114x192/242526/FFFFFF?text=Workout',
         isFrontCamera: activeWorkout.isFrontCamera,
         exercises: exercises.map(exercise => {
@@ -1657,7 +1657,7 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
         // Rafraîchir les exercices avec les nouvelles données
         setExercises(updatedWorkout.exercises || []);
       } else {
-        console.warn('Updated workout not found in store');
+        logger.warn('Updated workout not found in store');
       }
     }
   }, [modalManagement, workout, workouts, setExercises]);
