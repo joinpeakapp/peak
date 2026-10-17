@@ -224,7 +224,14 @@ export const WorkoutList: React.FC<WorkoutListProps> = ({
         visible={isRepositionModalVisible && !!selectedWorkoutForReposition}
         onClose={handleRepositionClose}
         workouts={workouts}
-        selectedWorkout={selectedWorkoutForReposition || { id: '', name: '', date: '', exercises: [], frequency: '', streak: 0 } as Workout}
+        selectedWorkout={selectedWorkoutForReposition || { 
+          id: '', 
+          name: '', 
+          date: '', 
+          duration: 0,
+          exercises: [], 
+          frequency: { type: 'none', value: 0 }
+        } as Workout}
         onPositionSelected={(newPosition) => {
           if (selectedWorkoutForReposition) {
             handleRepositionWorkout(selectedWorkoutForReposition.id, newPosition);
@@ -292,10 +299,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   createButton: {
-    paddingHorizontal: 24,
+    paddingHorizontal: 32,
     paddingVertical: 16,
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    borderRadius: 100,
   },
   createButtonText: {
     color: '#0D0D0F',

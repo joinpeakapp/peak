@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useWorkout } from '../../hooks/useWorkout';
-import { WorkoutFrequency } from '../../types/workout';
+import { WorkoutFrequency, Exercise } from '../../types/workout';
 import { Workout } from '../../types/workout';
 import { Picker } from '@react-native-picker/picker';
 
@@ -23,6 +23,8 @@ const generateId = (): string => {
 
 interface WorkoutCreateFrequencyScreenProps {
   name: string;
+  templateExercises?: Omit<Exercise, 'id'>[] | null;
+  templateFrequency?: WorkoutFrequency | null;
   onComplete: (workoutId: string) => void;
   onBack: () => void;
 }
@@ -46,12 +48,21 @@ const INTERVAL_OPTIONS = Array.from({ length: 30 }, (_, i) => i + 1);
 
 export const WorkoutCreateFrequencyScreen: React.FC<WorkoutCreateFrequencyScreenProps> = ({
   name,
+  templateExercises,
+  templateFrequency,
   onComplete,
   onBack
 }) => {
-  const [activeTab, setActiveTab] = useState<FrequencyTab>('weekly');
-  const [selectedDay, setSelectedDay] = useState<number | null>(null);
-  const [selectedInterval, setSelectedInterval] = useState<number>(3); // Default: 3 jours
+  // Si un template a une fréquence prédéfinie, l'utiliser comme valeur par défaut
+  const [activeTab, setActiveTab] = useState<FrequencyTab>(
+    templateFrequency ? templateFrequency.type : 'weekly'
+  );
+  const [selectedDay, setSelectedDay] = useState<number | null>(
+    templateFrequency?.type === 'weekly' ? templateFrequency.value : null
+  );
+  const [selectedInterval, setSelectedInterval] = useState<number>(
+    templateFrequency?.type === 'interval' ? templateFrequency.value : 3
+  );
   const { createWorkout } = useWorkout();
   
   // Animation pour l'indicateur de tab
@@ -100,13 +111,21 @@ export const WorkoutCreateFrequencyScreen: React.FC<WorkoutCreateFrequencyScreen
       const workoutId = generateId();
       const now = new Date().toISOString();
       
+      // Préparer les exercices avec des IDs uniques si on utilise un template
+      const exercises: Exercise[] = templateExercises 
+        ? templateExercises.map(ex => ({
+            ...ex,
+            id: generateId()
+          }))
+        : [];
+      
       // Créer le nouveau workout AVEC l'ID
       const newWorkout: Workout = {
         id: workoutId,
         name,
         date: new Date().toISOString().split('T')[0],
         duration: 0, // Valeur par défaut
-        exercises: [],
+        exercises,
         frequency,
         createdAt: now,
         updatedAt: now

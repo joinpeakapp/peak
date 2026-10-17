@@ -17,11 +17,14 @@ import { useWorkout } from '../../hooks/useWorkout';
 interface WorkoutCreateNameScreenProps {
   onNext: (name: string) => void;
   onClose: () => void;
+  /** Previous step (workout type): shows a back arrow instead of the close arrow */
+  onBack?: () => void;
 }
 
 export const WorkoutCreateNameScreen: React.FC<WorkoutCreateNameScreenProps> = ({
   onNext,
-  onClose
+  onClose,
+  onBack
 }) => {
   const [name, setName] = useState('');
   const [error, setError] = useState('');
@@ -75,9 +78,9 @@ export const WorkoutCreateNameScreen: React.FC<WorkoutCreateNameScreenProps> = (
           <TouchableOpacity 
             testID="close-button"
             style={styles.closeButton} 
-            onPress={onClose}
+            onPress={onBack ?? onClose}
           >
-            <Ionicons name="arrow-down" size={24} color="#FFFFFF" />
+            <Ionicons name={onBack ? 'arrow-back' : 'arrow-down'} size={24} color="#FFFFFF" />
           </TouchableOpacity>
 
           <ScrollView 
