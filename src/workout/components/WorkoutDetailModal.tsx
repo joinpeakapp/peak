@@ -246,13 +246,20 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
   // 🔧 CORRECTIF : Restaurer les originalRecords et exercisePRResults quand un workout actif est restauré après un redémarrage
   useEffect(() => {
     const restoreSessionRecords = async () => {
-      // Si on est en mode tracking avec un workout actif et que les originalRecords sont vides,
-      // cela signifie qu'un workout actif a été restauré après un redémarrage de l'app
+      // Détecter si la session doit être restaurée après un redémarrage :
+      // 1. Les originalRecords du hook sont vides (cas classique de redémarrage)
+      // 2. OU : les exercisePRResults du hook sont vides mais activeWorkout en a (données non restaurées)
+      const needsOriginalRecordsRestore = Object.keys(workoutSession.originalRecords).length === 0;
+      const needsPRResultsRestore =
+        activeWorkout?.exercisePRResults &&
+        Object.keys(activeWorkout.exercisePRResults).length > 0 &&
+        Object.keys(workoutSession.exercisePRResults).length === 0;
+
       if (
         visible &&
         isTrackingWorkout && 
         activeWorkout && 
-        Object.keys(workoutSession.originalRecords).length === 0 &&
+        (needsOriginalRecordsRestore || needsPRResultsRestore) &&
         !recordsRestoredRef.current
       ) {
         console.log('[WorkoutDetailModal] 🔄 Restoring session data after app restart');
@@ -318,6 +325,25 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({
       // Convertir en JSON pour comparer le contenu plutôt que la référence
       const currentOriginalRecords = JSON.stringify(workoutSession.originalRecords);
       const currentExercisePRResults = JSON.stringify(workoutSession.exercisePRResults);
+
+      // 🔧 BUG FIX : Ne pas écraser les données existantes dans activeWorkout avec un état vide.
+      // Cela se produit lors du premier rendu après un redémarrage de l'app, quand la session
+      // useWorkoutSession n'a pas encore été restaurée mais que activeWorkout a déjà les données
+      // chargées depuis AsyncStorage. Sans ce garde, l'auto-save écrase les PR avec {}.
+      const activeHasPRData =
+        activeWorkout.exercisePRResults &&
+        Object.keys(activeWorkout.exercisePRResults).length > 0;
+      const sessionHasNoPRData = Object.keys(workoutSession.exercisePRResults).length === 0;
+
+      const activeHasRecords =
+        activeWorkout.originalRecords &&
+        Object.keys(activeWorkout.originalRecords).length > 0;
+      const sessionHasNoRecords = Object.keys(workoutSession.originalRecords).length === 0;
+
+      if ((activeHasPRData && sessionHasNoPRData) || (activeHasRecords && sessionHasNoRecords)) {
+        // La session n'est pas encore initialisée/restaurée — ne pas écraser les données chargées
+        return;
+      }
       
       // Ne sauvegarder que si les données ont réellement changé
       if (

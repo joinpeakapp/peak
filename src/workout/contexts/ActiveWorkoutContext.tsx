@@ -7,6 +7,7 @@ import { useWorkout } from '../../hooks/useWorkout';
 import { RobustStorageService } from '../../services/storage';
 import NotificationService from '../../services/notificationService';
 import logger from '../../utils/logger';
+import { onExerciseRecordsReset } from '../../hooks/usePersonalRecords';
 
 // Types pour la séance active
 export interface TrackingSet {
@@ -158,6 +159,26 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
 
     loadActiveWorkout();
   }, []);
+
+  // Exercice remis à zéro depuis son écran de détail : nettoyer aussi la séance sauvegardée,
+  // sinon la restauration à la réouverture de la séance ramènerait ses anciens records et badges
+  useEffect(() => onExerciseRecordsReset(exerciseName => {
+    setActiveWorkout(prev => {
+      if (!prev) return prev;
+      const exerciseIds = prev.exercises.filter(e => e.name === exerciseName).map(e => e.id);
+      const exercisePRResults = Object.fromEntries(
+        Object.entries(prev.exercisePRResults ?? {}).filter(([key]) => !exerciseIds.some(id => key.startsWith(`${id}_set_`)))
+      );
+      return {
+        ...prev,
+        originalRecords: prev.originalRecords && {
+          ...prev.originalRecords,
+          [exerciseName]: { exerciseName, maxWeight: 0, maxWeightDate: '', repsPerWeight: {} }
+        },
+        exercisePRResults
+      };
+    });
+  }), []);
 
   // Fonction pour réinitialiser le compteur d'activité
   const resetActivityTimer = useCallback(async () => {
