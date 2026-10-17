@@ -30,8 +30,8 @@ export const WorkoutLiveActivitySync: React.FC = () => {
   const exercises = activeWorkout?.exercises;
   const trackingData = activeWorkout?.trackingData;
 
-  // Elapsed time includes background periods, so now - elapsed is the effective start.
-  const startedAt = useMemo(() => Date.now() - elapsedRef.current * 1000, [workoutId, isRunning]);
+  // Effective start: shifting by manual pauses makes the widget's count-up match computeElapsedSeconds.
+  const startedAt = activeWorkout ? activeWorkout.startTime + (activeWorkout.pausedDuration ?? 0) : 0;
 
   const restEndsAt = useMemo(
     () => (isTimerActive && !isPaused ? Date.now() + restRemainingRef.current * 1000 : undefined),

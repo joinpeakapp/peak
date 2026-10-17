@@ -39,7 +39,8 @@ export interface ActiveWorkout {
   startTime: number;
   elapsedTime: number; // en secondes
   lastResumeTime?: number; // Timestamp pour calculer les périodes d'arrêt/reprise
-  pausedAt?: number; // Timestamp quand l'app a été mise en pause
+  pausedAt?: number; // Timestamp de la mise en pause manuelle (isActive = false)
+  pausedDuration?: number; // Total des pauses manuelles terminées, en ms
   trackingData: TrackingData;
   isActive: boolean;
   photoUri?: string; // URI de la photo prise après le workout
@@ -95,6 +96,12 @@ export const useActiveWorkout = () => useContext(ActiveWorkoutContext);
 // Clé pour AsyncStorage
 const STORAGE_KEY = 'activeWorkoutData';
 
+// Temps écoulé dérivé de l'horloge : l'arrière-plan et un kill de l'app sont comptés une seule fois
+export const computeElapsedSeconds = (workout: ActiveWorkout, now: number = Date.now()): number => {
+  const end = workout.isActive ? now : workout.pausedAt ?? now;
+  return Math.max(0, Math.floor((end - workout.startTime - (workout.pausedDuration ?? 0)) / 1000));
+};
+
 export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [activeWorkout, setActiveWorkout] = useState<ActiveWorkout | null>(null);
   const [isTrackingWorkout, setIsTrackingWorkout] = useState(false);
@@ -112,37 +119,21 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
         const result = await RobustStorageService.loadActiveSession();
         
         if (result.success && result.data?.activeWorkout) {
-          const parsedData = result.data.activeWorkout as ActiveWorkout;
-          
-          // 🔧 CORRECTIF : Calculer le temps écoulé même si l'app a été fermée complètement
+          const storedWorkout = result.data.activeWorkout as ActiveWorkout;
+          // Les anciennes versions posaient pausedAt en arrière-plan alors que isActive restait true :
+          // ce n'était pas une vraie pause.
+          const parsedData: ActiveWorkout = {
+            ...storedWorkout,
+            pausedAt: storedWorkout.isActive ? undefined : storedWorkout.pausedAt,
+          };
           const now = Date.now();
-          let updatedElapsedTime = parsedData.elapsedTime;
-          
-          // Si la séance était active, calculer le temps écoulé depuis la dernière reprise ou le démarrage
-          if (parsedData.isActive && parsedData.lastResumeTime) {
-            const timeSinceLastResume = Math.floor((now - parsedData.lastResumeTime) / 1000);
-            updatedElapsedTime = parsedData.elapsedTime + timeSinceLastResume;
-          } else if (parsedData.pausedAt) {
-            // Si la séance était en pause, le temps écoulé reste le même
-            // Mais on doit quand même vérifier la validité
-          } else if (parsedData.isActive) {
-            // Si active mais pas de lastResumeTime, calculer depuis startTime
-            const timeSinceStart = Math.floor((now - parsedData.startTime) / 1000);
-            updatedElapsedTime = timeSinceStart;
-          }
-          
-          // Vérifier si la séance est toujours valide (pas trop ancienne)
-          const timeSinceLastUpdate = parsedData.lastResumeTime ? 
-            now - parsedData.lastResumeTime : 
-            now - parsedData.startTime;
-          const maxInactiveTime = 24 * 60 * 60 * 1000; // 24 heures
-          
-          if (timeSinceLastUpdate < maxInactiveTime) {
-            // Mettre à jour le temps écoulé avec le calcul corrigé et restaurer les PR data
+          const maxSessionAge = 24 * 60 * 60 * 1000; // 24 heures
+
+          if (now - parsedData.startTime < maxSessionAge) {
+            // Recalculer le temps écoulé depuis l'horloge et restaurer les PR data
             const restoredData: ActiveWorkout = {
               ...parsedData,
-              elapsedTime: updatedElapsedTime,
-              lastResumeTime: parsedData.isActive ? now : parsedData.lastResumeTime,
+              elapsedTime: computeElapsedSeconds(parsedData, now),
               originalRecords: result.data.originalRecords,
               exercisePRResults: result.data.exercisePRResults
             };
@@ -188,23 +179,10 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
   // Gérer les changements d'état de l'app (premier plan, arrière-plan)
   useEffect(() => {
     const handleAppStateChange = async (nextAppState: AppStateStatus) => {
-      // Si l'app passe en arrière-plan
-      if (
-        appStateRef.current.match(/active/) && 
-        (nextAppState === 'background' || nextAppState === 'inactive')
-      ) {
+      // Au retour au premier plan, rattraper l'horloge tout de suite (les timers JS sont gelés en arrière-plan)
+      if (appStateRef.current !== 'active' && nextAppState === 'active') {
         if (activeWorkout && activeWorkout.isActive) {
-          await pauseWorkoutState();
-        }
-      }
-      
-      // Si l'app revient au premier plan
-      if (
-        (appStateRef.current === 'background' || appStateRef.current === 'inactive') && 
-        nextAppState === 'active'
-      ) {
-        if (activeWorkout && activeWorkout.isActive) {
-          await resumeWorkoutState();
+          setActiveWorkout(prev => (prev ? { ...prev, elapsedTime: computeElapsedSeconds(prev) } : prev));
           // Réinitialiser le compteur d'activité quand l'utilisateur revient
           await resetActivityTimer();
         }
@@ -221,72 +199,6 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
     };
   }, [activeWorkout, resetActivityTimer]);
 
-  // Fonction pour mettre en pause l'état de workout quand l'app passe en arrière-plan
-  const pauseWorkoutState = async () => {
-    // Arrêter le timer
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    
-      // Sauvegarder le timestamp de mise en pause
-      if (activeWorkout) {
-        const pausedWorkout = {
-          ...activeWorkout,
-          pausedAt: Date.now()
-        };
-        
-        setActiveWorkout(pausedWorkout);
-        await RobustStorageService.saveActiveSession({ 
-          activeWorkout: pausedWorkout,
-          originalRecords: activeWorkout.originalRecords,
-          exercisePRResults: activeWorkout.exercisePRResults,
-          lastUpdated: new Date().toISOString()
-        });
-      }
-  };
-  
-  // Fonction pour reprendre l'état de workout quand l'app revient au premier plan
-  const resumeWorkoutState = async () => {
-    if (activeWorkout) {
-      const now = Date.now();
-      let updatedElapsedTime = activeWorkout.elapsedTime;
-      
-      // 🔧 CORRECTIF : Calculer le temps écoulé même si l'app a été fermée complètement
-      if (activeWorkout.pausedAt) {
-        // Si la séance était en pause, ajouter le temps de pause
-        const pausedDuration = Math.floor((now - activeWorkout.pausedAt) / 1000);
-        updatedElapsedTime = activeWorkout.elapsedTime + pausedDuration;
-      } else if (activeWorkout.lastResumeTime) {
-        // Si pas de pausedAt mais un lastResumeTime, calculer depuis la dernière reprise
-        const timeSinceLastResume = Math.floor((now - activeWorkout.lastResumeTime) / 1000);
-        updatedElapsedTime = activeWorkout.elapsedTime + timeSinceLastResume;
-      } else {
-        // Sinon, calculer depuis le début
-        const timeSinceStart = Math.floor((now - activeWorkout.startTime) / 1000);
-        updatedElapsedTime = timeSinceStart;
-      }
-      
-      const updatedWorkout = {
-        ...activeWorkout,
-        elapsedTime: updatedElapsedTime,
-        lastResumeTime: now,
-        pausedAt: undefined // Réinitialiser la pause
-      };
-      
-      setActiveWorkout(updatedWorkout);
-      await RobustStorageService.saveActiveSession({ 
-        activeWorkout: updatedWorkout,
-        originalRecords: activeWorkout.originalRecords,
-        exercisePRResults: activeWorkout.exercisePRResults,
-        lastUpdated: new Date().toISOString()
-      });
-      
-      // Redémarrer le timer
-      startGlobalTimer();
-    }
-  };
-
   // Fonction pour démarrer le timer global
   const startGlobalTimer = () => {
     // Nettoyage du timer existant si nécessaire
@@ -299,11 +211,9 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
     timerRef.current = setInterval(() => {
       setActiveWorkout(prev => {
         if (!prev || !prev.isActive) return prev;
-        
-        return {
-          ...prev,
-          elapsedTime: prev.elapsedTime + 1
-        };
+
+        const elapsedTime = computeElapsedSeconds(prev);
+        return elapsedTime === prev.elapsedTime ? prev : { ...prev, elapsedTime };
       });
     }, 1000);
   };
@@ -574,8 +484,11 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
     setActiveWorkout(prev => {
       if (!prev) return null;
       
+      // Décaler startTime pour que l'horloge redonne newElapsedTime
+      const reference = prev.isActive ? Date.now() : prev.pausedAt ?? Date.now();
       return {
         ...prev,
+        startTime: reference - newElapsedTime * 1000 - (prev.pausedDuration ?? 0),
         elapsedTime: newElapsedTime
       };
     });
@@ -662,9 +575,11 @@ export const ActiveWorkoutProvider: React.FC<{ children: React.ReactNode }> = ({
     setActiveWorkout(prev => {
       if (!prev) return null;
       
+      const now = Date.now();
       return {
         ...prev,
-        lastResumeTime: Date.now(),
+        lastResumeTime: now,
+        pausedDuration: (prev.pausedDuration ?? 0) + (prev.pausedAt ? now - prev.pausedAt : 0),
         pausedAt: undefined,
         isActive: true
       };
