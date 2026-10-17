@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   FlatList,
   Alert,
+  TextInput,
 } from 'react-native';
 import { useWorkoutHistory } from '../workout/contexts/WorkoutHistoryContext';
 import { useNavigation, useScrollToTop } from '@react-navigation/native';
@@ -47,6 +48,7 @@ export const ProfileScreen: React.FC = () => {
   } | null>(null);
   const settingsButtonRef = useRef<View>(null);
   const scrollViewRef = useRef<ScrollView>(null);
+  const [exerciseSearch, setExerciseSearch] = useState('');
 
   // Charger le profil au montage
   useEffect(() => {
@@ -150,6 +152,15 @@ export const ProfileScreen: React.FC = () => {
       exercisesList
     };
   }, [completedWorkouts, records]);
+
+  // Recherche insensible à la casse et aux accents ("developpe" trouve "Développé")
+  const filteredExercises = useMemo(() => {
+    const normalize = (text: string) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    const query = normalize(exerciseSearch);
+    return query
+      ? workoutStats.exercisesList.filter(exercise => normalize(exercise.name).includes(query))
+      : workoutStats.exercisesList;
+  }, [workoutStats.exercisesList, exerciseSearch]);
 
   // Workouts récents triés (plus récents en premier)
   const recentWorkouts = useMemo(() => {
@@ -334,6 +345,8 @@ export const ProfileScreen: React.FC = () => {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
       >
         {/* Photo de profil */}
         <View style={styles.profilePhotoContainer}>
@@ -407,9 +420,27 @@ export const ProfileScreen: React.FC = () => {
               <Text style={styles.emptyText}>No recorded exercises</Text>
             </View>
           ) : (
-            workoutStats.exercisesList.map((exercise, index) => (
+            <>
+            <View style={styles.searchBar}>
+              <Ionicons name="search" size={18} color="rgba(255, 255, 255, 0.5)" />
+              <TextInput
+                style={styles.searchInput}
+                value={exerciseSearch}
+                onChangeText={setExerciseSearch}
+                placeholder="Search an exercise"
+                placeholderTextColor="rgba(255, 255, 255, 0.4)"
+                autoCorrect={false}
+                autoCapitalize="none"
+                returnKeyType="search"
+                clearButtonMode="while-editing"
+              />
+            </View>
+            {filteredExercises.length === 0 && (
+              <Text style={styles.noResultsText}>No exercise matches "{exerciseSearch.trim()}"</Text>
+            )}
+            {filteredExercises.map(exercise => (
               <TouchableOpacity 
-                key={`exercise-${index}`}
+                key={exercise.name}
                 style={styles.exerciseCard}
                 onPress={() => navigateToExerciseDetail(exercise.name)}
                 activeOpacity={0.7}
@@ -424,7 +455,8 @@ export const ProfileScreen: React.FC = () => {
                   <Ionicons name="arrow-forward" size={24} color="rgba(255, 255, 255, 0.6)" />
                 </View>
               </TouchableOpacity>
-            ))
+            ))}
+            </>
           )}
         </View>
       </ScrollView>
@@ -569,6 +601,27 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFFFFF',
     marginBottom: 16,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: '#FFFFFF',
+  },
+  noResultsText: {
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.5)',
+    textAlign: 'center',
+    paddingVertical: 24,
   },
   exerciseCard: {
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
