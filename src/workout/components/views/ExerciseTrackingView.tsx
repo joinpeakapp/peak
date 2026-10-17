@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Exercise } from '../../../types/workout';
 import { SetRow } from '../SetRow';
 import { TrackingSet } from '../../contexts/ActiveWorkoutContext';
+import { ExerciseRecordsSheet } from '../ExerciseRecordsSheet';
 
 interface ExerciseTrackingViewProps {
   exercise: Exercise | null;
@@ -52,6 +53,8 @@ export const ExerciseTrackingView: React.FC<ExerciseTrackingViewProps> = ({
   onRemoveSet,
   onAddSet,
 }) => {
+  const [recordsVisible, setRecordsVisible] = useState(false);
+
   return (
     <>
       <View style={styles.header}>
@@ -60,6 +63,15 @@ export const ExerciseTrackingView: React.FC<ExerciseTrackingViewProps> = ({
         </TouchableOpacity>
         
         <View style={styles.rightButtons}>
+          {exercise && (
+            <TouchableOpacity
+              style={[styles.settingsButton, { marginRight: 12 }]}
+              onPress={() => setRecordsVisible(true)}
+              accessibilityLabel="Show personal records"
+            >
+              <Ionicons name="trophy-outline" size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+          )}
           <TouchableOpacity 
             style={[styles.settingsButton, { marginRight: 16 }]}
             onPress={onOpenTimerSettings}
@@ -131,6 +143,14 @@ export const ExerciseTrackingView: React.FC<ExerciseTrackingViewProps> = ({
           <View style={styles.bottomPadding} />
         </ScrollView>
       </View>
+
+      {exercise && (
+        <ExerciseRecordsSheet
+          visible={recordsVisible}
+          exerciseName={exercise.name}
+          onClose={() => setRecordsVisible(false)}
+        />
+      )}
     </>
   );
 };

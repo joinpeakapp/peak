@@ -46,6 +46,7 @@ export interface UseWorkoutSessionReturn {
   
   // Fonctions de synchronisation des records
   updateOriginalRecordsForExercise: (exerciseName: string) => Promise<void>;
+  resetOriginalRecordsForExercise: (exerciseName: string) => void;
   syncOriginalRecordsWithExercises: (exerciseNames: string[]) => Promise<void>;
 }
 
@@ -369,6 +370,18 @@ export const useWorkoutSession = (): UseWorkoutSessionReturn => {
   );
 
   /**
+   * Remet à zéro les records de référence d'un exercice (après un reset depuis son écran de détail) :
+   * les séries suivantes sont comparées à un historique vide.
+   */
+  const resetOriginalRecordsForExercise = useCallback((exerciseName: string) => {
+    if (!isMounted.current) return;
+    setOriginalRecordsState(prev => ({
+      ...prev,
+      [exerciseName]: { exerciseName, maxWeight: 0, maxWeightDate: '', repsPerWeight: {} }
+    }));
+  }, []);
+
+  /**
    * Synchronise les originalRecords avec tous les exercices de la séance active.
    * S'assure que tous les exercices de la séance ont leurs records dans originalRecords.
    */
@@ -446,6 +459,7 @@ export const useWorkoutSession = (): UseWorkoutSessionReturn => {
   resetSessionMaxWeights,
   recalculateSessionMaxWeight,
   updateOriginalRecordsForExercise,
+  resetOriginalRecordsForExercise,
   syncOriginalRecordsWithExercises,
   };
 };

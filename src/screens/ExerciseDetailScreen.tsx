@@ -6,6 +6,7 @@ import { usePersonalRecords } from '../hooks/usePersonalRecords';
 import { PersonalRecord } from '../types/workout';
 import { ProfileStackParamList } from '../types/navigation';
 import { PRDeleteModal } from '../components/common/PRDeleteModal';
+import { ExerciseRecords } from '../components/ExerciseRecords';
 
 type ExerciseDetailRouteProp = RouteProp<ProfileStackParamList, 'ExerciseDetail'>;
 
@@ -13,7 +14,7 @@ export const ExerciseDetailScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute<ExerciseDetailRouteProp>();
   const { exerciseName } = route.params;
-  const { records, loadRecords, loading, deleteRepRecord } = usePersonalRecords();
+  const { records, loadRecords, loading, deleteRepRecord, deleteAllRecordsForExercise } = usePersonalRecords();
   const [exerciseRecord, setExerciseRecord] = useState<PersonalRecord | null>(null);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [deleteModalData, setDeleteModalData] = useState<{
@@ -88,6 +89,29 @@ export const ExerciseDetailScreen: React.FC = () => {
     }
   };
 
+  // Reset de toutes les données de l'exercice (la séance en cours est prévenue via usePersonalRecords)
+  const handleResetExercise = () => {
+    Alert.alert(
+      `Reset ${exerciseName}?`,
+      'This deletes your max weight and all repetition records for this exercise. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reset',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteAllRecordsForExercise(exerciseRecord?.exerciseName ?? exerciseName);
+              navigation.goBack();
+            } catch (error) {
+              Alert.alert('Error', 'Failed to reset this exercise. Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // Fermer la modale
   const handleCloseModal = () => {
     setDeleteModalVisible(false);
@@ -125,81 +149,21 @@ export const ExerciseDetailScreen: React.FC = () => {
           <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.title}>{exerciseName}</Text>
-        <View style={styles.placeholder} />
+        {exerciseRecord ? (
+          <TouchableOpacity style={styles.resetButton} onPress={handleResetExercise} activeOpacity={0.7}>
+            <Text style={styles.resetButtonText}>Reset</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.placeholder} />
+        )}
       </View>
 
       <ScrollView style={styles.scrollView}>
-        {exerciseRecord ? (
-          <>
-            {/* Max Weight Record */}
-            <View style={styles.recordCard}>
-              <View style={styles.recordHeader}>
-                <Text style={styles.recordTitle}>Max Weight</Text>
-                <View style={styles.trophy}>
-                  <Ionicons name="trophy" size={18} color="#FFD700" />
-                </View>
-              </View>
-              
-              <View style={styles.weightContainer}>
-                <Text style={styles.weightValue}>{exerciseRecord.maxWeight}</Text>
-                <Text style={styles.weightUnit}>kg</Text>
-              </View>
-              
-              <Text style={styles.recordDate}>
-                {new Date(exerciseRecord.maxWeightDate).toLocaleDateString('en-US', {
-                  year: 'numeric', 
-                  month: 'short', 
-                  day: 'numeric'
-                })}
-              </Text>
-            </View>
-
-            {/* Repetition Records by Weight */}
-            <Text style={styles.sectionTitle}>Repetition records by weight</Text>
-            
-            {Object.entries(exerciseRecord.repsPerWeight)
-              .sort((a, b) => parseFloat(b[0]) - parseFloat(a[0]))
-              .map(([weight, repRecord]) => (
-                <View key={weight} style={styles.repRecordCard}>
-                  <View style={styles.repRecordHeader}>
-                    <Text style={styles.repRecordWeight}>{weight} kg</Text>
-                    <TouchableOpacity 
-                      style={styles.deleteButton}
-                      onPress={() => handleLongPressRecord(weight, repRecord.reps)}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons name="close" size={18} color="#888888" />
-                    </TouchableOpacity>
-                  </View>
-                  
-                  <View style={styles.repRecordInfo}>
-                    <View style={styles.repValue}>
-                      <Text style={styles.repValueNumber}>{repRecord.reps}</Text>
-                      <Text style={styles.repValueUnit}>reps</Text>
-                    </View>
-                    
-                    <Text style={styles.repRecordDate}>
-                      {new Date(repRecord.date).toLocaleDateString('en-US', {
-                        year: 'numeric', 
-                        month: 'short', 
-                        day: 'numeric'
-                      })}
-                    </Text>
-                  </View>
-                </View>
-              ))}
-          </>
-        ) : (
-          <View style={styles.emptyState}>
-            <Ionicons name="barbell-outline" size={48} color="#555555" />
-            <Text style={styles.emptyStateText}>
-              No records found for {exerciseName}
-            </Text>
-            <Text style={styles.emptyStateSubtext}>
-              Complete workouts with this exercise to see your progress
-            </Text>
-          </View>
-        )}
+        <ExerciseRecords
+          record={exerciseRecord}
+          exerciseName={exerciseName}
+          onDeleteRepRecord={handleLongPressRecord}
+        />
       </ScrollView>
 
       <PRDeleteModal
@@ -241,120 +205,20 @@ const styles = StyleSheet.create({
   placeholder: {
     width: 40,
   },
+  resetButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 100,
+    backgroundColor: 'rgba(255, 59, 48, 0.15)',
+  },
+  resetButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FF453A',
+  },
   scrollView: {
     flex: 1,
     padding: 16,
-  },
-  recordCard: {
-    backgroundColor: '#1A1A1D',
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 24,
-  },
-  recordHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  recordTitle: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#AAAAAA',
-  },
-  trophy: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 215, 0, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  weightContainer: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    marginBottom: 8,
-  },
-  weightValue: {
-    fontSize: 42,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  weightUnit: {
-    fontSize: 18,
-    color: '#AAAAAA',
-    marginLeft: 8,
-  },
-  recordDate: {
-    fontSize: 14,
-    color: '#888888',
-  },
-
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginTop: 32,
-    marginBottom: 16,
-    marginLeft: 16,
-  },
-  repRecordCard: {
-    backgroundColor: '#1A1A1D',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-  },
-  repRecordHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  repRecordWeight: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  repRecordInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  repValue: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-  },
-  repValueNumber: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  repValueUnit: {
-    fontSize: 14,
-    color: '#AAAAAA',
-    marginLeft: 6,
-  },
-  repRecordDate: {
-    fontSize: 14,
-    color: '#888888',
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-  },
-  emptyStateText: {
-    fontSize: 18,
-    color: '#FFFFFF',
-    marginTop: 16,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  emptyStateSubtext: {
-    fontSize: 14,
-    color: '#888888',
-    textAlign: 'center',
-    maxWidth: '80%',
   },
   loadingContainer: {
     flex: 1,
@@ -366,10 +230,5 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#FFFFFF',
     fontWeight: '600',
-  },
-  deleteButton: {
-    padding: 4,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
 }); 

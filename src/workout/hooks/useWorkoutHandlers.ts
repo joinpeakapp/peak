@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Alert, LayoutAnimation, UIManager, Platform } from 'react-native';
 import { CommonActions, NavigationProp } from '@react-navigation/native';
 import { Workout, Exercise, CompletedWorkout, CompletedTime } from '../../types/workout';
@@ -10,6 +10,7 @@ import { StreakService } from '../../services/streakService';
 import { RobustStorageService } from '../../services/storage';
 import { calculateStickerHistoricalData, calculatePersonalRecord } from '../utils/workoutUtils';
 import logger from '../../utils/logger';
+import { onExerciseRecordsReset } from '../../hooks/usePersonalRecords';
 
 // Fonction pour générer un ID unique
 const generateId = (): string => {
@@ -141,6 +142,18 @@ export const useWorkoutHandlers = (props: UseWorkoutHandlersProps) => {
     currentExercises,
     navigation,
   } = props;
+
+  // Exercice remis à zéro depuis son écran de détail pendant la séance :
+  // oublier ses records de référence et ses badges PR / +1 déjà affichés
+  useEffect(() => {
+    if (!isTrackingWorkout || !activeWorkout) return;
+    return onExerciseRecordsReset(exerciseName => {
+      activeWorkout.exercises
+        .filter((exercise: Exercise) => exercise.name === exerciseName)
+        .forEach((exercise: Exercise) => workoutSession.clearExercisePRs(exercise.id));
+      workoutSession.resetOriginalRecordsForExercise(exerciseName);
+    });
+  }, [isTrackingWorkout, activeWorkout, workoutSession]);
 
   // Fonction pour sauvegarder les modifications
   const handleSaveChanges = useCallback(() => {

@@ -20,6 +20,15 @@ class RecordsEventManager {
 
 const recordsEventManager = new RecordsEventManager();
 
+// Prévient la séance en cours qu'un exercice a été remis à zéro (ses records copiés au départ sont alors périmés)
+const exerciseResetListeners = new Set<(exerciseName: string) => void>();
+export const onExerciseRecordsReset = (listener: (exerciseName: string) => void) => {
+  exerciseResetListeners.add(listener);
+  return () => {
+    exerciseResetListeners.delete(listener);
+  };
+};
+
 /**
  * Hook unifié pour gérer les Personal Records.
  * Fournit des méthodes pour charger, vérifier et mettre à jour les PRs.
@@ -255,6 +264,7 @@ export const usePersonalRecords = () => {
         
         // Notifier les autres instances
         recordsEventManager.notify();
+        exerciseResetListeners.forEach(listener => listener(exerciseName));
         
         } catch (error) {
         logger.error(`[usePersonalRecords:${instanceId}] Error deleting all records:`, error);
