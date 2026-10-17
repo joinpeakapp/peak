@@ -9,6 +9,7 @@ struct PeakWidgetBundle: WidgetBundle {
   }
 }
 
+private let background = Color(red: 0.09, green: 0.09, blue: 0.10)
 private let secondaryText = Color.white.opacity(0.55)
 
 private func formatDuration(_ seconds: Double) -> String {
@@ -24,18 +25,21 @@ extension PeakWorkoutAttributes.ContentState {
     return end.addingTimeInterval(-max(0, restTotal ?? 0))...end
   }
 
-  var subtitle: String? {
-    let sets: String? = totalSets > 0 ? "\(min(completedSets, totalSets))/\(totalSets) sets" : nil
-    let parts = [exerciseName, sets].compactMap { $0 }
-    return parts.isEmpty ? nil : parts.joined(separator: " · ")
+  func status(resting: Bool) -> String {
+    if resting { return "Resting" }
+    return pausedElapsed == nil ? "In progress" : "Paused"
   }
 }
 
-struct ElapsedText: View {
+// Rest countdown while resting, workout duration otherwise.
+struct MainTimer: View {
   let state: PeakWorkoutAttributes.ContentState
+  let rest: ClosedRange<Date>?
 
   var body: some View {
-    if let paused = state.pausedElapsed {
+    if let rest {
+      Text(timerInterval: rest, countsDown: true)
+    } else if let paused = state.pausedElapsed {
       Text(formatDuration(paused))
     } else {
       Text(state.startedAt, style: .timer)
@@ -43,154 +47,102 @@ struct ElapsedText: View {
   }
 }
 
-struct WorkoutIcon: View {
-  var size: CGFloat = 36
+struct ProgressBar: View {
+  let state: PeakWorkoutAttributes.ContentState
+  let rest: ClosedRange<Date>?
 
   var body: some View {
-    Image(systemName: "dumbbell.fill")
-      .font(.system(size: size * 0.44, weight: .semibold))
-      .foregroundStyle(.black)
-      .frame(width: size, height: size)
-      .background(Circle().fill(.white))
-  }
-}
-
-struct RestBar: View {
-  let rest: ClosedRange<Date>
-
-  var body: some View {
-    HStack(spacing: 10) {
-      Text("REST")
-        .font(.system(size: 11, weight: .bold))
-        .tracking(1)
-        .foregroundStyle(secondaryText)
-      ProgressView(timerInterval: rest, countsDown: true, label: { EmptyView() }, currentValueLabel: { EmptyView() })
-        .tint(.white)
-      Text(timerInterval: rest, countsDown: true)
-        .font(.system(size: 15, weight: .semibold).monospacedDigit())
-        .foregroundStyle(.white)
-        .multilineTextAlignment(.trailing)
-        .frame(width: 52, alignment: .trailing)
+    Group {
+      if let rest {
+        ProgressView(timerInterval: rest, countsDown: true, label: { EmptyView() }, currentValueLabel: { EmptyView() })
+      } else {
+        ProgressView(value: Double(min(state.completedSets, state.totalSets)), total: Double(max(state.totalSets, 1)))
+      }
     }
+    .tint(.white)
+    .scaleEffect(x: 1, y: 2, anchor: .center)
   }
 }
 
-struct SetsBar: View {
+struct WorkoutContent: View {
   let state: PeakWorkoutAttributes.ContentState
+  let rest: ClosedRange<Date>?
+  var timerSize: CGFloat = 52
+  var countSize: CGFloat = 40
+  var labelSize: CGFloat = 17
 
   var body: some View {
-    ProgressView(value: Double(min(state.completedSets, state.totalSets)), total: Double(state.totalSets))
-      .tint(.white)
-  }
-}
-
-struct LockScreenView: View {
-  let state: PeakWorkoutAttributes.ContentState
-  let isStale: Bool
-
-  var body: some View {
-    let rest = state.restRange(isStale: isStale)
-    VStack(alignment: .leading, spacing: 14) {
-      HStack(alignment: .center, spacing: 12) {
-        WorkoutIcon()
+    VStack(alignment: .leading, spacing: timerSize * 0.32) {
+      HStack(alignment: .bottom, spacing: 12) {
         VStack(alignment: .leading, spacing: 2) {
-          Text(state.workoutName)
-            .font(.system(size: 16, weight: .semibold))
+          MainTimer(state: state, rest: rest)
+            .font(.system(size: timerSize, weight: .bold).monospacedDigit())
             .foregroundStyle(.white)
             .lineLimit(1)
-          if let subtitle = state.subtitle {
-            Text(subtitle)
-              .font(.system(size: 13, weight: .medium))
+            .minimumScaleFactor(0.6)
+          (Text(state.workoutName).fontWeight(.semibold) + Text(" · \(state.status(resting: rest != nil))"))
+            .font(.system(size: labelSize))
+            .foregroundStyle(.white)
+            .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+
+        if state.totalSets > 0 {
+          VStack(alignment: .trailing, spacing: 2) {
+            (Text("\(min(state.completedSets, state.totalSets))")
+              .font(.system(size: countSize, weight: .bold))
+              .foregroundColor(.white)
+              + Text(" /\(state.totalSets)")
+              .font(.system(size: countSize * 0.65, weight: .bold))
+              .foregroundColor(secondaryText))
+              .monospacedDigit()
+            Text(state.exerciseName ?? "Sets")
+              .font(.system(size: labelSize))
               .foregroundStyle(secondaryText)
               .lineLimit(1)
           }
+          .frame(maxWidth: 150, alignment: .trailing)
+          .fixedSize(horizontal: false, vertical: true)
         }
-        Spacer(minLength: 8)
-        ElapsedText(state: state)
-          .font(.system(size: 28, weight: .semibold).monospacedDigit())
-          .foregroundStyle(.white)
-          .multilineTextAlignment(.trailing)
-          .frame(maxWidth: 120, alignment: .trailing)
       }
-      if let rest {
-        RestBar(rest: rest)
-      } else if state.totalSets > 0 {
-        SetsBar(state: state)
-      }
+      ProgressBar(state: state, rest: rest)
     }
-    .padding(16)
   }
 }
 
 struct PeakWorkoutLiveActivity: Widget {
   var body: some WidgetConfiguration {
     ActivityConfiguration(for: PeakWorkoutAttributes.self) { context in
-      LockScreenView(state: context.state, isStale: context.isStale)
-        .activityBackgroundTint(.black)
+      WorkoutContent(state: context.state, rest: context.state.restRange(isStale: context.isStale))
+        .padding(.horizontal, 22)
+        .padding(.vertical, 20)
+        .activityBackgroundTint(background)
         .activitySystemActionForegroundColor(.white)
     } dynamicIsland: { context in
       let state = context.state
       let rest = state.restRange(isStale: context.isStale)
-      let compactIcon = rest == nil ? "dumbbell.fill" : "timer"
 
       return DynamicIsland {
-        DynamicIslandExpandedRegion(.leading) {
-          WorkoutIcon(size: 32)
-            .padding(.leading, 4)
-        }
-        DynamicIslandExpandedRegion(.trailing) {
-          ElapsedText(state: state)
-            .font(.system(size: 22, weight: .semibold).monospacedDigit())
-            .foregroundStyle(.white)
-            .multilineTextAlignment(.trailing)
-            .frame(maxWidth: 100, alignment: .trailing)
-            .padding(.trailing, 4)
-        }
-        DynamicIslandExpandedRegion(.center) {
-          VStack(spacing: 2) {
-            Text(state.workoutName)
-              .font(.system(size: 15, weight: .semibold))
-              .foregroundStyle(.white)
-              .lineLimit(1)
-            if let subtitle = state.subtitle {
-              Text(subtitle)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(secondaryText)
-                .lineLimit(1)
-            }
-          }
-        }
         DynamicIslandExpandedRegion(.bottom) {
-          if let rest {
-            RestBar(rest: rest)
-              .padding(.horizontal, 4)
-              .padding(.top, 6)
-          } else if state.totalSets > 0 {
-            SetsBar(state: state)
-              .padding(.horizontal, 4)
-              .padding(.top, 6)
-          }
+          WorkoutContent(state: state, rest: rest, timerSize: 40, countSize: 32, labelSize: 15)
+            .padding(.horizontal, 8)
         }
       } compactLeading: {
-        Image(systemName: compactIcon)
-          .font(.system(size: 13, weight: .semibold))
+        Text(state.totalSets > 0 ? "\(min(state.completedSets, state.totalSets))/\(state.totalSets)" : "")
+          .font(.system(size: 14, weight: .bold).monospacedDigit())
           .foregroundStyle(.white)
       } compactTrailing: {
-        Group {
-          if let rest {
-            Text(timerInterval: rest, countsDown: true)
-          } else {
-            ElapsedText(state: state)
-          }
-        }
-        .font(.system(size: 14, weight: .semibold).monospacedDigit())
-        .foregroundStyle(.white)
-        .multilineTextAlignment(.trailing)
-        .frame(width: 52)
-      } minimal: {
-        Image(systemName: compactIcon)
-          .font(.system(size: 13, weight: .semibold))
+        MainTimer(state: state, rest: rest)
+          .font(.system(size: 14, weight: .bold).monospacedDigit())
           .foregroundStyle(.white)
+          .multilineTextAlignment(.trailing)
+          .frame(width: 52)
+      } minimal: {
+        MainTimer(state: state, rest: rest)
+          .font(.system(size: 11, weight: .bold).monospacedDigit())
+          .foregroundStyle(.white)
+          .multilineTextAlignment(.center)
+          .frame(width: 36)
       }
       .keylineTint(.white)
     }
